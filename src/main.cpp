@@ -50,6 +50,7 @@ constexpr float CLEAR_COLOR[] = { 0.1f, 0.1f, 0.15f, 1.0f };
 // ============================================================================
 struct CmdArgs {
     bool headless = false;
+    bool use_tbr = true;  // 默认使用TBR
     const char* output_dir = ".";
 };
 
@@ -60,6 +61,8 @@ CmdArgs parseArgs(int argc, char* argv[]) {
             args.headless = true;
         } else if (strcmp(argv[i], "--output") == 0 && i + 1 < argc) {
             args.output_dir = argv[++i];
+        } else if (strcmp(argv[i], "--no-tbr") == 0) {
+            args.use_tbr = false;
         }
     }
     return args;
@@ -88,10 +91,16 @@ int runHeadless(const CmdArgs& args) {
     // 创建渲染管线
     RenderPipeline pipeline;
 
+    // 可选：禁用TBR模式（直接渲染到framebuffer）
+    if (!args.use_tbr) {
+        pipeline.setTBREnabled(false);
+        printf("[INFO] TBR mode disabled\n");
+    }
+
     // 创建渲染命令
     RenderCommand cmd;
     cmd.vertexBufferData = vertices;
-    cmd.vertexBufferSize = 12;  // 3 vertices * 4 floats
+    cmd.vertexBufferSize = 24;  // 3 vertices * 8 floats (pos + color)
     cmd.drawParams.vertexCount = 3;
     cmd.drawParams.indexed = false;
     cmd.modelMatrix = identityMatrix();
