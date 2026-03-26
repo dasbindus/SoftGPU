@@ -1,0 +1,23 @@
+# Build outputs
+build/
+*.o
+*.a
+*.so
+*.dylib
+*.exe
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Private/internal - excluded from git
+internal/
+
+# Logs
+*.log

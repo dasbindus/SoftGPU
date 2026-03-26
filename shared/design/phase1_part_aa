@@ -1,0 +1,461 @@
+# PHASE1 Design Document — SoftGPU 软件 Tile-Based GPU 模拟器
+
+**项目名称：** SoftGPU Pixel Workshop  
+**阶段：** PHASE1 — 最小可运行 GPU，渲染三角形  
+**架构师：** 艾拉（@ayla）  
+**日期：** 2026-03-26  
+**版本：** v1.0
+
+---
+
+## 1. 阶段目标
+
+### 1.1 核心目标
+
+实现一个最小可运行的软件 GPU 模拟器，能够：
+- 接收 DrawCall 命令（VB / IB / 渲染参数）
+- 执行完整的渲染管线（VS → PA → Rasterizer → FS → Framebuffer）
+- 输出正确的三角形渲染结果到 CPU 端 Framebuffer
+
+### 1.2 功能范围
+
+| 模块 | 功能 | 边界 |
+|------|------|------|
+| CommandProcessor | 解析 DrawCall，提取 VB/IB | 仅支持三角形列表（Triangle List） |
+| VertexShader | MVP 变换，并行处理顶点 | MVP 矩阵外部传入，Phase1 固定功能 |
+| PrimitiveAssembly | 组装三角形 + AABB 视锥剔除 | 简单 bounding box 剔除 |
+| Rasterizer | DDA 光栅化 | 输出 Edge Function fragment 列表 |
+| FragmentShader | Flat color 或纹理采样 | Phase1 仅支持 flat color |
+| Framebuffer | Color buffer + Depth buffer | 640×480 float，Z-test |
+| TileWriteBack | Tile 写回 GMEM | 模拟，无实际 GMEM |
+
+### 1.3 技术约束
+
+- **语言：** C++17
+- **构建：** CMake 3.15+
+- **依赖：** 仅标准库 + GLSL（可选）
+- **线程：** 单线程顺序执行（Phase2 再引入 MTL）
+- **Framebuffer：** CPU 端 640×480 RGBA float
+
+---
+
+## 2. 渲染管线架构
+
+### 2.1 管线流程图
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              Render Pipeline                                  │
+│                                                                              │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐    ┌────────────┐  │
+│  │   Host CPU   │───▶│  Command     │───▶│  Vertex      │───▶│ Primitive  │  │
+│  │  (App/Game)  │    │  Processor   │    │  Shader      │    │  Assembly  │  │
+│  └──────────────┘    └──────────────┘    └──────────────┘    └────────────┘  │
+│                                                                      │        │
+│                                                                      ▼        │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐    ┌────────────┐  │
+│  │   GMEM       │◀───│   Tile       │◀───│   Fragment   │◀───│ Rasterizer │  │
+│  │  (Simulated) │    │  WriteBack   │    │   Shader     │    │            │  │
+│  └──────────────┘    └──────────────┘    └──────────────┘    └────────────┘  │
+│                                            ▲                                   │
+│                                            │                                   │
+│  ┌──────────────┐                         │                                   │
+│  │   Depth      │─────────────────────────┘                                   │
+│  │   Test       │                                                               │
+│  └──────────────┘                                                               │
+│                                                                              │
+│  ┌──────────────────────────────────────────────────────────────────────┐     │
+│  │                        Framebuffer (640×480 RGBA float)               │     │
+│  └──────────────────────────────────────────────────────────────────────┘     │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 2.2 Stage 数据流
+
+```
+DrawCommand
+    │
+    ▼
+CommandProcessor
+    │  VertexBuffer + IndexBuffer + Uniforms
+    ▼
+VertexShader Stage  [计时开始]
+    │  Transformed vertices (clip space)
+    ▼
+PrimitiveAssembly
+    │  Assembled triangles + culling
+    ▼
+Rasterizer  [计时开始]
+    │  Fragment list
+    ▼
+FragmentShader  [计时开始]
+    │  Shaded fragments
+    ▼
+DepthTest
+    │  Passed fragments
+    ▼
+TileWriteBack  [计时开始]
+    │  Written to GMEM
+    ▼
+Present (Frame done)
+```
+
+### 2.3 执行顺序说明
+
+Phase1 为**单线程顺序执行**，每个 Stage 按以下顺序执行：
+1. CommandProcessor 解析命令
+2. VertexShader 处理所有顶点（输出 clip-space vertices）
+3. PrimitiveAssembly 组装三角形 + 剔除
+4. Rasterizer 光栅化（输出覆盖的 fragment 列表）
+5. FragmentShader 逐 fragment 执行
+6. DepthTest + Framebuffer Write
+7. TileWriteBack 写回 GMEM
+
+---
+
+## 3. 模块接口定义
+
+### 3.1 抽象基类：IStage
+
+所有 Stage 继承自 `IStage`，提供统一接口：
+
+```cpp
+// shared/include/SoftGPU/stages/IStage.hpp
+#pragma once
+#include <cstdint>
+#include <string>
+
+namespace SoftGPU {
+
+struct PerformanceCounters {
+    uint64_t cycle_count = 0;      // 周期计数
+    uint64_t invocation_count = 0; // 调用次数
+    double   elapsed_ms = 0.0;     // 耗时(ms)
+};
+
+class IStage {
+public:
+    virtual ~IStage() = default;
+    
+    // 阶段名称
+    virtual const char* getName() const = 0;
+    
+    // 执行阶段（子类实现）
+    virtual void execute() = 0;
+    
+    // 获取性能计数器
+    virtual const PerformanceCounters& getCounters() const = 0;
+    
+    // 重置计数器
+    virtual void resetCounters() = 0;
+};
+
+} // namespace SoftGPU
+```
+
+### 3.2 CommandProcessor
+
+**职责：** 接收 DrawCall 参数，解析 VB / IB，准备渲染数据。
+
+```cpp
+// shared/include/SoftGPU/stages/CommandProcessor.hpp
+#pragma once
+#include "IStage.hpp"
+#include "RenderCommand.hpp"
+#include <memory>
+#include <vector>
+
+namespace SoftGPU {
+
+class VertexShader;
+class IRenderBackend;
+
+class CommandProcessor : public IStage {
+public:
+    CommandProcessor(IRenderBackend* backend);
+    
+    // 设置当前命令（由 App 层调用）
+    void setCommand(const RenderCommand& cmd);
+    
+    // IStage 实现
+    const char* getName() const override { return "CommandProcessor"; }
+    void execute() override;
+    const PerformanceCounters& getCounters() const override { return m_counters; }
+    void resetCounters() override;
+    
+    // 供后续 Stage 获取数据
+    const std::vector<float>& getVertexBuffer() const;
+    const std::vector<uint32_t>& getIndexBuffer() const;
+    const DrawParams& getDrawParams() const;
+
+private:
+    IRenderBackend* m_backend;
+    RenderCommand m_currentCommand;
+    PerformanceCounters m_counters;
+    
+    std::vector<float> m_vertexBuffer;
+    std::vector<uint32_t> m_indexBuffer;
+    DrawParams m_drawParams;
+};
+
+} // namespace SoftGPU
+```
+
+### 3.3 VertexShader
+
+**职责：** MVP 变换，处理顶点。
+
+```cpp
+// shared/include/SoftGPU/stages/VertexShader.hpp
+#pragma once
+#include "IStage.hpp"
+#include <vector>
+#include <array>
+
+namespace SoftGPU {
+
+struct Vertex {
+    float x, y, z, w;   // Position (clip space after transform)
+    float r, g, b, a;   // Color
+};
+
+struct Uniforms {
+    std::array<float, 16> modelMatrix;      // 4x4 column-major
+    std::array<float, 16> viewMatrix;
+    std::array<float, 16> projectionMatrix;
+    float viewportWidth = 640.0f;
+    float viewportHeight = 480.0f;
+};
+
+class VertexShader : public IStage {
+public:
+    VertexShader();
+    
+    // 设置输入数据（来自 CommandProcessor）
+    void setInput(const std::vector<float>& vb,
+                  const std::vector<uint32_t>& ib,
+                  const Uniforms& uniforms);
+    
+    // 设置要处理的顶点数量
+    void setVertexCount(size_t count);
+    
+    // IStage 实现
+    const char* getName() const override { return "VertexShader"; }
+    void execute() override;
+    const PerformanceCounters& getCounters() const override { return m_counters; }
+    void resetCounters() override;
+    
+    // 供后续 Stage 获取变换后的顶点
+    const std::vector<Vertex>& getOutput() const;
+
+private:
+    std::vector<float> m_vertexBuffer;
+    std::vector<uint32_t> m_indexBuffer;
+    Uniforms m_uniforms;
+    size_t m_vertexCount = 0;
+    
+    std::vector<Vertex> m_outputVertices;
+    PerformanceCounters m_counters;
+    
+    // 内部：执行 MVP 变换
+    Vertex transformVertex(const float* rawVertex) const;
+    Vertex applyMVP(const Vertex& v, const Uniforms& u) const;
+};
+
+} // namespace SoftGPU
+```
+
+### 3.4 PrimitiveAssembly
+
+**职责：** 组装三角形，执行 AABB 视锥剔除。
+
+```cpp
+// shared/include/SoftGPU/stages/PrimitiveAssembly.hpp
+#pragma once
+#include "IStage.hpp"
+#include "VertexShader.hpp"
+#include <vector>
+
+namespace SoftGPU {
+
+struct Triangle {
+    Vertex v[3];  // 三个顶点（NDC space）
+    bool culled = false;
+};
+
+class PrimitiveAssembly : public IStage {
+public:
+    PrimitiveAssembly();
+    
+    // 设置输入（来自 VertexShader 输出）
+    void setInput(const std::vector<Vertex>& vertices,
+                  const std::vector<uint32_t>& indices);
+    
+    // IStage 实现
+    const char* getName() const override { return "PrimitiveAssembly"; }
+    void execute() override;
+    const PerformanceCounters& getCounters() const override { return m_counters; }
+    void resetCounters() override;
+    
+    // 供后续 Stage 获取三角形列表
+    const std::vector<Triangle>& getOutput() const;
+
+private:
+    std::vector<Vertex> m_inputVertices;
+    std::vector<uint32_t> m_inputIndices;
+    std::vector<Triangle> m_outputTriangles;
+    PerformanceCounters m_counters;
+    
+    // 内部：视锥剔除（AABB）
+    bool shouldCull(const Triangle& tri) const;
+    
+    // 内部：计算 AABB
+    void computeAABB(const Triangle& tri, float& minX, float& maxX,
+                     float& minY, float& maxY, float& minZ, float& maxZ) const;
+};
+
+} // namespace SoftGPU
+```
+
+### 3.5 Rasterizer
+
+**职责：** DDA 光栅化，输出 fragment 列表。
+
+```cpp
+// shared/include/SoftGPU/stages/Rasterizer.hpp
+#pragma once
+#include "IStage.hpp"
+#include "PrimitiveAssembly.hpp"
+#include <vector>
+
+namespace SoftGPU {
+
+struct Fragment {
+    uint32_t x, y;       // 屏幕坐标（像素）
+    float z;             // 深度值
+    float r, g, b, a;    // 插值颜色
+    float u, v;         // 纹理坐标（Phase1 可能不用）
+};
+
+class Rasterizer : public IStage {
+public:
+    Rasterizer();
+    
+    // 设置视口尺寸
+    void setViewport(uint32_t width, uint32_t height);
+    
+    // 设置输入三角形（来自 PrimitiveAssembly）
+    void setInput(const std::vector<Triangle>& triangles);
+    
+    // IStage 实现
+    const char* getName() const override { return "Rasterizer"; }
+    void execute() override;
+    const PerformanceCounters& getCounters() const override { return m_counters; }
+    void resetCounters() override;
+    
+    // 供后续 Stage 获取 fragment 列表
+    const std::vector<Fragment>& getOutput() const;
+
+private:
+    uint32_t m_viewportWidth = 640;
+    uint32_t m_viewportHeight = 480;
+    std::vector<Triangle> m_inputTriangles;
+    std::vector<Fragment> m_outputFragments;
+    PerformanceCounters m_counters;
+    
+    // 内部：光栅化单个三角形（Edge Function DDA）
+    void rasterizeTriangle(const Triangle& tri);
+    
+    // 内部：计算 edge function
+    float edgeFunction(const Vertex& a, const Vertex& b, const Vertex& c) const;
+    
+    // 内部：重心坐标插值
+    void interpolateAttributes(const Triangle& tri, float baryX, float baryY, Fragment& frag) const;
+};
+
+} // namespace SoftGPU
+```
+
+### 3.6 FragmentShader
+
+**职责：** 逐 fragment 执行着色（Phase1：flat color）。
+
+```cpp
+// shared/include/SoftGPU/stages/FragmentShader.hpp
+#pragma once
+#include "IStage.hpp"
+#include "Rasterizer.hpp"
+#include <vector>
+
+namespace SoftGPU {
+
+class FragmentShader : public IStage {
+public:
+    FragmentShader();
+    
+    // 设置输入 fragments
+    void setInput(const std::vector<Fragment>& fragments);
+    
+    // IStage 实现
+    const char* getName() const override { return "FragmentShader"; }
+    void execute() override;
+    const PerformanceCounters& getCounters() const override { return m_counters; }
+    void resetCounters() override;
+    
+    // 供后续 Stage 获取着色后的 fragments
+    const std::vector<Fragment>& getOutput() const;
+
+private:
+    std::vector<Fragment> m_inputFragments;
+    std::vector<Fragment> m_outputFragments;
+    PerformanceCounters m_counters;
+    
+    // 内部：逐 fragment 着色（Phase1 直接输出输入颜色）
+    Fragment shade(const Fragment& input) const;
+};
+
+} // namespace SoftGPU
+```
+
+### 3.7 Framebuffer
+
+**职责：** 管理 color buffer 和 depth buffer，执行 Z-test。
+
+```cpp
+// shared/include/SoftGPU/stages/Framebuffer.hpp
+#pragma once
+#include "IStage.hpp"
+#include "FragmentShader.hpp"
+#include <vector>
+#include <cstring>
+
+namespace SoftGPU {
+
+class Framebuffer : public IStage {
+public:
+    static constexpr uint32_t WIDTH = 640;
+    static constexpr uint32_t HEIGHT = 480;
+    static constexpr uint32_t PIXEL_COUNT = WIDTH * HEIGHT;
+    
+    Framebuffer();
+    ~Framebuffer();
+    
+    // 设置输入（来自 FragmentShader）
+    void setInput(const std::vector<Fragment>& fragments);
+    
+    // 清空 framebuffer
+    void clear(const float* clearColor = nullptr);
+    
+    // IStage 实现
+    const char* getName() const override { return "Framebuffer"; }
+    void execute() override;
+    const PerformanceCounters& getCounters() const override { return m_counters; }
+    void resetCounters() override;
+    
+    // 获取 framebuffer 指针（供渲染/导出）
+    const float* getColorBuffer() const { return m_colorBuffer.data(); }
+    const float* getDepthBuffer() const { return m_depthBuffer.data(); }
+
+private:
+    std::vector<Fragment> m_inputFragments;
+    std::vector<float>
