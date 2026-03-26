@@ -31,3 +31,8 @@ add_executable(test_Integration test_Integration.cpp)
 target_link_libraries(test_Integration PRIVATE stages pipeline core ${GTEST_LIBS})
 include(GoogleTest)
 gtest_discover_tests(test_Integration)
+
+add_executable(test_PipelineVerification test_PipelineVerification.cpp)
+target_link_libraries(test_PipelineVerification PRIVATE stages pipeline core ${GTEST_LIBS})
+include(GoogleTest)
+gtest_discover_tests(test_PipelineVerification)
