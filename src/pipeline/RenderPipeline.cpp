@@ -296,8 +296,13 @@ void RenderPipeline::executeTile(uint32_t tileIndex, uint32_t tileX, uint32_t ti
     TileBuffer& tileMem = m_tileBuffer.getTileBuffer(tileIndex);
 
     // Step 1: Load tile from GMEM (initialize LMEM with GMEM state)
-    // PHASE3: Actually load from GMEM to preserve "previous frame" data at tile boundaries
-    m_tileWriteBack.loadTileFromGMEM(tileIndex, &m_memory, tileMem);
+    // Only load previous frame data for tiles WITHOUT current triangles.
+    // For tiles WITH current triangles, we want FRESH rendering (not mixed with previous frame).
+    if (bin.triangleIndices.empty()) {
+        // No current triangles - preserve previous frame's data
+        m_tileWriteBack.loadTileFromGMEM(tileIndex, &m_memory, tileMem);
+    }
+    // For tiles with triangles, skip load - we want fresh rendering
 
     // Step 2: Rasterizer (per-tile) - outputs fragments with screen coords
     m_rasterizer.setInputPerTile(tileTriangles, tileX, tileY);

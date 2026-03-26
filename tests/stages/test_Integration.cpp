@@ -186,19 +186,15 @@ TEST(IntegrationTest, PPM_Header_Correct) {
     std::getline(f, maxval);
     EXPECT_EQ(maxval, "255");
 
-    // 验证有彩色像素（不只是黑色）
-    int totalPixels = 640 * 480;
+    // 验证有彩色像素（不只是黑色）- scan entire file
     int nonBlack = 0;
-    const int skip = 1000;  // Sample every 1000th pixel
-    for (int i = 0; i < totalPixels; i += skip) {
-        uint8_t rgb[3];
-        f.read(reinterpret_cast<char*>(rgb), 3);
-        if (!f) break;
-        if (rgb[0] > 0 || rgb[1] > 0 || rgb[2] > 0) {
+    std::vector<uint8_t> pixel(3);
+    while (f.read(reinterpret_cast<char*>(pixel.data()), 3)) {
+        if (pixel[0] > 0 || pixel[1] > 0 || pixel[2] > 0) {
             nonBlack++;
         }
     }
-    EXPECT_GT(nonBlack, 10) << "Expected some colored pixels in RGB triangle";
+    EXPECT_GT(nonBlack, 100) << "Expected some colored pixels in RGB triangle";
 }
 
 // ---------------------------------------------------------------------------

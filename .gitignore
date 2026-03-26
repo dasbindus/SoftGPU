@@ -23,3 +23,4 @@ internal/
 *.log
 DEV_LOG_BAK.md
 green_triangle.ppm
+*.ppm
