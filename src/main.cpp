@@ -5,9 +5,10 @@
 //   2. Headless模式: 只输出PPM，无需图形界面
 //
 // 用法:
-//   ./SoftGPU                        # GUI模式
-//   ./SoftGPU --headless             # Headless模式，输出到当前目录
-//   ./SoftGPU --headless --output /tmp/  # Headless模式，输出到指定目录
+//   ./SoftGPU                                    # GUI模式
+//   ./SoftGPU --headless                        # Headless模式，输出到当前目录
+//   ./SoftGPU --headless --output /tmp/         # Headless模式，输出到指定目录
+//   ./SoftGPU --headless --scene Triangle-1Tri  # Headless模式，指定场景
 // ============================================================================
 
 #include <glad/glad.h>
@@ -30,6 +31,7 @@
 #include "renderer/ImGuiRenderer.hpp"
 #include "pipeline/RenderPipeline.hpp"
 #include "core/PipelineTypes.hpp"
+#include "test/TestScene.hpp"
 
 // Helper: build identity matrix array
 std::array<float, 16> identityMatrix() {
@@ -56,6 +58,7 @@ struct CmdArgs {
     bool headless = false;
     bool use_tbr = true;  // 默认使用TBR
     const char* output_dir = ".";
+    const char* scene_name = "Triangle-1Tri";  // 默认场景
 };
 
 CmdArgs parseArgs(int argc, char* argv[]) {
@@ -67,6 +70,8 @@ CmdArgs parseArgs(int argc, char* argv[]) {
             args.output_dir = argv[++i];
         } else if (strcmp(argv[i], "--no-tbr") == 0) {
             args.use_tbr = false;
+        } else if (strcmp(argv[i], "--scene") == 0 && i + 1 < argc) {
+            args.scene_name = argv[++i];
         }
     }
     return args;
@@ -78,19 +83,22 @@ CmdArgs parseArgs(int argc, char* argv[]) {
 int runHeadless(const CmdArgs& args) {
     printf("[INFO] Running in HEADLESS mode\n");
     printf("[INFO] Output directory: %s\n", args.output_dir);
+    printf("[INFO] Scene: %s\n", args.scene_name);
 
-    // 绿色三角形顶点数据
-    float vertices[] = {
-        // v0: top center
-        0.0f, 0.5f, 0.0f, 1.0f,
-        0.0f, 1.0f, 0.0f, 1.0f,  // green
-        // v1: bottom left
-        -0.5f, -0.5f, 0.0f, 1.0f,
-        0.0f, 1.0f, 0.0f, 1.0f,  // green
-        // v2: bottom right
-        0.5f, -0.5f, 0.0f, 1.0f,
-        0.0f, 1.0f, 0.0f, 1.0f,  // green
-    };
+    // 注册内置场景
+    TestSceneRegistry::instance().registerBuiltinScenes();
+
+    // 获取指定场景
+    auto scene = TestSceneRegistry::instance().getScene(args.scene_name);
+    if (!scene) {
+        printf("[ERROR] Scene not found: %s\n", args.scene_name);
+        printf("[INFO] Available scenes:\n");
+        for (const auto& name : TestSceneRegistry::instance().getAllSceneNames()) {
+            printf("  - %s\n", name.c_str());
+        }
+        return -1;
+    }
+    printf("[INFO] Found scene: %s (%s)\n", scene->getName().c_str(), scene->getDescription().c_str());
 
     // 创建渲染管线
     RenderPipeline pipeline;
@@ -103,22 +111,14 @@ int runHeadless(const CmdArgs& args) {
 
     // 创建渲染命令
     RenderCommand cmd;
-    cmd.vertexBufferData = vertices;
-    cmd.vertexBufferSize = 24;  // 3 vertices * 8 floats (pos + color)
-    cmd.drawParams.vertexCount = 3;
-    cmd.drawParams.indexed = false;
-    cmd.modelMatrix = identityMatrix();
-    cmd.viewMatrix = identityMatrix();
-    cmd.projectionMatrix = identityMatrix();
+    scene->buildRenderCommand(cmd);
     cmd.clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
 
     // 渲染
-    printf("[INFO] Rendering green triangle...\n");
+    printf("[INFO] Rendering...\n");
     pipeline.render(cmd);
 
     // 输出PPM
-    char outputPath[512];
-    snprintf(outputPath, sizeof(outputPath), "%s/green_triangle.ppm", args.output_dir);
     pipeline.setDumpOutputPath(args.output_dir);
     pipeline.dump("frame_0000.ppm");
 
