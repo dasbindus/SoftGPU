@@ -79,6 +79,9 @@ constexpr float32 HALF_PI   = 1.57079632679489f;
 constexpr float32 INV_PI    = 0.31830988618379f;
 
 constexpr float32 EPSILON   = 1.19209289550781e-7f;
+#ifdef INFINITY
+#undef INFINITY
+#endif
 constexpr float32 INFINITY  = 3.402823466e+38f;
 
 } // namespace SoftGPU
