@@ -323,10 +323,10 @@ void RenderPipeline::executeTile(uint32_t tileIndex, uint32_t tileX, uint32_t ti
 }
 
 void RenderPipeline::dump(const std::string& filename) const {
-    // Use GMEM color data if TBR was used, otherwise use framebuffer
+    // Sync GMEM to Framebuffer first for consistent output
     if (m_tbrEnabled) {
-        // Dump from GMEM
-        const float* colorData = m_tileWriteBack.getGMEMColor();
+        const_cast<RenderPipeline*>(this)->syncGMEMToFramebuffer();
+        const float* colorData = m_framebuffer.getColorBuffer();
         m_dumper.dumpPPM(colorData, FRAMEBUFFER_WIDTH, FRAMEBUFFER_HEIGHT, filename);
     } else {
         const float* colorData = m_framebuffer.getColorBuffer();

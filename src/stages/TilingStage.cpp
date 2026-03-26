@@ -114,10 +114,14 @@ void TilingStage::computeBbox(const Triangle& tri,
     }
 
     // NDC to screen coordinates
+    // Y-axis: NDC Y=-1 (bottom) -> screenY=0, NDC Y=+1 (top) -> screenY=H
+    // When Y is NOT inverted: screenY = (ndcY + 1) * 0.5 * H
+    // But we use: screenY = (1 - ndcY) * 0.5 * H (Y inverted)
+    // So: NDC maxY (top) -> screenMinY (top, small), NDC minY (bottom) -> screenMaxY (bottom, large)
     float screenMinX = (minX + 1.0f) * 0.5f * static_cast<float>(FRAMEBUFFER_WIDTH);
     float screenMaxX = (maxX + 1.0f) * 0.5f * static_cast<float>(FRAMEBUFFER_WIDTH);
-    float screenMinY = (minY + 1.0f) * 0.5f * static_cast<float>(FRAMEBUFFER_HEIGHT);
-    float screenMaxY = (maxY + 1.0f) * 0.5f * static_cast<float>(FRAMEBUFFER_HEIGHT);
+    float screenMinY = (1.0f - maxY) * 0.5f * static_cast<float>(FRAMEBUFFER_HEIGHT);  // NDC maxY -> screen top
+    float screenMaxY = (1.0f - minY) * 0.5f * static_cast<float>(FRAMEBUFFER_HEIGHT);  // NDC minY -> screen bottom
 
     // NDC to tile grid
     minTileX = static_cast<int32_t>(std::floor(screenMinX / static_cast<float>(TILE_WIDTH)));
@@ -128,9 +132,9 @@ void TilingStage::computeBbox(const Triangle& tri,
 
 bool TilingStage::ndcToTile(float ndcX, float ndcY,
                             int32_t& tileX, int32_t& tileY) const {
-    // NDC to screen
+    // NDC to screen (Y-axis flip)
     float screenX = (ndcX + 1.0f) * 0.5f * static_cast<float>(FRAMEBUFFER_WIDTH);
-    float screenY = (ndcY + 1.0f) * 0.5f * static_cast<float>(FRAMEBUFFER_HEIGHT);
+    float screenY = (1.0f - ndcY) * 0.5f * static_cast<float>(FRAMEBUFFER_HEIGHT);
 
     // Screen to tile
     tileX = static_cast<int32_t>(std::floor(screenX / static_cast<float>(TILE_WIDTH)));
