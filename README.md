@@ -104,10 +104,7 @@ The profiler provides:
 
 ## Documentation
 
-- [Release Notes](docs/releases/)
-- [Phase Acceptance Reports](docs/phase-acceptance/)
-- [Code Smell Report](docs/CODE_SMELL_REPORT.md)
-- [Project Retrospective](docs/PROJECT_RETROSPECTIVE.md)
+- [Code Smell Report](docs/CODE_SMELL_REPORT.md) - Code quality analysis
 
 ---
 
