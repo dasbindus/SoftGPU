@@ -112,3 +112,24 @@ The profiler provides:
 ## License
 
 MIT License
+
+## Running
+
+### GUI Mode (requires display)
+
+```bash
+./build/bin/SoftGPU
+```
+
+### Headless Mode (no display required)
+
+```bash
+# Output to current directory
+./build/bin/SoftGPU --headless
+
+# Output to specific directory
+./build/bin/SoftGPU --headless --output /tmp
+```
+
+Outputs `frame_0000.ppm` (640x480) to the specified directory.
+
