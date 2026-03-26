@@ -115,7 +115,9 @@ target_link_libraries(SoftGPU PRIVATE
     stages
     pipeline
     OpenGL::GL
-    glfw3
+    glfw
+    glad
+    dl
     imgui
 )
 

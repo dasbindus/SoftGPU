@@ -3,7 +3,11 @@
 // 最小可运行版本：窗口 + ImGui 初始化 + 帧缓冲显示
 // ============================================================================
 
+#include <glad/glad.h>
+#include <GL/gl.h>
+#include <string>
 #include <GLFW/glfw3.h>
+#include <cstdio>
 #include <imgui.h>
 #include <backends/imgui_impl_glfw.h>
 #include <backends/imgui_impl_opengl3.h>
@@ -81,7 +85,7 @@ int main(int argc, char* argv[])
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;  // 键盘导航
-    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;      // 启用 Docking
+    // io.ConfigFlags |= ImGuiConfigFlags_DockingEnable; // Docking not available in this imgui version      // 启用 Docking
 
     // 设置默认样式
     ImGui::StyleColorsDark();
