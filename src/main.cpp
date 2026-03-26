@@ -1,6 +1,13 @@
 // ============================================================================
 // SoftGPU - main.cpp
-// 最小可运行版本：窗口 + ImGui 初始化 + 帧缓冲显示
+// 支持两种模式：
+//   1. GUI模式 (默认): GLFW窗口 + ImGui UI
+//   2. Headless模式: 只输出PPM，无需图形界面
+//
+// 用法:
+//   ./SoftGPU                        # GUI模式
+//   ./SoftGPU --headless             # Headless模式，输出到当前目录
+//   ./SoftGPU --headless --output /tmp/  # Headless模式，输出到指定目录
 // ============================================================================
 
 #include <glad/glad.h>
@@ -8,6 +15,8 @@
 #include <string>
 #include <GLFW/glfw3.h>
 #include <cstdio>
+#include <cstring>
+#include <cstdlib>
 #include <imgui.h>
 #include <backends/imgui_impl_glfw.h>
 #include <backends/imgui_impl_opengl3.h>
@@ -15,15 +24,101 @@
 #include "app/Application.hpp"
 #include "platform/Window.hpp"
 #include "renderer/ImGuiRenderer.hpp"
+#include "pipeline/RenderPipeline.hpp"
+#include "core/PipelineTypes.hpp"
+
+// Helper: build identity matrix array
+std::array<float, 16> identityMatrix() {
+    return {
+        1.0f, 0.0f, 0.0f, 0.0f,
+        0.0f, 1.0f, 0.0f, 0.0f,
+        0.0f, 0.0f, 1.0f, 0.0f,
+        0.0f, 0.0f, 0.0f, 1.0f
+    };
+}
+
+using namespace SoftGPU;
 
 // 窗口配置
 constexpr int WINDOW_WIDTH = 1280;
 constexpr int WINDOW_HEIGHT = 720;
 constexpr const char* WINDOW_TITLE = "SoftGPU - Tile-Based GPU Simulator";
-constexpr float CLEAR_COLOR[] = { 0.1f, 0.1f, 0.15f, 1.0f }; // 深蓝灰
+constexpr float CLEAR_COLOR[] = { 0.1f, 0.1f, 0.15f, 1.0f };
 
-int main(int argc, char* argv[])
-{
+// ============================================================================
+// 命令行参数解析
+// ============================================================================
+struct CmdArgs {
+    bool headless = false;
+    const char* output_dir = ".";
+};
+
+CmdArgs parseArgs(int argc, char* argv[]) {
+    CmdArgs args;
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--headless") == 0) {
+            args.headless = true;
+        } else if (strcmp(argv[i], "--output") == 0 && i + 1 < argc) {
+            args.output_dir = argv[++i];
+        }
+    }
+    return args;
+}
+
+// ============================================================================
+// Headless模式：渲染并输出PPM
+// ============================================================================
+int runHeadless(const CmdArgs& args) {
+    printf("[INFO] Running in HEADLESS mode\n");
+    printf("[INFO] Output directory: %s\n", args.output_dir);
+
+    // 绿色三角形顶点数据
+    float vertices[] = {
+        // v0: top center
+        0.0f, 0.5f, 0.0f, 1.0f,
+        0.0f, 1.0f, 0.0f, 1.0f,  // green
+        // v1: bottom left
+        -0.5f, -0.5f, 0.0f, 1.0f,
+        0.0f, 1.0f, 0.0f, 1.0f,  // green
+        // v2: bottom right
+        0.5f, -0.5f, 0.0f, 1.0f,
+        0.0f, 1.0f, 0.0f, 1.0f,  // green
+    };
+
+    // 创建渲染管线
+    RenderPipeline pipeline;
+
+    // 创建渲染命令
+    RenderCommand cmd;
+    cmd.vertexBufferData = vertices;
+    cmd.vertexBufferSize = 12;  // 3 vertices * 4 floats
+    cmd.drawParams.vertexCount = 3;
+    cmd.drawParams.indexed = false;
+    cmd.modelMatrix = identityMatrix();
+    cmd.viewMatrix = identityMatrix();
+    cmd.projectionMatrix = identityMatrix();
+    cmd.clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
+
+    // 渲染
+    printf("[INFO] Rendering green triangle...\n");
+    pipeline.render(cmd);
+
+    // 输出PPM
+    char outputPath[512];
+    snprintf(outputPath, sizeof(outputPath), "%s/green_triangle.ppm", args.output_dir);
+    pipeline.setDumpOutputPath(args.output_dir);
+    pipeline.dump("frame_0000.ppm");
+
+    printf("[INFO] Dumped frame to: %s/frame_0000.ppm\n", args.output_dir);
+    printf("[INFO] Headless render complete\n");
+
+    return 0;
+}
+
+// ============================================================================
+// GUI模式：标准GLFW + ImGui
+// ============================================================================
+int runGUI() {
     // ========================================================================
     // Step 1: GLFW 初始化
     // ========================================================================
@@ -38,7 +133,7 @@ int main(int argc, char* argv[])
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 
-    // 窗口hint（可选）
+    // 窗口hint
     glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
     glfwWindowHint(GLFW_VISIBLE, GLFW_TRUE);
 
@@ -48,8 +143,8 @@ int main(int argc, char* argv[])
     GLFWwindow* glfwWindow = glfwCreateWindow(
         WINDOW_WIDTH, WINDOW_HEIGHT,
         WINDOW_TITLE,
-        nullptr,  // monitor（窗口模式）
-        nullptr   // share（不共享上下文）
+        nullptr,
+        nullptr
     );
 
     if (!glfwWindow) {
@@ -58,14 +153,11 @@ int main(int argc, char* argv[])
         return -1;
     }
 
-    // 将新创建的 OpenGL context 设为当前线程的 context
     glfwMakeContextCurrent(glfwWindow);
-
-    // 启用垂直同步（防止撕裂）
     glfwSwapInterval(1);
 
     // ========================================================================
-    // Step 3: 初始化 glad（OpenGL loader）
+    // Step 3: 初始化 glad
     // ========================================================================
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
         fprintf(stderr, "[ERROR] Failed to initialize glad\n");
@@ -81,75 +173,47 @@ int main(int argc, char* argv[])
     // Step 4: 初始化 ImGui
     // ========================================================================
     IMGUI_CHECKVERSION();
-
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO();
-    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;  // 键盘导航
-    // io.ConfigFlags |= ImGuiConfigFlags_DockingEnable; // Docking not available in this imgui version      // 启用 Docking
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
 
-    // 设置默认样式
     ImGui::StyleColorsDark();
-
-    // 初始化 Platform 和 Renderer backend
-    ImGui_ImplGlfw_InitForOpenGL(glfwWindow, true);  // true = 安装回调
-    ImGui_ImplOpenGL3_Init("#version 460 core");    // GLSL 版本字符串
+    ImGui_ImplGlfw_InitForOpenGL(glfwWindow, true);
+    ImGui_ImplOpenGL3_Init("#version 460 core");
 
     // ========================================================================
     // Step 5: 主循环
     // ========================================================================
     while (!glfwWindowShouldClose(glfwWindow)) {
-        // --- 事件处理 ---
         glfwPollEvents();
 
-        // --- 开始 ImGui 帧 ---
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
 
-        // ====================================================================
-        // 渲染内容（这里放置你的 UI 代码）
-        // ====================================================================
-
-        // 示例：创建一个简单的面板
+        // UI面板
         {
             ImGui::Begin("SoftGPU Status");
-
             ImGui::Text("Phase: PHASE0 - Environment Setup");
             ImGui::Text("Status: OK");
             ImGui::Separator();
-
             ImGui::Text("FPS: %.1f", io.Framerate);
             ImGui::Text("Frame Time: %.3f ms", 1000.0f / io.Framerate);
-
             ImGui::Separator();
-
-            // 显示 OpenGL 信息
             ImGui::Text("OpenGL Info:");
             ImGui::BulletText("Version: %s", glGetString(GL_VERSION));
             ImGui::BulletText("Renderer: %s", glGetString(GL_RENDERER));
-            ImGui::BulletText("Vendor: %s", glGetString(GL_VENDOR));
-
             ImGui::Separator();
-
-            // 退出按钮
             if (ImGui::Button("Exit", ImVec2(100, 30))) {
                 glfwSetWindowShouldClose(glfwWindow, GLFW_TRUE);
             }
-
             ImGui::End();
         }
 
-        // --- 渲染 ImGui ---
         ImGui::Render();
-
-        // --- 清屏 ---
         glClearColor(CLEAR_COLOR[0], CLEAR_COLOR[1], CLEAR_COLOR[2], CLEAR_COLOR[3]);
         glClear(GL_COLOR_BUFFER_BIT);
-
-        // --- 绘制 ImGui ---
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-
-        // --- 交换前后缓冲区 ---
         glfwSwapBuffers(glfwWindow);
     }
 
@@ -165,4 +229,18 @@ int main(int argc, char* argv[])
 
     printf("[INFO] SoftGPU shutdown gracefully\n");
     return 0;
+}
+
+// ============================================================================
+// 主入口
+// ============================================================================
+int main(int argc, char* argv[])
+{
+    CmdArgs args = parseArgs(argc, argv);
+
+    if (args.headless) {
+        return runHeadless(args);
+    } else {
+        return runGUI();
+    }
 }
