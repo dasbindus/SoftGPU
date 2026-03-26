@@ -104,7 +104,8 @@ The profiler provides:
 
 ## Documentation
 
-- [Code Smell Report](docs/CODE_SMELL_REPORT.md) - Code quality analysis
+- [English](docs/DESIGN.md) - Architecture and design documentation
+- [中文](docs/DESIGN_CN.md) - 架构与设计文档
 
 ---
 
