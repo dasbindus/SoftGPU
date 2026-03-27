@@ -35,7 +35,7 @@ RenderPipeline (8 Stage)
 Support Modules:
 ├── MemorySubsystem     # Bandwidth model + L2 Cache
 ├── FrameProfiler       # Performance data collection
-├── BottleneckDetector  #瓶颈判定
+├── BottleneckDetector  # 瓶颈判定
 └── ProfilerUI          # ImGui visualization
 ```
 
@@ -67,7 +67,7 @@ ctest --output-on-failure
 ./build/tests/benchmark/test_benchmark_runner
 
 # Benchmark
-./build/bin/SoftGPU --benchmark --scenes Triangle-Cube --runs 10
+./build/bin/SoftGPU --headless --scene Triangle-Cube
 ```
 
 ---
@@ -76,9 +76,9 @@ ctest --output-on-failure
 
 | Scene | Triangles | Description |
 |-------|-----------|-------------|
-| Triangle-1Tri | 1 | Single triangle |
-| Triangle-Cube | 12 | Basic cube |
-| Triangle-Cubes-100 | 1200 | 100 cubes |
+| Triangle-1Tri | 1 | Single green triangle |
+| Triangle-Cube | 12 | Basic cube with multiple colors |
+| Triangle-Cubes-100 | 1200 | 100 cubes grid |
 | Triangle-SponzaStyle | ~80 | Sponza-style architecture |
 | PBR-Material | ~180 | PBR material test |
 
@@ -94,24 +94,6 @@ The profiler provides:
 - **L2 Cache Hit Rate** - Cache efficiency metrics
 
 ---
-
-## Releases
-
-- **v0.2** - Refactoring complete (5 P0 issues fixed)
-- **v0.1** - Initial release
-
----
-
-## Documentation
-
-- [English](docs/DESIGN.md) - Architecture and design documentation
-- [中文](docs/DESIGN_CN.md) - 架构与设计文档
-
----
-
-## License
-
-MIT License
 
 ## Running
 
@@ -129,7 +111,33 @@ MIT License
 
 # Output to specific directory
 ./build/bin/SoftGPU --headless --output /tmp
+
+# Custom filename
+./build/bin/SoftGPU --headless --output-filename my_render.ppm
+
+# Select scene
+./build/bin/SoftGPU --headless --scene Triangle-Cube
 ```
 
-Outputs `frame_0000.ppm` (640x480) to the specified directory.
+---
 
+## v1.0 Roadmap
+
+**Next milestone: v1.0 (Microarchitecture)**
+
+- ISA (Instruction Set Architecture) design
+- Shader Core microarchitecture
+- Warp scheduler simulation
+
+---
+
+## Releases
+
+- **v0.2** - Refactoring complete (2026-03-26)
+- **v0.1** - Initial release (2026-03-26)
+
+---
+
+## License
+
+MIT License

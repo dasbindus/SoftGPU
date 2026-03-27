@@ -16,11 +16,21 @@ build/
 .DS_Store
 Thumbs.db
 
-# Private/internal - excluded from git
+# Private/internal docs - excluded from git
 internal/
 
-# Logs
+# Agent workspaces - excluded from git
+# Contains SOUL.md, AGENTS.md, MEMORY.md with agent context
+agents/
+
+# Shared team interface - excluded from git
+# Contains design docs, reviews, meta (internal team collaboration)
+shared/
+
+# Logs and temporary files
 *.log
+
+# Development logs (local only)
+DEV_LOG.md
 DEV_LOG_BAK.md
-green_triangle.ppm
-*.ppm
+dev_log_mac.md
