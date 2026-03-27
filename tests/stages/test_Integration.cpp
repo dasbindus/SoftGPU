@@ -11,8 +11,57 @@
 #include <vector>
 #include <algorithm>
 #include <iostream>
+#include <cstdlib>
 
 using namespace SoftGPU;
+
+// ============================================================================
+// Test Configuration (can be set via environment or command line)
+// ============================================================================
+struct TestConfig {
+    const char* output_dir = ".";  // Output directory for PPM files
+    bool verbose = false;          // Verbose output
+};
+
+TestConfig g_config;
+
+// Parse command line arguments for test
+// Supports: --output <dir> and --verbose
+void parseTestArgs(int argc, char* argv[]) {
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--output") == 0 && i + 1 < argc) {
+            g_config.output_dir = argv[++i];
+        } else if (strcmp(argv[i], "--verbose") == 0 || strcmp(argv[i], "-v") == 0) {
+            g_config.verbose = true;
+        } else if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
+            printf("Usage: %s [options]\n", argv[0]);
+            printf("Options:\n");
+            printf("  --output <dir>   Output directory for PPM files (default: .)\n");
+            printf("  --verbose, -v    Verbose output\n");
+            printf("  --help, -h       Show this help\n");
+            printf("\nEnvironment variables:\n");
+            printf("  TEST_OUTPUT_DIR  Output directory (default: .)\n");
+            exit(0);
+        }
+    }
+
+    // Environment variable override
+    const char* env_dir = getenv("TEST_OUTPUT_DIR");
+    if (env_dir) {
+        g_config.output_dir = env_dir;
+    }
+}
+
+// Helper: build full output path
+std::string outputPath(const char* filename) {
+    std::string path = g_config.output_dir;
+    if (!path.empty() && path != "." && path.back() != '/' && path.back() != '\\') {
+        path += "/";
+    }
+    path += filename;
+    // FrameDumper adds ./ prefix
+    return path;
+}
 
 // Helper: build identity matrix array
 std::array<float, 16> identityMatrix() {
@@ -153,6 +202,9 @@ TEST(IntegrationTest, GreenTriangle_Center) {
 TEST(IntegrationTest, PPM_Dump_GoldenTriangle) {
     RenderPipeline pipeline;
 
+    // 设置输出目录
+    pipeline.setDumpOutputPath(g_config.output_dir);
+
     // 绿色三角形
     float vertices[] = {
         0.0f, 0.5f, 0.0f, 1.0f,  0.0f, 1.0f, 0.0f, 1.0f,
@@ -175,13 +227,14 @@ TEST(IntegrationTest, PPM_Dump_GoldenTriangle) {
     // Dump to PPM
     pipeline.dump("test_green_triangle.ppm");
 
-    // 验证文件生成（RenderPipeline 会添加 . 前缀）
-    std::ifstream f(".test_green_triangle.ppm");
-    EXPECT_TRUE(f.good()) << "PPM file should exist";
+    // 验证文件生成
+    std::string ppmPath = outputPath("test_green_triangle.ppm");
+    std::ifstream f(ppmPath);
+    EXPECT_TRUE(f.good()) << "PPM file should exist at: " << ppmPath;
     f.close();
 
     // 验证有绿色像素
-    int greenPixels = countGreenPixels(".test_green_triangle.ppm");
+    int greenPixels = countGreenPixels(ppmPath);
     EXPECT_GT(greenPixels, 100) << "Expected at least 100 green pixels, got " << greenPixels;
 }
 
@@ -191,7 +244,8 @@ TEST(IntegrationTest, PPM_Dump_GoldenTriangle) {
 
 TEST(IntegrationTest, PPM_Header_Correct) {
     RenderPipeline pipeline;
-    
+    pipeline.setDumpOutputPath(g_config.output_dir);
+
     float triangle[] = {
         0.0f, 0.5f, 0.0f, 1.0f,  1.0f, 0.0f, 0.0f, 1.0f,
        -0.5f,-0.5f, 0.0f, 1.0f,  0.0f, 1.0f, 0.0f, 1.0f,
@@ -212,7 +266,8 @@ TEST(IntegrationTest, PPM_Header_Correct) {
     pipeline.dump("test_header.ppm");
 
     // 读取并验证 header
-    std::ifstream f(".test_header.ppm", std::ios::binary);
+    std::string ppmPath = outputPath("test_header.ppm");
+    std::ifstream f(ppmPath, std::ios::binary);
     ASSERT_TRUE(f.good());
     
     std::string header;
@@ -617,6 +672,7 @@ TEST(IntegrationTest, TBR_PerTileFragmentCount) {
 
 TEST(IntegrationTest, PPM_GreenTriangle_FullPositionCheck) {
     RenderPipeline pipeline;
+    pipeline.setDumpOutputPath(g_config.output_dir);
 
     float vertices[] = {
         0.0f, 0.5f, 0.0f, 1.0f,  0.0f, 1.0f, 0.0f, 1.0f,
@@ -638,7 +694,7 @@ TEST(IntegrationTest, PPM_GreenTriangle_FullPositionCheck) {
     pipeline.dump("test_position_triangle.ppm");
 
     // 分析 PPM 文件
-    TriangleBounds bounds = analyzeGreenTrianglePPM(".test_position_triangle.ppm");
+    TriangleBounds bounds = analyzeGreenTrianglePPM(outputPath("test_position_triangle.ppm"));
 
     std::cout << "\n[PPM Position Analysis]"
               << "\n  Green pixels: " << bounds.greenPixelCount
@@ -682,6 +738,7 @@ TEST(IntegrationTest, PPM_GreenTriangle_FullPositionCheck) {
 
 TEST(IntegrationTest, PPM_GreenTriangle_ShapeVerification) {
     RenderPipeline pipeline;
+    pipeline.setDumpOutputPath(g_config.output_dir);
 
     // 绿色三角形顶点: top(0,0.5), bottom-left(-0.5,-0.5), bottom-right(0.5,-0.5)
     float vertices[] = {
@@ -703,7 +760,7 @@ TEST(IntegrationTest, PPM_GreenTriangle_ShapeVerification) {
     pipeline.render(cmd);
     pipeline.dump("test_shape_triangle.ppm");
 
-    std::string ppmFile = ".test_shape_triangle.ppm";
+    std::string ppmFile = outputPath("test_shape_triangle.ppm");
 
     // 加载PPM到内存以加速像素访问
     int ppmWidth, ppmHeight;
@@ -927,6 +984,7 @@ TEST(IntegrationTest, PerformanceReport_Prints) {
 }
 
 int main(int argc, char** argv) {
+    parseTestArgs(argc, argv);
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
 }

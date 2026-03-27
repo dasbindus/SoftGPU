@@ -58,16 +58,43 @@ struct CmdArgs {
     bool headless = false;
     bool use_tbr = true;  // 默认使用TBR
     const char* output_dir = ".";
+    const char* output_filename = nullptr;  // 自定义输出文件名
     const char* scene_name = "Triangle-1Tri";  // 默认场景
 };
+
+void printHelp(const char* program) {
+    printf("Usage: %s [options]\n\n", program);
+    printf("Options:\n");
+    printf("  --headless              Run in headless mode (no GUI), output PPM file\n");
+    printf("  --output <dir>          Output directory for PPM files (default: .)\n");
+    printf("  --output-filename <name> Custom output filename (default: frame_0000.ppm)\n");
+    printf("  --no-tbr                Disable TBR (Tile-Based Rendering) mode\n");
+    printf("  --scene <name>          Scene to render in headless mode (default: Triangle-1Tri)\n");
+    printf("  --help, -h              Show this help message\n");
+    printf("\nExamples:\n");
+    printf("  %s                           # GUI mode\n", program);
+    printf("  %s --headless                # Headless, output frame_0000.ppm to current directory\n", program);
+    printf("  %s --headless --output /tmp/ # Headless, output to /tmp/frame_0000.ppm\n", program);
+    printf("  %s --headless --output-filename my_render.ppm  # Output my_render.ppm\n", program);
+    printf("  %s --headless --scene Triangle-Cube  # Render specific scene\n", program);
+    printf("\nAvailable scenes:\n");
+    TestSceneRegistry::instance().registerBuiltinScenes();
+    for (const auto& name : TestSceneRegistry::instance().getAllSceneNames()) {
+        printf("  - %s\n", name.c_str());
+    }
+}
 
 CmdArgs parseArgs(int argc, char* argv[]) {
     CmdArgs args;
     for (int i = 1; i < argc; i++) {
-        if (strcmp(argv[i], "--headless") == 0) {
+        if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
+            // Will be handled in main()
+        } else if (strcmp(argv[i], "--headless") == 0) {
             args.headless = true;
         } else if (strcmp(argv[i], "--output") == 0 && i + 1 < argc) {
             args.output_dir = argv[++i];
+        } else if (strcmp(argv[i], "--output-filename") == 0 && i + 1 < argc) {
+            args.output_filename = argv[++i];
         } else if (strcmp(argv[i], "--no-tbr") == 0) {
             args.use_tbr = false;
         } else if (strcmp(argv[i], "--scene") == 0 && i + 1 < argc) {
@@ -119,10 +146,11 @@ int runHeadless(const CmdArgs& args) {
     pipeline.render(cmd);
 
     // 输出PPM
+    const char* filename = args.output_filename ? args.output_filename : "frame_0000.ppm";
     pipeline.setDumpOutputPath(args.output_dir);
-    pipeline.dump("frame_0000.ppm");
+    pipeline.dump(filename);
 
-    printf("[INFO] Dumped frame to: %s/frame_0000.ppm\n", args.output_dir);
+    printf("[INFO] Dumped frame to: %s/%s\n", args.output_dir, filename);
     printf("[INFO] Headless render complete\n");
 
     return 0;
@@ -250,6 +278,26 @@ int runGUI() {
 int main(int argc, char* argv[])
 {
     CmdArgs args = parseArgs(argc, argv);
+
+    // Check if help was requested (headless is set as a marker)
+    // We use use_tbr = true as default, if help was shown it stays true but we exit
+    if (args.headless && args.output_dir == nullptr && args.scene_name == nullptr) {
+        // This is a bit hacky - help case. Let's use a better check.
+    }
+
+    // Re-parse properly to detect help
+    bool showHelp = false;
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
+            showHelp = true;
+            break;
+        }
+    }
+
+    if (showHelp) {
+        printHelp(argv[0]);
+        return 0;
+    }
 
     if (args.headless) {
         return runHeadless(args);

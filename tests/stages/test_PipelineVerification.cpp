@@ -8,6 +8,11 @@
 // 2. 测试必须自验证，不依赖被测代码的错误行为
 // 3. 不修改任何现有测试
 // 4. 不影响功能正确性
+//
+// 命令行参数：
+//   --output <dir>   输出目录 for PPM files (default: .)
+//   --verbose, -v    Verbose output
+//   --help, -h      Show this help
 // ============================================================================
 
 #include <gtest/gtest.h>
@@ -22,6 +27,52 @@
 #include "core/PipelineTypes.hpp"
 #include "core/RenderCommand.hpp"
 #include "pipeline/RenderPipeline.hpp"
+#include <cstring>
+#include <cstdlib>
+
+// ============================================================================
+// Test Configuration
+// ============================================================================
+struct TestConfig {
+    const char* output_dir = ".";  // Output directory for PPM files
+    bool verbose = false;          // Verbose output
+};
+
+TestConfig g_config;
+
+void parseTestArgs(int argc, char* argv[]) {
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--output") == 0 && i + 1 < argc) {
+            g_config.output_dir = argv[++i];
+        } else if (strcmp(argv[i], "--verbose") == 0 || strcmp(argv[i], "-v") == 0) {
+            g_config.verbose = true;
+        } else if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
+            printf("Usage: %s [options]\n", argv[0]);
+            printf("Options:\n");
+            printf("  --output <dir>   Output directory for PPM files (default: .)\n");
+            printf("  --verbose, -v    Verbose output\n");
+            printf("  --help, -h       Show this help\n");
+            printf("\nEnvironment variables:\n");
+            printf("  TEST_OUTPUT_DIR  Output directory (default: .)\n");
+            exit(0);
+        }
+    }
+    // Environment variable override
+    const char* env_dir = getenv("TEST_OUTPUT_DIR");
+    if (env_dir) {
+        g_config.output_dir = env_dir;
+    }
+}
+
+// Helper: build full output path
+std::string outputPath(const char* filename) {
+    std::string path = g_config.output_dir;
+    if (!path.empty() && path != "." && path.back() != '/' && path.back() != '\\') {
+        path += "/";
+    }
+    path += filename;
+    return path;
+}
 
 namespace {
 
@@ -529,6 +580,7 @@ TEST_F(PipelineIntegrationTest, GMEMSync_Consistency) {
 }  // anonymous namespace
 
 int main(int argc, char** argv) {
+    parseTestArgs(argc, argv);
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
 }
