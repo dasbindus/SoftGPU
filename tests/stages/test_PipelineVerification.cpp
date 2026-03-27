@@ -27,6 +27,7 @@
 #include "core/PipelineTypes.hpp"
 #include "core/RenderCommand.hpp"
 #include "pipeline/RenderPipeline.hpp"
+#include <memory>
 #include <cstring>
 #include <cstdlib>
 
@@ -536,19 +537,19 @@ TEST_F(PipelineIntegrationTest, DISABLED_GreenTriangle_RenderCorrectness) {
 // ---------------------------------------------------------------------------
 
 TEST_F(PipelineIntegrationTest, GMEMSync_Consistency) {
-    RenderPipeline pipeline;
+    auto pipeline = std::make_unique<RenderPipeline>();
 
     auto cmd = createGreenTriangleCommand();
 
-    pipeline.render(cmd);
+    pipeline->render(cmd);
 
     // 同步 GMEM 到 framebuffer
-    pipeline.syncGMEMToFramebuffer();
+    pipeline->syncGMEMToFramebuffer();
 
     // 获取两种数据
-    const auto* fb = pipeline.getFramebuffer();
+    const auto* fb = pipeline->getFramebuffer();
     const float* fbColor = fb->getColorBuffer();
-    const float* gmemColor = pipeline.getGMEMColor();
+    const float* gmemColor = pipeline->getGMEMColor();
 
     // 统计绿色像素
     int fbGreen = 0;

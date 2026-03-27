@@ -18,6 +18,7 @@
 #include <GL/gl.h>
 #endif
 #include <string>
+#include <memory>
 #include <GLFW/glfw3.h>
 #include <cstdio>
 #include <cstring>
@@ -127,12 +128,12 @@ int runHeadless(const CmdArgs& args) {
     }
     printf("[INFO] Found scene: %s (%s)\n", scene->getName().c_str(), scene->getDescription().c_str());
 
-    // 创建渲染管线
-    RenderPipeline pipeline;
+    // 创建渲染管线（堆分配，避免 ~8MB 栈溢出）
+    auto pipeline = std::make_unique<RenderPipeline>();
 
     // 可选：禁用TBR模式（直接渲染到framebuffer）
     if (!args.use_tbr) {
-        pipeline.setTBREnabled(false);
+        pipeline->setTBREnabled(false);
         printf("[INFO] TBR mode disabled\n");
     }
 
@@ -143,12 +144,12 @@ int runHeadless(const CmdArgs& args) {
 
     // 渲染
     printf("[INFO] Rendering...\n");
-    pipeline.render(cmd);
+    pipeline->render(cmd);
 
     // 输出PPM
     const char* filename = args.output_filename ? args.output_filename : "frame_0000.ppm";
-    pipeline.setDumpOutputPath(args.output_dir);
-    pipeline.dump(filename);
+    pipeline->setDumpOutputPath(args.output_dir);
+    pipeline->dump(filename);
 
     printf("[INFO] Dumped frame to: %s/%s\n", args.output_dir, filename);
     printf("[INFO] Headless render complete\n");

@@ -4,6 +4,7 @@
 
 #include <gtest/gtest.h>
 #include <pipeline/RenderPipeline.hpp>
+#include <memory>
 #include <core/PipelineTypes.hpp>
 #include <utils/FrameDumper.hpp>
 #include <fstream>
@@ -144,7 +145,7 @@ int countGreenPixels(const std::string& filename, float threshold = 0.5f) {
 // ---------------------------------------------------------------------------
 
 TEST(IntegrationTest, GreenTriangle_Center) {
-    RenderPipeline pipeline;
+    auto pipeline = std::make_unique<RenderPipeline>();
 
     // Simple triangle in NDC space
     float vertices[] = {
@@ -169,9 +170,9 @@ TEST(IntegrationTest, GreenTriangle_Center) {
     cmd.projectionMatrix = identityMatrix();
     cmd.clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
 
-    pipeline.render(cmd);
+    pipeline->render(cmd);
 
-    const auto* fb = pipeline.getFramebuffer();
+    const auto* fb = pipeline->getFramebuffer();
     const float* color = fb->getColorBuffer();
 
     // Center of screen: (320, 240)
@@ -200,10 +201,10 @@ TEST(IntegrationTest, GreenTriangle_Center) {
 // ---------------------------------------------------------------------------
 
 TEST(IntegrationTest, PPM_Dump_GoldenTriangle) {
-    RenderPipeline pipeline;
+    auto pipeline = std::make_unique<RenderPipeline>();
 
     // 设置输出目录
-    pipeline.setDumpOutputPath(g_config.output_dir);
+    pipeline->setDumpOutputPath(g_config.output_dir);
 
     // 绿色三角形
     float vertices[] = {
@@ -222,10 +223,10 @@ TEST(IntegrationTest, PPM_Dump_GoldenTriangle) {
     cmd.projectionMatrix = identityMatrix();
     cmd.clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
 
-    pipeline.render(cmd);
+    pipeline->render(cmd);
 
     // Dump to PPM
-    pipeline.dump("test_green_triangle.ppm");
+    pipeline->dump("test_green_triangle.ppm");
 
     // 验证文件生成
     std::string ppmPath = outputPath("test_green_triangle.ppm");
@@ -243,8 +244,8 @@ TEST(IntegrationTest, PPM_Dump_GoldenTriangle) {
 // ---------------------------------------------------------------------------
 
 TEST(IntegrationTest, PPM_Header_Correct) {
-    RenderPipeline pipeline;
-    pipeline.setDumpOutputPath(g_config.output_dir);
+    auto pipeline = std::make_unique<RenderPipeline>();
+    pipeline->setDumpOutputPath(g_config.output_dir);
 
     float triangle[] = {
         0.0f, 0.5f, 0.0f, 1.0f,  1.0f, 0.0f, 0.0f, 1.0f,
@@ -262,8 +263,8 @@ TEST(IntegrationTest, PPM_Header_Correct) {
     cmd.projectionMatrix = identityMatrix();
     cmd.clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
 
-    pipeline.render(cmd);
-    pipeline.dump("test_header.ppm");
+    pipeline->render(cmd);
+    pipeline->dump("test_header.ppm");
 
     // 读取并验证 header
     std::string ppmPath = outputPath("test_header.ppm");
@@ -299,7 +300,7 @@ TEST(IntegrationTest, PPM_Header_Correct) {
 // ---------------------------------------------------------------------------
 
 TEST(IntegrationTest, RGBTriangle_ColorInterpolation) {
-    RenderPipeline pipeline;
+    auto pipeline = std::make_unique<RenderPipeline>();
 
     // Triangle with red, green, blue vertices
     float vertices[] = {
@@ -324,9 +325,9 @@ TEST(IntegrationTest, RGBTriangle_ColorInterpolation) {
     cmd.projectionMatrix = identityMatrix();
     cmd.clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
 
-    pipeline.render(cmd);
+    pipeline->render(cmd);
 
-    const auto* fb = pipeline.getFramebuffer();
+    const auto* fb = pipeline->getFramebuffer();
     const float* color = fb->getColorBuffer();
 
     // Center of screen should have RGB blend
@@ -355,7 +356,7 @@ TEST(IntegrationTest, RGBTriangle_ColorInterpolation) {
 // ---------------------------------------------------------------------------
 
 TEST(IntegrationTest, ZBuffer_FrontHidesBack) {
-    RenderPipeline pipeline;
+    auto pipeline = std::make_unique<RenderPipeline>();
 
     // Red triangle at z=-0.5 (behind)
     float redTri[] = {
@@ -381,7 +382,7 @@ TEST(IntegrationTest, ZBuffer_FrontHidesBack) {
     cmd1.viewMatrix = identityMatrix();
     cmd1.projectionMatrix = identityMatrix();
     cmd1.clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
-    pipeline.render(cmd1);
+    pipeline->render(cmd1);
 
     // Draw green triangle second (front)
     RenderCommand cmd2;
@@ -393,10 +394,10 @@ TEST(IntegrationTest, ZBuffer_FrontHidesBack) {
     cmd2.viewMatrix = identityMatrix();
     cmd2.projectionMatrix = identityMatrix();
     cmd2.clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
-    pipeline.render(cmd2);
+    pipeline->render(cmd2);
 
     // Check that center is green (front triangle should be visible)
-    const auto* fb = pipeline.getFramebuffer();
+    const auto* fb = pipeline->getFramebuffer();
     const float* color = fb->getColorBuffer();
     size_t centerIdx = (240 * FRAMEBUFFER_WIDTH + 320) * 4;
 
@@ -410,7 +411,7 @@ TEST(IntegrationTest, ZBuffer_FrontHidesBack) {
 // ---------------------------------------------------------------------------
 
 TEST(IntegrationTest, GreenTriangle_AfterGMEMSync) {
-    RenderPipeline pipeline;
+    auto pipeline = std::make_unique<RenderPipeline>();
 
     // 绿色三角形顶点数据 (与 headless 模式相同)
     float vertices[] = {
@@ -435,13 +436,13 @@ TEST(IntegrationTest, GreenTriangle_AfterGMEMSync) {
     cmd.projectionMatrix = identityMatrix();
     cmd.clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
 
-    pipeline.render(cmd);
+    pipeline->render(cmd);
 
     // 关键：使用与 headless 模式相同的代码路径
     // 先 sync GMEM to Framebuffer (dump() 内部会调用)
-    pipeline.syncGMEMToFramebuffer();
+    pipeline->syncGMEMToFramebuffer();
 
-    const auto* fb = pipeline.getFramebuffer();
+    const auto* fb = pipeline->getFramebuffer();
     const float* color = fb->getColorBuffer();
 
     // 分析绿色像素位置
@@ -529,7 +530,7 @@ inline bool isGreenPixel(const std::vector<uint8_t>& pixels, int x, int y, int w
 // ---------------------------------------------------------------------------
 
 TEST(IntegrationTest, TilingStage_DebugTriangleTiles) {
-    RenderPipeline pipeline;
+    auto pipeline = std::make_unique<RenderPipeline>();
 
     float vertices[] = {
         0.0f, 0.5f, 0.0f, 1.0f,  0.0f, 1.0f, 0.0f, 1.0f,
@@ -547,10 +548,10 @@ TEST(IntegrationTest, TilingStage_DebugTriangleTiles) {
     cmd.projectionMatrix = identityMatrix();
     cmd.clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
 
-    pipeline.render(cmd);
+    pipeline->render(cmd);
 
     // 获取 TilingStage 信息
-    const auto& tiling = pipeline.getTilingStage();
+    const auto& tiling = pipeline->getTilingStage();
 
     std::cout << "\n[TilingStage Debug - Green Triangle]"
               << "\n  Affected tiles: " << tiling.getNumAffectedTiles()
@@ -597,7 +598,7 @@ TEST(IntegrationTest, TilingStage_DebugTriangleTiles) {
 // ---------------------------------------------------------------------------
 
 TEST(IntegrationTest, TBR_PerTileFragmentCount) {
-    RenderPipeline pipeline;
+    auto pipeline = std::make_unique<RenderPipeline>();
 
     float vertices[] = {
         0.0f, 0.5f, 0.0f, 1.0f,  0.0f, 1.0f, 0.0f, 1.0f,
@@ -615,10 +616,10 @@ TEST(IntegrationTest, TBR_PerTileFragmentCount) {
     cmd.projectionMatrix = identityMatrix();
     cmd.clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
 
-    pipeline.render(cmd);
+    pipeline->render(cmd);
 
     // 获取 GMEM 数据并分析每个 tile 的绿色像素数
-    const float* gmemColor = pipeline.getGMEMColor();
+    const float* gmemColor = pipeline->getGMEMColor();
 
     std::cout << "\n[TBR Per-Tile Fragment Analysis]"
               << std::endl;
@@ -671,8 +672,8 @@ TEST(IntegrationTest, TBR_PerTileFragmentCount) {
 // ---------------------------------------------------------------------------
 
 TEST(IntegrationTest, PPM_GreenTriangle_FullPositionCheck) {
-    RenderPipeline pipeline;
-    pipeline.setDumpOutputPath(g_config.output_dir);
+    auto pipeline = std::make_unique<RenderPipeline>();
+    pipeline->setDumpOutputPath(g_config.output_dir);
 
     float vertices[] = {
         0.0f, 0.5f, 0.0f, 1.0f,  0.0f, 1.0f, 0.0f, 1.0f,
@@ -690,8 +691,8 @@ TEST(IntegrationTest, PPM_GreenTriangle_FullPositionCheck) {
     cmd.projectionMatrix = identityMatrix();
     cmd.clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
 
-    pipeline.render(cmd);
-    pipeline.dump("test_position_triangle.ppm");
+    pipeline->render(cmd);
+    pipeline->dump("test_position_triangle.ppm");
 
     // 分析 PPM 文件
     TriangleBounds bounds = analyzeGreenTrianglePPM(outputPath("test_position_triangle.ppm"));
@@ -737,8 +738,8 @@ TEST(IntegrationTest, PPM_GreenTriangle_FullPositionCheck) {
 // ---------------------------------------------------------------------------
 
 TEST(IntegrationTest, PPM_GreenTriangle_ShapeVerification) {
-    RenderPipeline pipeline;
-    pipeline.setDumpOutputPath(g_config.output_dir);
+    auto pipeline = std::make_unique<RenderPipeline>();
+    pipeline->setDumpOutputPath(g_config.output_dir);
 
     // 绿色三角形顶点: top(0,0.5), bottom-left(-0.5,-0.5), bottom-right(0.5,-0.5)
     float vertices[] = {
@@ -757,8 +758,8 @@ TEST(IntegrationTest, PPM_GreenTriangle_ShapeVerification) {
     cmd.projectionMatrix = identityMatrix();
     cmd.clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
 
-    pipeline.render(cmd);
-    pipeline.dump("test_shape_triangle.ppm");
+    pipeline->render(cmd);
+    pipeline->dump("test_shape_triangle.ppm");
 
     std::string ppmFile = outputPath("test_shape_triangle.ppm");
 
@@ -960,7 +961,7 @@ TEST(IntegrationTest, PPM_GreenTriangle_ShapeVerification) {
 // ---------------------------------------------------------------------------
 
 TEST(IntegrationTest, PerformanceReport_Prints) {
-    RenderPipeline pipeline;
+    auto pipeline = std::make_unique<RenderPipeline>();
 
     float tri[] = {
         0.0f, 0.5f, 0.0f, 1.0f,  1.0f, 0.0f, 0.0f, 1.0f,
@@ -979,7 +980,7 @@ TEST(IntegrationTest, PerformanceReport_Prints) {
     cmd.clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
 
     // Should not crash
-    pipeline.render(cmd);
+    pipeline->render(cmd);
 
 }
 
