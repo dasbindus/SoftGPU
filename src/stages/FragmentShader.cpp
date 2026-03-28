@@ -2,6 +2,7 @@
 // SoftGPU - FragmentShader.cpp
 // 片段着色器
 // PHASE2: Added TileBuffer output support
+// PHASE4: Integrated ShaderCore ISA interpreter for fragment execution
 // ============================================================================
 
 #include "FragmentShader.hpp"
@@ -14,6 +15,9 @@
 namespace SoftGPU {
 
 FragmentShader::FragmentShader() {
+    // PHASE4: Initialize ShaderCore with default fragment shader
+    m_shaderFunction = ShaderCore::getDefaultFragmentShader();
+    m_shaderCore.loadShader(m_shaderFunction);
     resetCounters();
 }
 
@@ -55,9 +59,36 @@ void FragmentShader::setInputAndExecuteTile(const std::vector<Fragment>& fragmen
     auto start = std::chrono::high_resolution_clock::now();
 
     uint64_t fragmentsShaded = 0;
+    uint64_t totalInstructions = 0;
+    uint64_t totalCycles = 0;
+
+    // Reset ShaderCore stats for this tile
+    m_shaderCore.reset();
 
     for (const auto& frag : fragments) {
-        Fragment shaded = shade(frag);
+        // Get stats before execution for delta calculation
+        uint64_t prevCycles = m_shaderCore.getStats().cycles_spent;
+        uint64_t prevInstructions = m_shaderCore.getStats().instructions_executed;
+
+        // Convert Fragment to FragmentContext
+        FragmentContext ctx = fragmentToContext(frag);
+        ctx.tile_x = tileX;
+        ctx.tile_y = tileY;
+
+        // Execute via ShaderCore ISA interpreter
+        m_shaderCore.executeFragment(ctx, m_shaderFunction);
+
+        // Accumulate delta stats (stats are cumulative, so compute delta)
+        totalInstructions += m_shaderCore.getStats().instructions_executed - prevInstructions;
+        totalCycles += m_shaderCore.getStats().cycles_spent - prevCycles;
+
+        // Skip killed fragments
+        if (ctx.killed) {
+            continue;
+        }
+
+        // Convert output back to Fragment format
+        Fragment shaded = contextToFragment(ctx);
 
         // Compute local coordinates within tile
         uint32_t localX = frag.x - tileX * TILE_WIDTH;
@@ -75,6 +106,7 @@ void FragmentShader::setInputAndExecuteTile(const std::vector<Fragment>& fragmen
     m_counters.invocation_count = static_cast<uint64_t>(fragments.size());
     m_counters.extra_count0 = fragmentsShaded;   // fragments_shade
     m_counters.extra_count1 = m_tileBuffer->getDepthTestCount();  // depth_tests
+    m_counters.cycle_count = totalCycles;
 
     auto end = std::chrono::high_resolution_clock::now();
     m_counters.elapsed_ms =
@@ -92,11 +124,16 @@ void FragmentShader::execute() {
     m_outputFragments.clear();
     m_outputFragments.reserve(input.size());
 
+    // Reset ShaderCore stats
+    m_shaderCore.reset();
+    uint64_t totalCycles = 0;
+
     for (const auto& frag : input) {
         m_outputFragments.push_back(shade(frag));
     }
 
     m_counters.invocation_count = static_cast<uint64_t>(m_outputFragments.size());
+    m_counters.cycle_count = totalCycles;
 
     auto end = std::chrono::high_resolution_clock::now();
     m_counters.elapsed_ms =
@@ -105,18 +142,52 @@ void FragmentShader::execute() {
 
 void FragmentShader::resetCounters() {
     m_counters = PerformanceCounters{};
+    m_shaderCore.reset();
 }
 
-Fragment FragmentShader::shade(const Fragment& input) const {
-    // Phase1: passthrough flat color
-    // In future phases, this could apply textures, lighting, etc.
-    Fragment out = input;
-    // Clamp color to [0, 1]
-    out.r = std::max(0.0f, std::min(1.0f, out.r));
-    out.g = std::max(0.0f, std::min(1.0f, out.g));
-    out.b = std::max(0.0f, std::min(1.0f, out.b));
-    out.a = std::max(0.0f, std::min(1.0f, out.a));
-    return out;
+FragmentContext FragmentShader::fragmentToContext(const Fragment& frag) const {
+    FragmentContext ctx;
+    ctx.pos_x = static_cast<float>(frag.x);
+    ctx.pos_y = static_cast<float>(frag.y);
+    ctx.pos_z = frag.z;
+    ctx.color_r = frag.r;
+    ctx.color_g = frag.g;
+    ctx.color_b = frag.b;
+    ctx.color_a = frag.a;
+    ctx.u = frag.u;
+    ctx.v = frag.v;
+    return ctx;
+}
+
+Fragment FragmentShader::contextToFragment(const FragmentContext& ctx) const {
+    Fragment frag;
+    frag.x = static_cast<uint32_t>(ctx.pos_x);
+    frag.y = static_cast<uint32_t>(ctx.pos_y);
+    frag.z = ctx.out_z;
+    frag.r = ctx.out_r;
+    frag.g = ctx.out_g;
+    frag.b = ctx.out_b;
+    frag.a = ctx.out_a;
+    return frag;
+}
+
+Fragment FragmentShader::shade(const Fragment& input) {
+    // PHASE4: Use ShaderCore ISA interpreter for fragment shading
+    FragmentContext ctx = fragmentToContext(input);
+
+    // Execute fragment through ShaderCore
+    m_shaderCore.executeFragment(ctx, m_shaderFunction);
+
+    // Check if fragment was killed by shader (e.g., discard)
+    if (ctx.killed) {
+        // Return a special "killed" fragment - depth test will reject it
+        Fragment out = input;
+        out.z = CLEAR_DEPTH;  // Move to far plane to ensure rejection
+        return out;
+    }
+
+    // Convert output context back to Fragment
+    return contextToFragment(ctx);
 }
 
 }  // namespace SoftGPU

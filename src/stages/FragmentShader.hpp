@@ -2,6 +2,7 @@
 // SoftGPU - FragmentShader.hpp
 // 片段着色器
 // PHASE2: Added TileBuffer output support
+// PHASE4: Integrated ShaderCore ISA interpreter for fragment execution
 // ============================================================================
 
 #pragma once
@@ -9,6 +10,7 @@
 #include "IStage.hpp"
 #include "core/PipelineTypes.hpp"
 #include "stages/TileBuffer.hpp"
+#include "pipeline/ShaderCore.hpp"
 #include <vector>
 
 namespace SoftGPU {
@@ -17,6 +19,7 @@ namespace SoftGPU {
 // FragmentShader - 片段着色器
 // 职责：逐 fragment 执行着色（Phase1: flat color / passthrough）
 // PHASE2: 支持输出到 TileBuffer（per-tile LMEM）
+// PHASE4: 使用 ShaderCore ISA 解释器执行 fragment shader
 // ============================================================================
 class FragmentShader : public IStage {
 public:
@@ -53,6 +56,16 @@ public:
     // 是否为 PHASE2 TileBuffer 模式
     bool isTileBufferMode() const { return m_tileBuffer != nullptr; }
 
+    // ========================================================================
+    // PHASE4: ShaderCore 访问接口
+    // ========================================================================
+    // 获取 ShaderCore 引用（用于统计）
+    const ShaderCore& getShaderCore() const { return m_shaderCore; }
+    ShaderCore& getShaderCore() { return m_shaderCore; }
+
+    // 获取当前 shader function
+    const ShaderFunction& getCurrentShader() const { return m_shaderFunction; }
+
 private:
     // Pointer to previous stage's output (set by connectStages)
     const std::vector<Fragment>* m_inputFragmentsPtr = nullptr;
@@ -66,8 +79,18 @@ private:
     TileBufferManager*    m_tileBuffer = nullptr;
     uint32_t              m_tileIndex = 0;
 
-    // 内部：逐 fragment 着色（Phase1 直接输出输入颜色）
-    Fragment shade(const Fragment& input) const;
+    // PHASE4: ShaderCore for ISA interpreter-based fragment execution
+    ShaderCore            m_shaderCore;
+    ShaderFunction        m_shaderFunction;
+
+    // 内部：逐 fragment 着色（PHASE4: 使用 ShaderCore ISA 解释器）
+    Fragment shade(const Fragment& input);
+
+    // 将 Fragment 转换为 FragmentContext
+    FragmentContext fragmentToContext(const Fragment& frag) const;
+
+    // 将 FragmentContext 输出转回 Fragment
+    Fragment contextToFragment(const FragmentContext& ctx) const;
 };
 
 }  // namespace SoftGPU
