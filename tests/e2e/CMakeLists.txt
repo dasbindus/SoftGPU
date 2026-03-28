@@ -1,0 +1,21 @@
+# ============================================
+# E2E Tests - End-to-End Scene Tests
+# ============================================
+if(GTest_FOUND)
+    set(GTEST_LIBS GTest::gtest GTest::gtest_main)
+else()
+    set(GTEST_LIBS gtest gtest_main)
+endif()
+
+add_executable(test_e2e
+    E2E_Framework.cpp
+    scene_001_green_triangle.cpp
+    scene_002_rgb_interpolation.cpp
+    scene_003_depth_test.cpp
+    scene_004_mad_verification.cpp
+    scene_005_multi_triangle.cpp
+    scene_006_warp_scheduling.cpp
+)
+target_link_libraries(test_e2e PRIVATE stages pipeline core ${GTEST_LIBS})
+include(GoogleTest)
+gtest_discover_tests(test_e2e)
