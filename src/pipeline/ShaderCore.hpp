@@ -1,0 +1,210 @@
+// ============================================================================
+// SoftGPU - ShaderCore.hpp
+// Shader Core 微架构
+// Phase 2: 将 ISA 解释器集成到渲染管线
+// ============================================================================
+
+#pragma once
+
+#include "core/PipelineTypes.hpp"
+#include "stages/TileBuffer.hpp"
+#include "isa/ISA.hpp"
+#include <memory>
+#include <vector>
+#include <array>
+#include <functional>
+
+namespace SoftGPU {
+
+using softgpu::isa::Interpreter;
+using softgpu::isa::Instruction;
+using softgpu::isa::Opcode;
+using softgpu::isa::RegisterFile;
+
+// ============================================================================
+// ShaderFunction - 编译后的着色器函数
+// ============================================================================
+struct ShaderFunction {
+    std::vector<uint32_t> code;      // 指令序列 (32-bit words)
+    uint32_t start_addr = 0;         // 入口地址
+    uint32_t local_size = 0;         // 局部变量大小 (in registers)
+    uint32_t arg_count = 0;          // 参数个数
+    
+    bool empty() const { return code.empty(); }
+    size_t size() const { return code.size(); }
+};
+
+// ============================================================================
+// FragmentContext - Fragment 执行上下文
+// ============================================================================
+class FragmentContext {
+public:
+    // 输入属性
+    float pos_x = 0.0f;
+    float pos_y = 0.0f;
+    float pos_z = 0.0f;
+    float color_r = 0.0f;
+    float color_g = 0.0f;
+    float color_b = 0.0f;
+    float color_a = 1.0f;
+    float u = 0.0f;
+    float v = 0.0f;
+    
+    // 输出颜色
+    float out_r = 0.0f;
+    float out_g = 0.0f;
+    float out_b = 0.0f;
+    float out_a = 1.0f;
+    float out_z = 1.0f;
+    
+    // 执行状态
+    bool killed = false;  // 被 discard 语句杀死
+    uint32_t tile_x = 0;
+    uint32_t tile_y = 0;
+    
+    void reset() {
+        pos_x = pos_y = pos_z = 0.0f;
+        color_r = color_g = color_b = 0.0f;
+        color_a = out_r = out_g = out_b = 0.0f;
+        out_a = 1.0f;
+        out_z = 1.0f;
+        u = v = 0.0f;
+        killed = false;
+    }
+};
+
+// ============================================================================
+// ShaderCore - Shader 执行微架构
+// ============================================================================
+class ShaderCore {
+public:
+    // 统计信息
+    struct Stats {
+        uint64_t fragments_executed = 0;
+        uint64_t instructions_executed = 0;
+        uint64_t cycles_spent = 0;
+        uint64_t warps_scheduled = 0;
+        
+        void reset() {
+            fragments_executed = 0;
+            instructions_executed = 0;
+            cycles_spent = 0;
+            warps_scheduled = 0;
+        }
+    };
+
+    ShaderCore();
+    ~ShaderCore();
+    
+    // ========================================================================
+    // Fragment Shader 执行
+    // ========================================================================
+    
+    // 执行单个 fragment（使用默认寄存器布局）
+    // 寄存器分配：
+    //   R0  = zero (0.0f)
+    //   R1  = fragment.x (输入)
+    //   R2  = fragment.y (输入)
+    //   R3  = fragment.z (输入)
+    //   R4  = fragment.color_r (输入)
+    //   R5  = fragment.color_g (输入)
+    //   R6  = fragment.color_b (输入)
+    //   R7  = fragment.color_a (输入)
+    //   R8  = fragment.u (输入)
+    //   R9  = fragment.v (输入)
+    //   R10 = output.color_r
+    //   R11 = output.color_g
+    //   R12 = output.color_b
+    //   R13 = output.color_a
+    //   R14 = output.depth
+    //   R15 = killed flag
+    //   R16-R31 = 临时寄存器
+    void executeFragment(FragmentContext& ctx, const ShaderFunction& shader);
+    
+    // 执行多个 fragment（批处理）
+    void executeFragmentBatch(std::vector<FragmentContext>& fragments, 
+                              const ShaderFunction& shader);
+    
+    // ========================================================================
+    // Shader 加载
+    // ========================================================================
+    
+    // 从指令序列加载 shader
+    void loadShader(const ShaderFunction& shader);
+    
+    // 编译 GLSL-like 着色器为 ISA 指令序列（占位，待后续实现）
+    ShaderFunction compileShader(const std::string& glsl_source);
+    
+    // ========================================================================
+    // 内置 shader 函数
+    // ========================================================================
+    
+    // 获取默认的 fragment shader（简单插值 + depth test）
+    static ShaderFunction getDefaultFragmentShader();
+    
+    // 获取 flat color fragment shader
+    static ShaderFunction getFlatColorShader(float r, float g, float b, float a);
+    
+    // ========================================================================
+    // 状态查询
+    // ========================================================================
+    
+    const Stats& getStats() const { return m_stats; }
+    Stats& getStats() { return m_stats; }
+    
+    uint64_t getCycleCount() const { return m_stats.cycles_spent; }
+    double getIPC() const { 
+        return m_stats.cycles_spent > 0 ? 
+            (double)m_stats.instructions_executed / m_stats.cycles_spent : 0.0; 
+    }
+    
+    // ========================================================================
+    // 配置
+    // ========================================================================
+    
+    void setVerbose(bool v) { m_verbose = v; }
+    bool isVerbose() const { return m_verbose; }
+    
+    // ========================================================================
+    // 状态重置
+    // ========================================================================
+    
+    void reset() {
+        m_stats.reset();
+        m_currentShader = ShaderFunction();  // Reconstruct to reset
+    }
+
+private:
+    // 内部状态
+    Interpreter m_interpreter;
+    ShaderFunction m_currentShader;
+    Stats m_stats;
+    bool m_verbose = false;
+    
+    // Fragment 执行核心
+    void executeFragmentInternal(FragmentContext& ctx, const ShaderFunction& shader);
+    
+    // 设置 fragment 输入到寄存器
+    void setupFragmentInput(FragmentContext& ctx);
+    
+    // 读取寄存器输出
+    void captureFragmentOutput(FragmentContext& ctx);
+    
+    // 单步执行 shader 指令
+    bool stepShader();
+    
+    // 同步 interpreter 内存与 TileBuffer
+    void syncMemoryWithTileBuffer(TileBufferManager* tile_buffer, uint32_t tile_idx);
+};
+
+// ============================================================================
+// 辅助函数
+// ============================================================================
+
+// 创建简单的 fragment shader 代码
+std::vector<uint32_t> makeFragmentShaderCode();
+
+// 测试 shader 代码
+std::vector<uint32_t> makeTestShaderCode();
+
+} // namespace SoftGPU
