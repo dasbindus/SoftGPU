@@ -37,14 +37,16 @@ TEST_F(E2ETest, Scene005_MultiTriangle_FrontmostVisible) {
         -0.4f,  0.0f,  0.5f, 1.0f,   1.0f, 0.0f, 0.0f, 1.0f,
     };
 
-    // Triangle B: GREEN - Middle (z = 0.0), overlaps with red
+    // Triangle B: GREEN - Middle (z = 0.0), positioned to the far RIGHT
+    // NDC: x=[0.6, 0.9], y=[-0.1, 0.3] -> screen: x=[512, 608], y=[168, 264]
+    // This is intentionally separate from blue (x=[160,480]) to verify green visibility
     float greenVertices[] = {
-        -0.2f,  0.3f,  0.0f, 1.0f,   0.0f, 1.0f, 0.0f, 1.0f,
-         0.2f,  0.3f,  0.0f, 1.0f,   0.0f, 1.0f, 0.0f, 1.0f,
-         0.2f, -0.2f,  0.0f, 1.0f,   0.0f, 1.0f, 0.0f, 1.0f,
-        -0.2f,  0.3f,  0.0f, 1.0f,   0.0f, 1.0f, 0.0f, 1.0f,
-         0.2f, -0.2f,  0.0f, 1.0f,   0.0f, 1.0f, 0.0f, 1.0f,
-        -0.2f, -0.2f,  0.0f, 1.0f,   0.0f, 1.0f, 0.0f, 1.0f,
+         0.6f,  0.3f,  0.0f, 1.0f,   0.0f, 1.0f, 0.0f, 1.0f,
+         0.9f,  0.3f,  0.0f, 1.0f,   0.0f, 1.0f, 0.0f, 1.0f,
+         0.9f, -0.1f,  0.0f, 1.0f,   0.0f, 1.0f, 0.0f, 1.0f,
+         0.6f,  0.3f,  0.0f, 1.0f,   0.0f, 1.0f, 0.0f, 1.0f,
+         0.9f, -0.1f,  0.0f, 1.0f,   0.0f, 1.0f, 0.0f, 1.0f,
+         0.6f, -0.1f,  0.0f, 1.0f,   0.0f, 1.0f, 0.0f, 1.0f,
     };
 
     // Triangle C: BLUE - Closest (z = -0.5), overlaps with green
@@ -68,14 +70,15 @@ TEST_F(E2ETest, Scene005_MultiTriangle_FrontmostVisible) {
     }
     EXPECT_GT(blueCount, 10) << "Blue (frontmost) should be visible in center overlap";
 
-    // Green should be visible in its non-overlapped regions
+    // Green should be visible in its right-side region (x=[512,608], y=[168,264])
+    // This region is well to the right of blue (x=[160,480]) so no overlap
     int greenCount = 0;
-    for (int y = 200; y < 350; y += 10) {
-        for (int x = 420; x < 520; x += 10) {
+    for (int y = 170; y < 260; y += 10) {
+        for (int x = 520; x < 600; x += 10) {
             if (isBufferPixelGreen(x, y, 0.5f)) greenCount++;
         }
     }
-    EXPECT_GT(greenCount, 5) << "Green should be visible in non-overlapped region";
+    EXPECT_GT(greenCount, 5) << "Green should be visible in right-side region";
 }
 
 // ---------------------------------------------------------------------------

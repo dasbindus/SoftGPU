@@ -56,7 +56,7 @@ void parseTestArgs(int argc, char* argv[]) {
 // Helper: build full output path
 std::string outputPath(const char* filename) {
     std::string path = g_config.output_dir;
-    if (!path.empty() && path != "." && path.back() != '/' && path.back() != '\\') {
+    if (!path.empty() && path.back() != '/' && path.back() != '\\') {
         path += "/";
     }
     path += filename;

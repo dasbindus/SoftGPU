@@ -109,8 +109,8 @@ TEST_F(E2ETest, Scene006_Warp_SameRowFragmentsConsistent) {
          0.9f,  0.0f, -0.5f, 1.0f,   1.0f, 0.0f, 0.0f, 1.0f,  // Right red
         -0.9f,  0.1f, -0.5f, 1.0f,   1.0f, 0.0f, 0.0f, 1.0f,
          0.9f,  0.1f, -0.5f, 1.0f,   1.0f, 0.0f, 0.0f, 1.0f,
-         0.9f,  0.0f, -0.5f, 1.0f,
-        -0.9f,  0.1f, -0.5f, 1.0f,
+         0.9f,  0.0f, -0.5f, 1.0f,   1.0f, 0.0f, 0.0f, 1.0f,
+        -0.9f,  0.1f, -0.5f, 1.0f,   1.0f, 0.0f, 0.0f, 1.0f,
     };
 
     renderTriangle(vertices, 6);
@@ -120,8 +120,9 @@ TEST_F(E2ETest, Scene006_Warp_SameRowFragmentsConsistent) {
     EXPECT_GT(redCount, 5000)
         << "Horizontal strip should have many red pixels, got " << redCount;
 
-    // Check a few rows for consistency
-    for (int y = 200; y < 280; y += 20) {
+    // Check rows inside the strip (y=[216, 240)) for consistency
+    // NDC y=[0.0, 0.1] -> screen y=[216, 240) (strip is 24 pixels tall, y=240 is the bottom edge)
+    for (int y = 216; y < 240; y += 4) {
         int rowRedCount = 0;
         for (int x = 50; x < 600; x += 10) {
             float r, g, b;

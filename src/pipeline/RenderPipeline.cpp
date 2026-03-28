@@ -323,6 +323,10 @@ void RenderPipeline::executeTile(uint32_t tileIndex, uint32_t tileX, uint32_t ti
 }
 
 void RenderPipeline::dump(const std::string& filename) const {
+    // Clear output path to ensure clean filename when m_output_dir is empty
+    // This prevents stale m_outputPath from previous tests affecting current dump
+    const_cast<RenderPipeline*>(this)->m_dumper.setOutputPath("");
+
     // Sync GMEM to Framebuffer first for consistent output
     if (m_tbrEnabled) {
         const_cast<RenderPipeline*>(this)->syncGMEMToFramebuffer();
