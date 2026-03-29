@@ -1,12 +1,12 @@
 // ============================================================================
 // SoftGPU - FragmentShader.cpp
 // 片段着色器
-// PHASE2: Added TileBuffer output support
-// PHASE4: Integrated ShaderCore ISA interpreter for fragment execution
+// PHASE2: ISA 解释器集成
 // ============================================================================
 
 #include "FragmentShader.hpp"
 #include "TilingStage.hpp"
+#include "pipeline/ShaderCore.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -15,9 +15,9 @@
 namespace SoftGPU {
 
 FragmentShader::FragmentShader() {
-    // PHASE4: Initialize ShaderCore with default fragment shader
-    m_shaderFunction = ShaderCore::getDefaultFragmentShader();
-    m_shaderCore.loadShader(m_shaderFunction);
+    // PHASE2: 初始化 ShaderCore，加载默认 fragment shader
+    m_currentShader = ShaderCore::getDefaultFragmentShader();
+    m_shaderCore.loadShader(m_currentShader);
     resetCounters();
 }
 
@@ -59,83 +59,26 @@ void FragmentShader::setInputAndExecuteTile(const std::vector<Fragment>& fragmen
     auto start = std::chrono::high_resolution_clock::now();
 
     uint64_t fragmentsShaded = 0;
-    uint64_t totalInstructions = 0;
-    uint64_t totalCycles = 0;
 
-    // Reset ShaderCore stats for this tile
-    m_shaderCore.reset();
+    for (const auto& frag : fragments) {
+        Fragment shaded = shade(frag);
 
-    // PHASE3: Batch processing - 8 fragments at a time (warp size)
-    const size_t WARP_SIZE = 8;
-    size_t numFragments = fragments.size();
-    size_t batchCount = (numFragments + WARP_SIZE - 1) / WARP_SIZE;
-    
-    for (size_t batch = 0; batch < batchCount; ++batch) {
-        size_t batchStart = batch * WARP_SIZE;
-        size_t batchEnd = std::min(batchStart + WARP_SIZE, numFragments);
-        size_t batchSize = batchEnd - batchStart;
-        
-        // Get stats before batch execution
-        uint64_t prevCycles = m_shaderCore.getStats().cycles_spent;
-        uint64_t prevInstructions = m_shaderCore.getStats().instructions_executed;
-        
-        // PHASE3: Use warp batch execution when we have 8 fragments
-        if (batchSize == WARP_SIZE) {
-            // Build warp batch
-            std::array<FragmentContext, WARP_SIZE> warpContexts;
-            for (size_t i = 0; i < WARP_SIZE; ++i) {
-                const Fragment& frag = fragments[batchStart + i];
-                warpContexts[i] = fragmentToContext(frag);
-                warpContexts[i].tile_x = tileX;
-                warpContexts[i].tile_y = tileY;
-            }
-            
-            // Execute warp batch
-            m_shaderCore.executeWarpBatch(warpContexts, m_shaderFunction);
-            
-            // Process results
-            for (size_t i = 0; i < WARP_SIZE; ++i) {
-                const Fragment& frag = fragments[batchStart + i];
-                FragmentContext& ctx = warpContexts[i];
-                
-                if (ctx.killed) continue;
-                
-                Fragment shaded = contextToFragment(ctx);
-                uint32_t localX = frag.x - tileX * TILE_WIDTH;
-                uint32_t localY = frag.y - tileY * TILE_HEIGHT;
-                float color[4] = {shaded.r, shaded.g, shaded.b, shaded.a};
-                bool passed = m_tileBuffer->depthTestAndWrite(m_tileIndex, localX, localY, shaded.z, color);
-                if (passed) fragmentsShaded++;
-            }
-        } else {
-            // Partial batch - process individually
-            for (size_t i = batchStart; i < batchEnd; ++i) {
-                const auto& frag = fragments[i];
-                FragmentContext ctx = fragmentToContext(frag);
-                ctx.tile_x = tileX;
-                ctx.tile_y = tileY;
-                m_shaderCore.executeFragment(ctx, m_shaderFunction);
-                
-                if (ctx.killed) continue;
-                
-                Fragment shaded = contextToFragment(ctx);
-                uint32_t localX = frag.x - tileX * TILE_WIDTH;
-                uint32_t localY = frag.y - tileY * TILE_HEIGHT;
-                float color[4] = {shaded.r, shaded.g, shaded.b, shaded.a};
-                bool passed = m_tileBuffer->depthTestAndWrite(m_tileIndex, localX, localY, shaded.z, color);
-                if (passed) fragmentsShaded++;
-            }
+        // Compute local coordinates within tile
+        uint32_t localX = frag.x - tileX * TILE_WIDTH;
+        uint32_t localY = frag.y - tileY * TILE_HEIGHT;
+
+        // Write to TileBuffer (depth test happens inside)
+        float color[4] = {shaded.r, shaded.g, shaded.b, shaded.a};
+        bool passed = m_tileBuffer->depthTestAndWrite(m_tileIndex, localX, localY, shaded.z, color);
+
+        if (passed) {
+            fragmentsShaded++;
         }
-        
-        // Accumulate delta stats
-        totalInstructions += m_shaderCore.getStats().instructions_executed - prevInstructions;
-        totalCycles += m_shaderCore.getStats().cycles_spent - prevCycles;
     }
 
     m_counters.invocation_count = static_cast<uint64_t>(fragments.size());
     m_counters.extra_count0 = fragmentsShaded;   // fragments_shade
     m_counters.extra_count1 = m_tileBuffer->getDepthTestCount();  // depth_tests
-    m_counters.cycle_count = totalCycles;
 
     auto end = std::chrono::high_resolution_clock::now();
     m_counters.elapsed_ms =
@@ -153,16 +96,11 @@ void FragmentShader::execute() {
     m_outputFragments.clear();
     m_outputFragments.reserve(input.size());
 
-    // Reset ShaderCore stats
-    m_shaderCore.reset();
-    uint64_t totalCycles = 0;
-
     for (const auto& frag : input) {
         m_outputFragments.push_back(shade(frag));
     }
 
     m_counters.invocation_count = static_cast<uint64_t>(m_outputFragments.size());
-    m_counters.cycle_count = totalCycles;
 
     auto end = std::chrono::high_resolution_clock::now();
     m_counters.elapsed_ms =
@@ -171,7 +109,6 @@ void FragmentShader::execute() {
 
 void FragmentShader::resetCounters() {
     m_counters = PerformanceCounters{};
-    m_shaderCore.reset();
 }
 
 FragmentContext FragmentShader::fragmentToContext(const Fragment& frag) const {
@@ -201,21 +138,20 @@ Fragment FragmentShader::contextToFragment(const FragmentContext& ctx) const {
 }
 
 Fragment FragmentShader::shade(const Fragment& input) {
-    // PHASE4: Use ShaderCore ISA interpreter for fragment shading
+    // PHASE2: 调用 ISA 解释器执行 fragment shader
     FragmentContext ctx = fragmentToContext(input);
 
-    // Execute fragment through ShaderCore
-    m_shaderCore.executeFragment(ctx, m_shaderFunction);
+    // 执行 ISA 指令
+    m_shaderCore.executeFragment(ctx, m_currentShader);
 
-    // Check if fragment was killed by shader (e.g., discard)
+    // 处理被 kill 的 fragment
     if (ctx.killed) {
-        // Return a special "killed" fragment - depth test will reject it
         Fragment out = input;
-        out.z = CLEAR_DEPTH;  // Move to far plane to ensure rejection
+        out.z = CLEAR_DEPTH;  // 推到远平面，depth test 会拒绝
         return out;
     }
 
-    // Convert output context back to Fragment
+    // 转换回 Fragment
     return contextToFragment(ctx);
 }
 

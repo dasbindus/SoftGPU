@@ -9,18 +9,17 @@
 #include "IStage.hpp"
 #include "core/PipelineTypes.hpp"
 #include "stages/TileBuffer.hpp"
+#include "pipeline/ShaderCore.hpp"
 #include <memory>
 #include <vector>
 
 namespace SoftGPU {
 
-// Forward declaration
-class ShaderCore;
-
 // ============================================================================
 // FragmentShader - 片段着色器
 // 职责：逐 fragment 执行着色（Phase1: flat color / passthrough）
 // PHASE2: 支持输出到 TileBuffer（per-tile LMEM）
+// PHASE2: 集成 ShaderCore ISA 解释器
 // ============================================================================
 class FragmentShader : public IStage {
 public:
@@ -70,11 +69,18 @@ private:
     TileBufferManager*    m_tileBuffer = nullptr;
     uint32_t              m_tileIndex = 0;
 
-    // PHASE2: ShaderCore 引用（用于执行着色器）
-    ShaderCore*           m_shaderCore = nullptr;
+    // PHASE2: ShaderCore 执行引擎
+    ShaderCore            m_shaderCore;
 
-    // 内部：逐 fragment 着色（Phase1 直接输出输入颜色）
-    Fragment shade(const Fragment& input) const;
+    // PHASE2: ISA shader 函数
+    ShaderFunction        m_currentShader;
+
+    // 内部：逐 fragment 着色
+    Fragment shade(const Fragment& input);
+
+    // 辅助：Fragment <-> FragmentContext 互转
+    FragmentContext fragmentToContext(const Fragment& frag) const;
+    Fragment contextToFragment(const FragmentContext& ctx) const;
 };
 
 }  // namespace SoftGPU

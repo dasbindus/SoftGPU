@@ -6,8 +6,6 @@ add_library(pipeline STATIC
     RenderPipeline.cpp
     ShaderCore.hpp
     ShaderCore.cpp
-    WarpScheduler.hpp
-    WarpScheduler.cpp
 )
 
 target_link_libraries(pipeline PUBLIC
@@ -15,7 +13,6 @@ target_link_libraries(pipeline PUBLIC
     core
     utils
     profiler
-    isa
 )
 
 target_include_directories(pipeline PUBLIC
