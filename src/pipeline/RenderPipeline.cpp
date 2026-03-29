@@ -46,7 +46,8 @@ void RenderPipeline::connectStages() {
     m_tileWriteBack.setFramebuffer(&m_framebuffer);
     //
     // GMEM base pointer injection (needed for writeGMEM to work)
-    m_memory.setGMEMBase(m_tileWriteBack.getGMEMColorData(), m_tileWriteBack.getGMEMDepthData());
+    m_memory.setGMEMBase(const_cast<float*>(m_tileWriteBack.getGMEMColor()),
+                         const_cast<float*>(m_tileWriteBack.getGMEMDepth()));
 }
 
 void RenderPipeline::initGMEM(const RenderCommand& command) {
@@ -346,8 +347,10 @@ void RenderPipeline::setDumpOutputPath(const std::string& path) {
 }
 
 void RenderPipeline::dumpFrame(uint32_t frameIndex) {
+    // Sync GMEM to Framebuffer first for consistent output in TBR mode
     if (m_tbrEnabled) {
-        const float* colorData = m_tileWriteBack.getGMEMColor();
+        const_cast<RenderPipeline*>(this)->syncGMEMToFramebuffer();
+        const float* colorData = m_framebuffer.getColorBuffer();
         m_dumper.dumpFrame(colorData, FRAMEBUFFER_WIDTH, FRAMEBUFFER_HEIGHT, frameIndex);
     } else {
         const float* colorData = m_framebuffer.getColorBuffer();

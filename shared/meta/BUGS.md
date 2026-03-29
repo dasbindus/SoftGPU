@@ -2,8 +2,8 @@
 
 | # | 日期 | 描述 | 严重度 | 状态 | 负责人 |
 |---|------|------|--------|------|--------|
-| BUG-001 | 2026-03-30 | Scene005_MultiTriangle_PPMDumpCorrect: TBR/GMEM 同步问题，PPMDumpCorrect 读取不到红像素 | P1 | Open | 王刚 |
-| BUG-002 | 2026-03-30 | Scene006_Warp_PPMDumpCorrect: 同 BUG-001，TBR/GMEM 同步问题 | P1 | Open | 王刚 |
+| BUG-001 | 2026-03-30 | Scene005_MultiTriangle_PPMDumpCorrect: TBR/GMEM 同步问题，PPMDumpCorrect 读取不到红像素 | P1 | Fixed | 白小西 |
+| BUG-002 | 2026-03-30 | Scene006_Warp_PPMDumpCorrect: 同 BUG-001，TBR/GMEM 同步问题 | P1 | Fixed | 白小西 |
 
 ---
 
@@ -24,7 +24,10 @@
 - 独立验证找到 33,024 个红像素，说明渲染实际正确
 - **严重度判断**：渲染本身正确，GMEM 数据完整，问题是 GMEM→framebuffer 同步缺失导致测试无法验证。有 workaround（直接读 GMEM），但不修复则 TBR 路径的 pixel dump 测试永远无法正常工作。归为 P1。
 
-**状态**: Open
+**状态**: Fixed (2026-03-30)
+**修复人**: 白小西
+**修复说明**: `dumpFrame()` 在 TBR 模式下直接读取 GMEM（tile 顺序），但 `dump()` 已经通过 `syncGMEMToFramebuffer()` 同步到 framebuffer（screen 顺序）。统一 `dumpFrame()` 也使用相同模式：先 `syncGMEMToFramebuffer()`，再从 framebuffer 读取。
+
 **负责人**: 王刚
 
 ---
@@ -42,7 +45,10 @@
 
 **严重度判断**：与 BUG-001 完全一致，P1。两个 BUG 可能共享同一根因（TBR GMEM→framebuffer flush 缺失），建议一起修。
 
-**状态**: Open
+**状态**: Fixed (2026-03-30)
+**修复人**: 白小西
+**修复说明**: 同 BUG-001，`dumpFrame()` 已修复。
+
 **负责人**: 王刚
 
 ---
