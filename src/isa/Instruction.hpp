@@ -50,11 +50,11 @@ struct Instruction
     // Immediate: bits[9:0] - 10-bit immediate
     uint16_t GetImm() const { return raw & 0x3FF; }
 
-    // Rc: for R4 type, encoded in immediate[14:10] of the instruction
+    // Rc: for R4 type, encoded in bits [9:5] of the instruction (see MakeR4)
     // MAD: Rc = Ra field of extra word
-    // SEL: Rc = Rb field of extra word  
+    // SEL: Rc = Rb field of extra word
     // TEX/SAMPLE: texture/uv registers
-    uint8_t GetRc() const { return GetRb(); } // Default encoding
+    uint8_t GetRc() const { return (raw >> 5) & 0x1F; }
 
     // --- Signed immediate (for BRA) ---
     int16_t GetSignedImm() const
