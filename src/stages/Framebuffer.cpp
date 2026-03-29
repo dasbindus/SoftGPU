@@ -97,7 +97,7 @@ bool Framebuffer::depthTest(uint32_t x, uint32_t y, float z) {
 
     size_t idx = y * WIDTH + x;
     float oldZ = m_depthBuffer[idx];
-    return z < oldZ;  // Smaller Z = closer to camera
+    return z > oldZ;  // Larger Z = closer to camera (fix: green z=-0.3 should cover red z=0.3)
 }
 
 void Framebuffer::writePixel(uint32_t x, uint32_t y, float z, const float color[4]) {

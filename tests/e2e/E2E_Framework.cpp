@@ -62,8 +62,8 @@ Pixel PPMVerifier::getPixel(int x, int y) const {
         y < 0 || y >= static_cast<int>(m_height)) {
         return Pixel();
     }
-    int storedY = m_height - 1 - y;
-    size_t idx = (static_cast<size_t>(storedY) * m_width + x) * 3;
+    // No Y flip needed: FrameDumper writes y=0 at top, getPixel should too
+    size_t idx = (static_cast<size_t>(y) * m_width + x) * 3;
     return Pixel(m_pixels[idx], m_pixels[idx + 1], m_pixels[idx + 2]);
 }
 
