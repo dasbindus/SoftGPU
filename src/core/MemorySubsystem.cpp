@@ -7,6 +7,7 @@
 #include "MemorySubsystem.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <cstring>
 
 namespace SoftGPU {
@@ -35,11 +36,22 @@ bool TokenBucket::tryConsume(size_t bytes) {
 }
 
 void TokenBucket::refill() {
-    // 使用墙上时间计算补充量
-    // 注意：这里简化处理，每次 tryConsume 时补充到满
-    if (tokens < maxTokens) {
-        tokens = maxTokens;
-    }
+    using namespace std::chrono;
+    // Get current wall-clock time in milliseconds
+    double nowMs = static_cast<double>(
+        duration_cast<nanoseconds>(high_resolution_clock::now().time_since_epoch()).count()
+    ) / 1e6;
+
+    // Calculate elapsed time since last refill
+    double elapsedSeconds = (nowMs - lastRefillTime) / 1000.0;
+    if (elapsedSeconds < 0) elapsedSeconds = 0;  // Guard against clock skew
+
+    // Add tokens based on elapsed time
+    double tokensToAdd = refillRate * elapsedSeconds;
+    tokens = std::min(maxTokens, tokens + tokensToAdd);
+
+    // Update last refill time
+    lastRefillTime = nowMs;
 }
 
 // ============================================================================
@@ -124,6 +136,7 @@ uint64_t L2CacheSim::getTag(uint64_t address) const {
 // MemorySubsystem Implementation
 // ============================================================================
 MemorySubsystem::MemorySubsystem(double bandwidthGBps) {
+    m_bandwidthGBps = bandwidthGBps;
     m_bucket.init(bandwidthGBps);
     resetCounters();
     m_startTimeMs = getCurrentTimeMs();
@@ -247,7 +260,7 @@ void MemorySubsystem::resetCounters() {
     m_accessCount = 0;
     m_bandwidthOverLimitCount = 0;
     m_l2Cache.resetStats();
-    m_bucket.init(DEFAULT_BANDWIDTH_GBPS);
+    m_bucket.init(m_bandwidthGBps);
     m_startTimeMs = getCurrentTimeMs();
     m_elapsedMs = 0.0;
 }

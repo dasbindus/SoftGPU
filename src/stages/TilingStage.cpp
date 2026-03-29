@@ -124,10 +124,11 @@ void TilingStage::computeBbox(const Triangle& tri,
     float screenMaxY = (1.0f - minY) * 0.5f * static_cast<float>(FRAMEBUFFER_HEIGHT);  // NDC minY -> screen bottom
 
     // NDC to tile grid
+    // Use ceil-1 for max to handle floating-point precision at tile boundaries
     minTileX = static_cast<int32_t>(std::floor(screenMinX / static_cast<float>(TILE_WIDTH)));
-    maxTileX = static_cast<int32_t>(std::floor(screenMaxX / static_cast<float>(TILE_WIDTH)));
+    maxTileX = static_cast<int32_t>(std::ceil(screenMaxX / static_cast<float>(TILE_WIDTH))) - 1;
     minTileY = static_cast<int32_t>(std::floor(screenMinY / static_cast<float>(TILE_HEIGHT)));
-    maxTileY = static_cast<int32_t>(std::floor(screenMaxY / static_cast<float>(TILE_HEIGHT)));
+    maxTileY = static_cast<int32_t>(std::ceil(screenMaxY / static_cast<float>(TILE_HEIGHT))) - 1;
 }
 
 bool TilingStage::ndcToTile(float ndcX, float ndcY,

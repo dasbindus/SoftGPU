@@ -134,6 +134,7 @@ private:
     double      m_elapsedMs = 0.0;
     double      m_startTimeMs = 0.0;
     uint64_t    m_bandwidthOverLimitCount = 0;  // 带宽超限次数
+    double      m_bandwidthGBps = DEFAULT_BANDWIDTH_GBPS;  // 保存构造时带宽值
 
     // GMEM 基址（指向 TileWriteBack 的 m_gmemColor/m_gmemDepth，由 RenderPipeline 注入）
     float*      m_gmemColorBase = nullptr;

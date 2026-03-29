@@ -149,12 +149,23 @@ void Rasterizer::rasterizeTrianglePerTile(const Triangle& tri,
             float pyF = static_cast<float>(py) + 0.5f;
 
             // Edge function tests (CCW winding, inside = all >= 0 or all <= 0)
+            // Use epsilon for symmetric boundary handling to avoid precision issues
+            constexpr float EPSILON = 1e-6f;
             float e0 = edgeFunction(pxF, pyF, sx0, sy0, sx1, sy1);
             float e1 = edgeFunction(pxF, pyF, sx1, sy1, sx2, sy2);
             float e2 = edgeFunction(pxF, pyF, sx2, sy2, sx0, sy0);
 
-            bool inside = (e0 >= 0.0f && e1 >= 0.0f && e2 >= 0.0f) ||
-                          (e0 <= 0.0f && e1 <= 0.0f && e2 <= 0.0f);
+            // Fill rule: pixel is inside if all edges have the same sign (all >= 0 or all <= 0).
+            // Use epsilon for numerical stability only — not as a third "inside" condition.
+            // Clear interior: all edges positive (> EPS) or all negative (< -EPS)
+            // Boundary: fall through to epsilon tolerance check
+            constexpr float EPS = 1e-6f;
+            bool inside = (e0 >= 0 && e1 >= 0 && e2 >= 0) ||
+                          (e0 <= 0 && e1 <= 0 && e2 <= 0);
+            // Epsilon tolerance: pixels very close to the edge (all |e| <= EPS) are also inside
+            if (!inside) {
+                inside = (std::abs(e0) <= EPS && std::abs(e1) <= EPS && std::abs(e2) <= EPS);
+            }
 
             if (inside) {
                 // Create fragment
@@ -203,6 +214,11 @@ void Rasterizer::interpolateAttributes(const Triangle& tri, float baryX, float b
     frag.g = w0 * tri.v[0].g + w1 * tri.v[1].g + w2 * tri.v[2].g;
     frag.b = w0 * tri.v[0].b + w1 * tri.v[1].b + w2 * tri.v[2].b;
     frag.a = w0 * tri.v[0].a + w1 * tri.v[1].a + w2 * tri.v[2].a;
+
+    // Clamp color to [0,1] range
+    frag.r = std::max(0.0f, std::min(1.0f, frag.r));
+    frag.g = std::max(0.0f, std::min(1.0f, frag.g));
+    frag.b = std::max(0.0f, std::min(1.0f, frag.b));
 
     // Texture coordinates (unused in Phase1)
     frag.u = 0.0f;

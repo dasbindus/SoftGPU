@@ -189,9 +189,24 @@ public:
             }
             break;
 
-        case Opcode::DIV:
-            output.result = (input.val_b != 0.0f) ? (input.val_a / input.val_b) : std::copysign(std::numeric_limits<float>::infinity(), input.val_a);
+        case Opcode::DIV: {
+            // Newton-Raphson for division: compute a / b as a * (1/b)
+            // Newton iteration: x_{n+1} = x * (2 - b * x), converges to 1/b
+            // 2 iterations gives ~1e-6 relative accuracy for float
+            if (input.val_b == 0.0f) {
+                output.result = std::copysign(std::numeric_limits<float>::infinity(), input.val_a);
+            } else if (std::isinf(input.val_a) || std::isnan(input.val_a) || std::isnan(input.val_b)) {
+                output.result = std::nanf("");
+            } else {
+                float b = input.val_b;
+                float x = 1.0f / b;  // Initial estimate
+                // Newton-Raphson iterations for reciprocal
+                x = x * (2.0f - b * x);  // 1st iteration
+                x = x * (2.0f - b * x);  // 2nd iteration
+                output.result = input.val_a * x;
+            }
             break;
+        }
 
         case Opcode::F2I: {
             // Float to int32, round toward zero

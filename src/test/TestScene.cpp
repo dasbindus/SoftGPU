@@ -462,7 +462,7 @@ private:
         };
 
         for (auto& pos : positions) {
-            for (size_t i = 0; i < smallCube.size(); i += 7) {
+            for (size_t i = 0; i < smallCube.size(); i += 8) {
                 m_vertices.push_back(smallCube[i]     + pos[0]);
                 m_vertices.push_back(smallCube[i + 1] + pos[1]);
                 m_vertices.push_back(smallCube[i + 2] + pos[2]);
@@ -470,6 +470,7 @@ private:
                 m_vertices.push_back(smallCube[i + 4]);
                 m_vertices.push_back(smallCube[i + 5]);
                 m_vertices.push_back(smallCube[i + 6]);
+                m_vertices.push_back(smallCube[i + 7]);
             }
         }
     }

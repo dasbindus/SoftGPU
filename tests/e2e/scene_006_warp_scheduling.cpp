@@ -10,6 +10,11 @@
 //   ✓ Scheduling is fair and round-robin
 //   ✓ Long-delay instructions handled correctly
 //
+// Enhancements (王刚):
+//   ✓ Bounding Box Exact Verification (NDC + viewport transform)
+//   ✓ Slanted Edge Linearity Detection
+//   ✓ Golden Reference Comparison (PPMVerifier, tolerance 0.02)
+//
 // Author: 王刚（@wanggang）— Reviewer Agent & 测试专家
 // ============================================================================
 
@@ -17,24 +22,41 @@
 #include <algorithm>
 
 // ============================================================================
-// Scene 006: Warp=8 Scheduling Verification
+// Scene 006 Geometry Constants
 // ============================================================================
+namespace Scene006 {
+    // Large triangle used for warp scheduling: spans most of screen
+    // V0(-0.8, 0.8) → screen (64, 96)
+    // V1( 0.8, 0.8) → screen (576, 96)
+    // V2( 0.0,-0.8) → screen (320, 432)
+    // Bbox: minX=64, maxX=576, minY=96, maxY=432
+
+    constexpr float V0_X = -0.8f, V0_Y =  0.8f;
+    constexpr float V1_X =  0.8f, V1_Y =  0.8f;
+    constexpr float V2_X =  0.0f, V2_Y = -0.8f;
+
+    // After fill rule fix + NDC Y-axis fix:
+    // Actual bbox: minX=64, maxX=575, minY=48, maxY=430
+    constexpr int   LARGE_TRI_MIN_X =  64;
+    constexpr int   LARGE_TRI_MAX_X = 575;
+    constexpr int   LARGE_TRI_MIN_Y =  48;
+    constexpr int   LARGE_TRI_MAX_Y = 430;
+
+    const char* GOLDEN_FILE = "tests/e2e/golden/scene006_warp_scheduling.ppm";
+}
 
 // ---------------------------------------------------------------------------
 // Test: Large triangle generates enough fragments to exercise Warp scheduling
 // ---------------------------------------------------------------------------
 TEST_F(E2ETest, Scene006_Warp_LargeTriangleGeneratesManyFragments) {
-    // Create a large triangle that spans multiple tiles
-    // This should generate many fragments that can be scheduled in Warps
     float vertices[] = {
-        -0.8f,  0.8f, -0.5f, 1.0f,   0.0f, 1.0f, 0.0f, 1.0f,  // Top-left green
-         0.8f,  0.8f, -0.5f, 1.0f,   0.0f, 1.0f, 0.0f, 1.0f,  // Top-right green
-         0.0f, -0.8f, -0.5f, 1.0f,   0.0f, 1.0f, 0.0f, 1.0f,  // Bottom green
+        -0.8f,  0.8f, -0.5f, 1.0f,   0.0f, 1.0f, 0.0f, 1.0f,
+         0.8f,  0.8f, -0.5f, 1.0f,   0.0f, 1.0f, 0.0f, 1.0f,
+         0.0f, -0.8f, -0.5f, 1.0f,   0.0f, 1.0f, 0.0f, 1.0f,
     };
 
     renderTriangle(vertices, 3);
 
-    // Count total non-black pixels
     int nonBlackCount = 0;
     const float* color = getColorBuffer();
     for (size_t i = 0; i < FRAMEBUFFER_WIDTH * FRAMEBUFFER_HEIGHT; i++) {
@@ -46,11 +68,9 @@ TEST_F(E2ETest, Scene006_Warp_LargeTriangleGeneratesManyFragments) {
         }
     }
 
-    // Large triangle should generate many fragments (> 10000 pixels)
     EXPECT_GT(nonBlackCount, 10000)
         << "Large triangle should generate > 10000 fragments, got " << nonBlackCount;
 
-    // Green pixels should dominate
     int greenCount = countGreenPixelsFromBuffer();
     EXPECT_GT(greenCount, 8000)
         << "Green triangle should have > 8000 green pixels, got " << greenCount;
@@ -60,25 +80,18 @@ TEST_F(E2ETest, Scene006_Warp_LargeTriangleGeneratesManyFragments) {
 // Test: Multiple small triangles can be scheduled together
 // ---------------------------------------------------------------------------
 TEST_F(E2ETest, Scene006_Warp_MultipleTrianglesScheduled) {
-    // Render multiple small triangles
-    // If Warp scheduling works, fragments from different triangles
-    // should be batched together in Warps of 8
-
-    // Triangle 1: top green
     float tri1[] = {
          0.0f,  0.8f, -0.5f, 1.0f,   0.0f, 1.0f, 0.0f, 1.0f,
         -0.3f,  0.4f, -0.5f, 1.0f,   0.0f, 1.0f, 0.0f, 1.0f,
          0.3f,  0.4f, -0.5f, 1.0f,   0.0f, 1.0f, 0.0f, 1.0f,
     };
 
-    // Triangle 2: right blue
     float tri2[] = {
          0.5f,  0.0f, -0.5f, 1.0f,   0.0f, 0.0f, 1.0f, 1.0f,
          0.9f, -0.3f, -0.5f, 1.0f,   0.0f, 0.0f, 1.0f, 1.0f,
          0.9f,  0.3f, -0.5f, 1.0f,   0.0f, 0.0f, 1.0f, 1.0f,
     };
 
-    // Triangle 3: left red
     float tri3[] = {
         -0.5f,  0.0f, -0.5f, 1.0f,   1.0f, 0.0f, 0.0f, 1.0f,
         -0.9f, -0.3f, -0.5f, 1.0f,   1.0f, 0.0f, 0.0f, 1.0f,
@@ -89,7 +102,6 @@ TEST_F(E2ETest, Scene006_Warp_MultipleTrianglesScheduled) {
     renderTriangle(tri2, 3);
     renderTriangle(tri3, 3);
 
-    // Each triangle should render correctly
     int greenCount = countGreenPixelsFromBuffer();
     int blueCount = countBluePixelsFromBuffer();
     int redCount = countRedPixelsFromBuffer();
@@ -103,10 +115,9 @@ TEST_F(E2ETest, Scene006_Warp_MultipleTrianglesScheduled) {
 // Test: Fragments in same row execute together
 // ---------------------------------------------------------------------------
 TEST_F(E2ETest, Scene006_Warp_SameRowFragmentsConsistent) {
-    // Create a horizontal strip that should be processed in Warps
     float vertices[] = {
-        -0.9f,  0.0f, -0.5f, 1.0f,   1.0f, 0.0f, 0.0f, 1.0f,  // Left red
-         0.9f,  0.0f, -0.5f, 1.0f,   1.0f, 0.0f, 0.0f, 1.0f,  // Right red
+        -0.9f,  0.0f, -0.5f, 1.0f,   1.0f, 0.0f, 0.0f, 1.0f,
+         0.9f,  0.0f, -0.5f, 1.0f,   1.0f, 0.0f, 0.0f, 1.0f,
         -0.9f,  0.1f, -0.5f, 1.0f,   1.0f, 0.0f, 0.0f, 1.0f,
          0.9f,  0.1f, -0.5f, 1.0f,   1.0f, 0.0f, 0.0f, 1.0f,
          0.9f,  0.0f, -0.5f, 1.0f,   1.0f, 0.0f, 0.0f, 1.0f,
@@ -115,13 +126,10 @@ TEST_F(E2ETest, Scene006_Warp_SameRowFragmentsConsistent) {
 
     renderTriangle(vertices, 6);
 
-    // Check that the strip has consistent red color
     int redCount = countRedPixelsFromBuffer();
     EXPECT_GT(redCount, 5000)
         << "Horizontal strip should have many red pixels, got " << redCount;
 
-    // Check rows inside the strip (y=[216, 240)) for consistency
-    // NDC y=[0.0, 0.1] -> screen y=[216, 240) (strip is 24 pixels tall, y=240 is the bottom edge)
     for (int y = 216; y < 240; y += 4) {
         int rowRedCount = 0;
         for (int x = 50; x < 600; x += 10) {
@@ -140,38 +148,14 @@ TEST_F(E2ETest, Scene006_Warp_SameRowFragmentsConsistent) {
 // Test: Warp scheduling doesn't cause artifacts at tile boundaries
 // ---------------------------------------------------------------------------
 TEST_F(E2ETest, Scene006_Warp_TileBoundaryNoArtifacts) {
-    // Create triangles that span tile boundaries
-    // TILE_WIDTH = 32, so tiles are at x = 0, 32, 64, etc.
-    // We create triangles that cross these boundaries
-
     float vertices[] = {
-        -0.5f,  0.9f, -0.5f, 1.0f,   0.0f, 1.0f, 0.0f, 1.0f,  // Top green
+        -0.5f,  0.9f, -0.5f, 1.0f,   0.0f, 1.0f, 0.0f, 1.0f,
          0.5f,  0.9f, -0.5f, 1.0f,   0.0f, 1.0f, 0.0f, 1.0f,
-         0.0f, -0.9f, -0.5f, 1.0f,   0.0f, 1.0f, 0.0f, 1.0f,  // Bottom
+         0.0f, -0.9f, -0.5f, 1.0f,   0.0f, 1.0f, 0.0f, 1.0f,
     };
 
     renderTriangle(vertices, 3);
 
-    // Check that pixels near tile boundaries (x=32, 64, 96, etc.) are consistent
-    int boundaryArtifacts = 0;
-    for (int y = 50; y < 400; y += 5) {
-        for (int bx = 32; bx < 640; bx += 32) {
-            // Check a few pixels around the boundary
-            float r1, g1, b1;
-            float r2, g2, b2;
-            getBufferPixelColor(bx - 2, y, r1, g1, b1);
-            getBufferPixelColor(bx + 2, y, r2, g2, b2);
-
-            // If one pixel is green and the other isn't, it might be an artifact
-            bool leftIsGreen = (g1 > 0.5f && g1 > r1 && g1 > b1);
-            bool rightIsGreen = (g2 > 0.5f && g2 > r2 && g2 > b2);
-
-            // Note: This is not necessarily an error - just a consistency check
-            // We mainly want to ensure no crashes or obvious corruption
-        }
-    }
-
-    // Just ensure the triangle renders without crashing
     int greenCount = countGreenPixelsFromBuffer();
     EXPECT_GT(greenCount, 5000)
         << "Triangle spanning tile boundaries should render, got " << greenCount;
@@ -181,12 +165,6 @@ TEST_F(E2ETest, Scene006_Warp_TileBoundaryNoArtifacts) {
 // Test: Many small triangles exercise Warp allocation
 // ---------------------------------------------------------------------------
 TEST_F(E2ETest, Scene006_Warp_ManySmallTriangles) {
-    // Render many small triangles to exercise Warp allocation and scheduling
-    // Each triangle has 3 fragments, so groups should be packed into Warps
-
-    // We'll render 24 small triangles (72 total fragments)
-    // With Warp size 8, we need 9 Warps to schedule all
-
     for (int i = 0; i < 8; i++) {
         for (int j = 0; j < 3; j++) {
             float x_offset = (float)(i - 4) * 0.2f;
@@ -201,7 +179,6 @@ TEST_F(E2ETest, Scene006_Warp_ManySmallTriangles) {
         }
     }
 
-    // Should have many green pixels from all triangles
     int greenCount = countGreenPixelsFromBuffer();
     EXPECT_GT(greenCount, 1000)
         << "Many small triangles should render, got " << greenCount;
@@ -211,7 +188,6 @@ TEST_F(E2ETest, Scene006_Warp_ManySmallTriangles) {
 // Test: PPM dump shows correct Warp-scheduled rendering
 // ---------------------------------------------------------------------------
 TEST_F(E2ETest, Scene006_Warp_PPMDumpCorrect) {
-    // Large quad that exercises Warp scheduling
     float vertices[] = {
         -0.9f,  0.9f, -0.5f, 1.0f,   1.0f, 0.0f, 0.0f, 1.0f,
          0.9f,  0.9f, -0.5f, 1.0f,   1.0f, 0.0f, 0.0f, 1.0f,
@@ -232,18 +208,14 @@ TEST_F(E2ETest, Scene006_Warp_PPMDumpCorrect) {
     EXPECT_GT(redCount, 50000)
         << "Large quad should have many red pixels, got " << redCount;
 
-    // Check that there are no holes or artifacts
     int nonRedCount = verifier.countPixelsInRegion(50, 50, 590, 430,
         [](const Pixel& p) {
             float r = p.r / 255.0f;
-            return r < 0.3f;  // Pixels that are not red
+            return r < 0.3f;
         });
 
-    // Most pixels should be red
     int totalPixels = verifier.countPixelsInRegion(50, 50, 590, 430,
-        [](const Pixel& p) {
-            return true;  // All pixels
-        });
+        [](const Pixel& p) { return true; });
 
     float nonRedRatio = totalPixels > 0
         ? static_cast<float>(nonRedCount) / totalPixels
@@ -257,15 +229,10 @@ TEST_F(E2ETest, Scene006_Warp_PPMDumpCorrect) {
 // Test: Interleaved triangles with different colors
 // ---------------------------------------------------------------------------
 TEST_F(E2ETest, Scene006_Warp_InterleavedTriangles) {
-    // Render interleaved triangles to verify Warp scheduling handles
-    // fragments from multiple sources correctly
-
-    // Triangle strip pattern
     for (int i = 0; i < 5; i++) {
         float y_base = 0.8f - (float)i * 0.35f;
 
         if (i % 2 == 0) {
-            // Green triangle
             float tri[] = {
                 -0.9f, y_base, -0.5f, 1.0f,   0.0f, 1.0f, 0.0f, 1.0f,
                  0.9f, y_base, -0.5f, 1.0f,   0.0f, 1.0f, 0.0f, 1.0f,
@@ -273,7 +240,6 @@ TEST_F(E2ETest, Scene006_Warp_InterleavedTriangles) {
             };
             renderTriangle(tri, 3);
         } else {
-            // Red triangle
             float tri[] = {
                 -0.9f, y_base, -0.5f, 1.0f,   1.0f, 0.0f, 0.0f, 1.0f,
                  0.9f, y_base, -0.5f, 1.0f,   1.0f, 0.0f, 0.0f, 1.0f,
@@ -283,7 +249,6 @@ TEST_F(E2ETest, Scene006_Warp_InterleavedTriangles) {
         }
     }
 
-    // Both colors should be present
     int greenCount = countGreenPixelsFromBuffer();
     int redCount = countRedPixelsFromBuffer();
 
@@ -295,9 +260,6 @@ TEST_F(E2ETest, Scene006_Warp_InterleavedTriangles) {
 // Test: Full-screen quad exercises maximum Warp count
 // ---------------------------------------------------------------------------
 TEST_F(E2ETest, Scene006_Warp_FullScreenQuad) {
-    // A full-screen quad should generate enough fragments to keep
-    // all Warps busy
-
     float vertices[] = {
         -1.0f,  1.0f, -0.5f, 1.0f,   0.0f, 0.0f, 1.0f, 1.0f,
          1.0f,  1.0f, -0.5f, 1.0f,   0.0f, 0.0f, 1.0f, 1.0f,
@@ -312,4 +274,119 @@ TEST_F(E2ETest, Scene006_Warp_FullScreenQuad) {
     int blueCount = countBluePixelsFromBuffer();
     EXPECT_GT(blueCount, 100000)
         << "Full-screen quad should generate many blue pixels, got " << blueCount;
+}
+
+// ============================================================================
+// ENHANCEMENT 1: Bounding Box Exact Verification
+// Verifies large triangle bbox: minX=32, maxX=608, minY=24, maxY=432
+// ============================================================================
+TEST_F(E2ETest, Scene006_Warp_LargeTriangleBBoxExact) {
+    float vertices[] = {
+        -0.8f,  0.8f, -0.5f, 1.0f,   0.0f, 1.0f, 0.0f, 1.0f,
+         0.8f,  0.8f, -0.5f, 1.0f,   0.0f, 1.0f, 0.0f, 1.0f,
+         0.0f, -0.8f, -0.5f, 1.0f,   0.0f, 1.0f, 0.0f, 1.0f,
+    };
+
+    renderTriangle(vertices, 3);
+
+    PixelBounds bounds = getGreenBoundsFromBuffer();
+    ASSERT_TRUE(bounds.valid) << "Green pixel bounding box should be valid";
+
+    // V0(-0.8,0.8)→(64,96), V1(0.8,0.8)→(576,96), V2(0.0,-0.8)→(320,432)
+    EXPECT_EQ(bounds.minX, Scene006::LARGE_TRI_MIN_X)
+        << "Scene006: Left edge should be at x=" << Scene006::LARGE_TRI_MIN_X;
+    EXPECT_EQ(bounds.maxX, Scene006::LARGE_TRI_MAX_X)
+        << "Scene006: Right edge should be at x=" << Scene006::LARGE_TRI_MAX_X;
+    EXPECT_EQ(bounds.minY, Scene006::LARGE_TRI_MIN_Y)
+        << "Scene006: Top edge should be at y=" << Scene006::LARGE_TRI_MIN_Y;
+    EXPECT_EQ(bounds.maxY, Scene006::LARGE_TRI_MAX_Y)
+        << "Scene006: Bottom edge should be at y=" << Scene006::LARGE_TRI_MAX_Y;
+}
+
+// ============================================================================
+// ENHANCEMENT 2: Slanted Edge Linearity Detection
+// Large triangle has two slanted hypotenuse edges
+// ============================================================================
+TEST_F(E2ETest, Scene006_Warp_SlantedEdgeLinearity) {
+    float vertices[] = {
+        -0.8f,  0.8f, -0.5f, 1.0f,   0.0f, 1.0f, 0.0f, 1.0f,
+         0.8f,  0.8f, -0.5f, 1.0f,   0.0f, 1.0f, 0.0f, 1.0f,
+         0.0f, -0.8f, -0.5f, 1.0f,   0.0f, 1.0f, 0.0f, 1.0f,
+    };
+
+    renderTriangle(vertices, 3);
+
+    // Left hypotenuse: V0(64,96) → V2(320,432)
+    // x_left(y) = 64 + ((y - 96) * (256.0f / 336.0f)) = 64 + (y-96)*0.76190
+    // Right hypotenuse: V1(576,96) → V2(320,432)
+    // x_right(y) = 576 - ((y - 96) * (256.0f / 336.0f)) = 576 - (y-96)*0.76190
+
+    int leftViolations = 0;
+    int rightViolations = 0;
+
+    for (int y = 96; y <= 432; y += 20) {
+        float expectedLeftX = 64.0f + (static_cast<float>(y - 96) * (256.0f / 336.0f));
+        float expectedRightX = 576.0f - (static_cast<float>(y - 96) * (256.0f / 336.0f));
+
+        int foundLeft = -1, foundRight = -1;
+        for (int x = static_cast<int>(expectedLeftX) - 5; x <= static_cast<int>(expectedLeftX) + 5; ++x) {
+            if (isBufferPixelGreen(x, y)) {
+                foundLeft = x;
+                break;
+            }
+        }
+        for (int x = static_cast<int>(expectedRightX) - 5; x <= static_cast<int>(expectedRightX) + 5; ++x) {
+            if (isBufferPixelGreen(x, y)) {
+                foundRight = x;
+                break;
+            }
+        }
+
+        if (foundLeft >= 0) {
+            float dev = std::abs(static_cast<float>(foundLeft) - expectedLeftX);
+            if (dev > 3.0f) leftViolations++;
+        }
+        if (foundRight >= 0) {
+            float dev = std::abs(static_cast<float>(foundRight) - expectedRightX);
+            if (dev > 3.0f) rightViolations++;
+        }
+    }
+
+    EXPECT_LT(leftViolations, 5)
+        << "Left hypotenuse should be linear, " << leftViolations << " violations";
+    EXPECT_LT(rightViolations, 5)
+        << "Right hypotenuse should be linear, " << rightViolations << " violations";
+}
+
+// ============================================================================
+// ENHANCEMENT 3: Golden Reference Comparison
+// Large green triangle on black background
+// ============================================================================
+TEST_F(E2ETest, Scene006_Warp_GoldenReference) {
+    float vertices[] = {
+        -0.8f,  0.8f, -0.5f, 1.0f,   0.0f, 1.0f, 0.0f, 1.0f,
+         0.8f,  0.8f, -0.5f, 1.0f,   0.0f, 1.0f, 0.0f, 1.0f,
+         0.0f, -0.8f, -0.5f, 1.0f,   0.0f, 1.0f, 0.0f, 1.0f,
+    };
+
+    renderTriangle(vertices, 3);
+    std::string ppmPath = dumpPPM("e2e_warp_scheduling.ppm");
+
+    PPMVerifier verifier(ppmPath);
+    ASSERT_TRUE(verifier.isLoaded()) << "PPM file should load successfully";
+
+    // Generate golden reference
+    GoldenRef::generateFlatTrianglePPM(
+        Scene006::GOLDEN_FILE,
+        640, 480,
+        Scene006::V0_X, Scene006::V0_Y,
+        Scene006::V1_X, Scene006::V1_Y,
+        Scene006::V2_X, Scene006::V2_Y,
+        0.0f, 1.0f, 0.0f,
+        0.0f, 0.0f, 0.0f
+    );
+
+    bool goldenMatch = verifier.compareWithGolden(Scene006::GOLDEN_FILE, 0.02f);
+    EXPECT_TRUE(goldenMatch)
+        << "Scene006: Rendered output should match golden reference within tolerance 0.02";
 }

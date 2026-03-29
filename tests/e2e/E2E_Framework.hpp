@@ -94,7 +94,15 @@ public:
     PixelStats analyzeRegion(int x1, int y1, int x2, int y2) const;
 
     bool assertPixelRGB(int x, int y, float er, float eg, float eb, float tolerance = 0.05f) const;
-    bool compareWithGolden(const std::string& goldenPath, float maxError = 0.01f) const;
+
+    // Compare with golden reference file
+    // tolerance: per-pixel max channel error (0.0-1.0, default 0.01 = 1%)
+    // Returns true if error rate <= 5%, with detailed mismatch count
+    bool compareWithGolden(const std::string& goldenPath, float tolerance = 0.01f) const;
+
+    // Generate golden reference PPM from current buffer
+    // Saves as filename with "_golden.ppm" suffix
+    bool generateGoldenReference(const std::string& filename) const;
 
     template<typename Pred>
     PixelBounds findBounds(Pred pred) const;

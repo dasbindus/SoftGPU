@@ -44,6 +44,9 @@ void RenderPipeline::connectStages() {
     //
     // Stage 6: Framebuffer -> Stage 7: TileWriteBack
     m_tileWriteBack.setFramebuffer(&m_framebuffer);
+    //
+    // GMEM base pointer injection (needed for writeGMEM to work)
+    m_memory.setGMEMBase(m_tileWriteBack.getGMEMColorData(), m_tileWriteBack.getGMEMDepthData());
 }
 
 void RenderPipeline::initGMEM(const RenderCommand& command) {

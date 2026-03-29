@@ -157,15 +157,24 @@ bool PPMVerifier::assertPixelRGB(int x, int y, float er, float eg, float eb, flo
     return true;
 }
 
-bool PPMVerifier::compareWithGolden(const std::string& goldenPath, float maxError) const {
+bool PPMVerifier::compareWithGolden(const std::string& goldenPath, float tolerance) const {
     PPMVerifier golden(goldenPath);
     if (!golden.isLoaded()) {
         std::cerr << "[PPMVerifier] ERROR: Cannot load golden file: " << goldenPath << "\n";
         return false;
     }
 
+    if (m_width != golden.m_width || m_height != golden.m_height) {
+        std::cerr << "[PPMVerifier] ERROR: Dimension mismatch. "
+                  << "Expected: " << m_width << "x" << m_height << ", "
+                  << "Got: " << golden.m_width << "x" << golden.m_height << "\n";
+        return false;
+    }
+
     int diffCount = 0;
     int totalChecked = 0;
+    float maxChannelError = 0.0f;
+
     for (int y = 0; y < static_cast<int>(m_height); ++y) {
         for (int x = 0; x < static_cast<int>(m_width); ++x) {
             Pixel p = getPixel(x, y);
@@ -173,16 +182,51 @@ bool PPMVerifier::compareWithGolden(const std::string& goldenPath, float maxErro
             float dr = std::abs(static_cast<float>(p.r - g.r) / 255.0f);
             float dg = std::abs(static_cast<float>(p.g - g.g) / 255.0f);
             float db = std::abs(static_cast<float>(p.b - g.b) / 255.0f);
-            if (dr > maxError || dg > maxError || db > maxError) diffCount++;
+            float pixelError = std::max(dr, std::max(dg, db));
+            if (pixelError > tolerance) {
+                diffCount++;
+                maxChannelError = std::max(maxChannelError, pixelError);
+            }
             totalChecked++;
         }
     }
+
     float errorRate = static_cast<float>(diffCount) / totalChecked;
+    // Allow up to 5% of pixels to exceed tolerance (anti-aliasing, subpixel variations)
     if (errorRate > 0.05f) {
         std::cerr << "[PPMVerifier] Golden comparison failed. "
-                  << "Error rate: " << (errorRate * 100) << "%\n";
+                  << "Error rate: " << (errorRate * 100) << "\% "
+                  << "(" << diffCount << "/" << totalChecked << " pixels), "
+                  << "Max channel error: " << (maxChannelError * 100) << "\%\n";
         return false;
     }
+
+    if (diffCount > 0) {
+        printf("[PPMVerifier] Golden comparison passed with warnings: "
+               "%.2f%% pixels exceeded tolerance (max error: %.2f%%)\n",
+               errorRate * 100, maxChannelError * 100);
+    }
+    return true;
+}
+
+bool PPMVerifier::generateGoldenReference(const std::string& filename) const {
+    if (!m_loaded) {
+        std::cerr << "[PPMVerifier] ERROR: Cannot generate golden - no data loaded\n";
+        return false;
+    }
+
+    FILE* f = fopen(filename.c_str(), "wb");
+    if (!f) {
+        std::cerr << "[PPMVerifier] ERROR: Cannot create golden file: " << filename << "\n";
+        return false;
+    }
+
+    fprintf(f, "P6\n%d %d\n255\n", m_width, m_height);
+    fwrite(m_pixels.data(), 1, m_pixels.size(), f);
+    fclose(f);
+
+    printf("[PPMVerifier] Generated golden reference: %s (%dx%d)\n",
+           filename.c_str(), m_width, m_height);
     return true;
 }
 
