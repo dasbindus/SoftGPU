@@ -4,7 +4,7 @@
 // SoftGPU ISA - Instruction Set Architecture
 // ============================================================================
 // 
-// v1.0 ISA - 28 Instructions
+// v1.1 ISA - 36 Instructions (PHASE3: +8 new instructions)
 // 
 // This is the main header for the ISA framework. Include this to get
 // access to all ISA components.
@@ -27,11 +27,11 @@
 // ============================================================================
 
 #define ISA_VERSION_MAJOR 1
-#define ISA_VERSION_MINOR 0
+#define ISA_VERSION_MINOR 1
 #define ISA_VERSION_PATCH 0
 
-#define ISA_VERSION_STRING "1.0.0"
-#define ISA_INSTRUCTION_COUNT 28
+#define ISA_VERSION_STRING "1.1.0"
+#define ISA_INSTRUCTION_COUNT 36
 
 // ============================================================================
 // Quick Reference

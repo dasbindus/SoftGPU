@@ -29,6 +29,7 @@ IType GetInstructionType(Opcode op)
         case Opcode::SEL:
         case Opcode::TEX:
         case Opcode::SAMPLE:
+        case Opcode::SMOOTHSTEP:
             return IType::R4;
         
         // U-type: 1 register + immediate
@@ -40,6 +41,13 @@ IType GetInstructionType(Opcode op)
         case Opcode::I2F:
         case Opcode::FRACT:
         case Opcode::LDC:
+        case Opcode::NOT:
+        case Opcode::FLOOR:
+        case Opcode::CEIL:
+        case Opcode::ABS:
+        case Opcode::NEG:
+        case Opcode::SHL:
+        case Opcode::SHR:
             return IType::U;
         
         // I-type: LD, ST
@@ -96,6 +104,14 @@ const char* GetOpcodeName(Opcode op)
         case Opcode::SAMPLE:return "SAMPLE";
         case Opcode::LDC:   return "LDC";
         case Opcode::BAR:   return "BAR";
+        case Opcode::SHL:   return "SHL";
+        case Opcode::SHR:   return "SHR";
+        case Opcode::NOT:   return "NOT";
+        case Opcode::FLOOR: return "FLOOR";
+        case Opcode::CEIL:  return "CEIL";
+        case Opcode::ABS:   return "ABS";
+        case Opcode::NEG:   return "NEG";
+        case Opcode::SMOOTHSTEP: return "SMOOTHSTEP";
         default:            return "INVALID";
     }
 }
@@ -132,6 +148,15 @@ int GetCycles(Opcode op)
         case Opcode::SAMPLE:return 4;
         case Opcode::LDC:   return 2;
         case Opcode::BAR:   return 1;
+        // PHASE3: New instructions
+        case Opcode::SHL:   return 1;   // Shift left
+        case Opcode::SHR:   return 1;   // Shift right
+        case Opcode::NOT:   return 1;   // Bitwise NOT
+        case Opcode::FLOOR: return 1;   // Floor
+        case Opcode::CEIL:  return 1;   // Ceiling
+        case Opcode::ABS:   return 1;   // Absolute value
+        case Opcode::NEG:   return 1;   // Negate
+        case Opcode::SMOOTHSTEP: return 2; // Smoothstep
         default:            return 1;
     }
 }
@@ -161,7 +186,7 @@ bool IsP0(Opcode op)
         case Opcode::MOV:
             return true;
         
-        // P1 instructions - v1.x
+        // P1 instructions - v1.x (including PHASE3 new instructions)
         default:
             return false;
     }

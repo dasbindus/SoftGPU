@@ -7,7 +7,7 @@ namespace softgpu {
 namespace isa {
 
 // ============================================================================
-// Opcode Enumeration - 28 Instructions
+// Opcode Enumeration - 36 Instructions (PHASE3: +8 new instructions)
 // ============================================================================
 
 enum class Opcode : uint8_t
@@ -55,6 +55,16 @@ enum class Opcode : uint8_t
     LDC    = 0x1B,  // Load constant
     BAR    = 0x1C,  // Barrier (warp synchronization)
 
+    // ---- PHASE3: Bitwise & Math Extensions (8) ----
+    SHL        = 0x1D,  // Shift left (Rd = Ra << Rb)
+    SHR        = 0x1E,  // Shift right (Rd = Ra >> Rb)
+    NOT        = 0x1F,  // Bitwise NOT (Rd = ~Ra)
+    FLOOR      = 0x20,  // Floor (Rd = floor(Ra))
+    CEIL       = 0x21,  // Ceiling (Rd = ceil(Ra))
+    ABS        = 0x22,  // Absolute value (Rd = abs(Ra))
+    NEG        = 0x23,  // Negate (Rd = -Ra)
+    SMOOTHSTEP = 0x24,  // Smoothstep (Rd = smoothstep(Ra, Rb, Rc))
+
     // ---- Sentinel ----
     INVALID = 0xFF
 };
@@ -63,8 +73,8 @@ enum class Opcode : uint8_t
 enum class IType
 {
     R,     // 3-register: ADD, SUB, MUL, DIV, AND, OR, CMP, MIN, MAX
-    R4,    // 4-register: MAD, SEL, TEX, SAMPLE
-    U,     // 1-register: RCP, SQRT, RSQ, MOV, F2I, I2F, FRACT, LDC
+    R4,    // 4-register: MAD, SEL, TEX, SAMPLE, SMOOTHSTEP
+    U,     // 1-register: RCP, SQRT, RSQ, MOV, F2I, I2F, FRACT, LDC, NOT, FLOOR, CEIL, ABS, NEG, SHL, SHR
     I,     // 2-reg + imm: LD, ST
     B,     // Branch: BRA
     J      // Jump: JMP, CALL, RET, NOP, BAR

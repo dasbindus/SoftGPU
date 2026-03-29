@@ -358,6 +358,83 @@ public:
             pc_.addr += 4;
             break;
         
+        // === PHASE3: Bitwise & Math Extensions ===
+        case Opcode::SHL: {
+            // SHL: Rd = Ra << Rb (shift left by float bits converted to int)
+            uint32_t ia = *reinterpret_cast<uint32_t*>(&val_a);
+            int shift = static_cast<int>(val_b);
+            float result;
+            *reinterpret_cast<uint32_t*>(&result) = ia << shift;
+            reg_file_.Write(rd, result);
+            pc_.addr += 4;
+            break;
+        }
+        
+        case Opcode::SHR: {
+            // SHR: Rd = Ra >> Rb (shift right by float bits converted to int)
+            uint32_t ia = *reinterpret_cast<uint32_t*>(&val_a);
+            int shift = static_cast<int>(val_b);
+            float result;
+            *reinterpret_cast<uint32_t*>(&result) = ia >> shift;
+            reg_file_.Write(rd, result);
+            pc_.addr += 4;
+            break;
+        }
+        
+        case Opcode::NOT: {
+            // NOT: Rd = ~Ra (bitwise NOT)
+            uint32_t ia = *reinterpret_cast<uint32_t*>(&val_a);
+            float result;
+            *reinterpret_cast<uint32_t*>(&result) = ~ia;
+            reg_file_.Write(rd, result);
+            pc_.addr += 4;
+            break;
+        }
+        
+        case Opcode::FLOOR:
+            reg_file_.Write(rd, std::floor(val_a));
+            pc_.addr += 4;
+            break;
+        
+        case Opcode::CEIL:
+            reg_file_.Write(rd, std::ceil(val_a));
+            pc_.addr += 4;
+            break;
+        
+        case Opcode::ABS:
+            reg_file_.Write(rd, std::fabs(val_a));
+            pc_.addr += 4;
+            break;
+        
+        case Opcode::NEG:
+            reg_file_.Write(rd, -val_a);
+            pc_.addr += 4;
+            break;
+        
+        case Opcode::SMOOTHSTEP: {
+            // SMOOTHSTEP: Rd = smoothstep(edge0, edge1, x)
+            // GLSL convention: smoothstep(edge0, edge1, x)
+            // Returns 0 if x < edge0, 1 if x > edge1, smooth Hermite interpolation between
+            // For R4 type: Ra=edge0, Rb=edge1, Rc=x (following MAD convention)
+            float edge0 = val_a;
+            float edge1 = val_b;
+            float x = reg_file_.Read(inst.GetRc());
+            float result;
+            if (edge1 == edge0) {
+                result = 0.0f;  // Avoid division by zero
+            } else if (x < edge0) {
+                result = 0.0f;
+            } else if (x > edge1) {
+                result = 1.0f;
+            } else {
+                float t = (x - edge0) / (edge1 - edge0);
+                result = t * t * (3.0f - 2.0f * t);  // Hermite interpolation
+            }
+            reg_file_.Write(rd, result);
+            pc_.addr += 4;
+            break;
+        }
+        
         default:
             pc_.addr += 4;
             break;
