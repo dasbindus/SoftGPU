@@ -81,15 +81,51 @@ bool L2CacheSim::access(uint64_t address, bool isWrite) {
         }
     }
 
-    // MISS：选择 LRU 行替换
+    // ================================================================
+    // PHASE3: Non-write-allocate policy
+    // Write miss: do NOT allocate cache line, just write to memory
+    // ================================================================
+    if (isWrite) {
+        m_misses++;
+        m_writeMissNoAlloc++;
+        return false;
+    }
+
+    // ================================================================
+    // PHASE3: Tile-aware replacement strategy
+    // Prioritize evicting lines from different tiles first
+    // ================================================================
+    uint32_t currentTile = (address / (TILE_WIDTH * TILE_HEIGHT * 4)) & 0xFFFF;
     uint32_t lruWay = 0;
-    uint32_t lruAge = UINT32_MAX;
+    uint32_t lruAge = 0;
+    bool foundCrossTile = false;
+
+    // First pass: look for lines from other tiles (lower priority)
     for (uint32_t way = 0; way < L2_CACHE_WAYS; ++way) {
         uint32_t lineIdx = setIdx * L2_CACHE_WAYS + way;
-        uint32_t age = m_currentTick - m_lines[lineIdx].lastUsed;
-        if (age < lruAge) {
-            lruAge = age;
-            lruWay = way;
+        CacheLine& line = m_lines[lineIdx];
+
+        // Tile-aware: prefer evicting lines from different tiles
+        if (line.tile_id != currentTile && line.valid) {
+            uint32_t age = m_currentTick - line.lastUsed;
+            if (!foundCrossTile || age > lruAge) {
+                lruAge = age;
+                lruWay = way;
+                foundCrossTile = true;
+            }
+        }
+    }
+
+    // Second pass: if all lines are from same tile, use regular LRU
+    if (!foundCrossTile) {
+        lruAge = 0;
+        for (uint32_t way = 0; way < L2_CACHE_WAYS; ++way) {
+            uint32_t lineIdx = setIdx * L2_CACHE_WAYS + way;
+            uint32_t age = m_currentTick - m_lines[lineIdx].lastUsed;
+            if (age > lruAge) {
+                lruAge = age;
+                lruWay = way;
+            }
         }
     }
 
@@ -101,6 +137,7 @@ bool L2CacheSim::access(uint64_t address, bool isWrite) {
     victim.valid = true;
     victim.dirty = isWrite;
     victim.lastUsed = m_currentTick++;
+    victim.tile_id = currentTile;
     m_misses++;
 
     return false;
@@ -115,12 +152,14 @@ double L2CacheSim::getHitRate() const {
 void L2CacheSim::resetStats() {
     m_hits = 0;
     m_misses = 0;
+    m_writeMissNoAlloc = 0;
     m_currentTick = 0;
     for (auto& line : m_lines) {
         line.valid = false;
         line.dirty = false;
         line.tag = 0;
         line.lastUsed = 0;
+        line.tile_id = 0;
     }
 }
 
