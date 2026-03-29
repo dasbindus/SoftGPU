@@ -332,8 +332,28 @@ public:
         // === Memory Operations ===
         case Opcode::LD: {
             uint16_t offset = inst.GetImm();
-            uint32_t addr = static_cast<uint32_t>(val_a) + offset;
-            float value = memory_.Load32(addr);
+            // P0 Fix: Validate val_a is in range [0, SIZE_MAX] before casting
+            // Check for NaN, infinity, or out-of-range values
+            float value = 0.0f;
+            if (std::isnan(val_a) || std::isinf(val_a) ||
+                val_a < 0.0f || val_a > static_cast<float>(memory_.GetSize())) {
+                // Invalid address, return 0.0f
+                value = 0.0f;
+            } else {
+                uint32_t base = static_cast<uint32_t>(val_a);
+                // P0 Fix: Check for integer overflow in address calculation
+                if (base > memory_.GetSize() - 4) {
+                    value = 0.0f;
+                } else {
+                    uint32_t addr = base + offset;
+                    // P0 Fix: Ensure addr + 4 doesn't exceed memory bounds
+                    if (addr + 4 > memory_.GetSize()) {
+                        value = 0.0f;
+                    } else {
+                        value = memory_.Load32(addr);
+                    }
+                }
+            }
             reg_file_.Write(rd, value);
             stats_.loads++;
             pc_.addr += 4;
@@ -342,8 +362,19 @@ public:
         
         case Opcode::ST: {
             uint16_t offset = inst.GetImm();
-            uint32_t addr = static_cast<uint32_t>(val_a) + offset;
-            memory_.Store32(addr, val_b);
+            // P0 Fix: Validate val_a is in range before casting
+            if (!std::isnan(val_a) && !std::isinf(val_a) &&
+                val_a >= 0.0f && val_a <= static_cast<float>(memory_.GetSize())) {
+                uint32_t base = static_cast<uint32_t>(val_a);
+                // P0 Fix: Check for integer overflow
+                if (base <= memory_.GetSize() - 4) {
+                    uint32_t addr = base + offset;
+                    // P0 Fix: Ensure addr + 4 doesn't exceed memory bounds
+                    if (addr + 4 <= memory_.GetSize()) {
+                        memory_.Store32(addr, val_b);
+                    }
+                }
+            }
             stats_.stores++;
             pc_.addr += 4;
             break;
