@@ -125,6 +125,10 @@ public:
     void executeFragmentBatch(std::vector<FragmentContext>& fragments, 
                               const ShaderFunction& shader);
     
+    // PHASE3: 执行 8 个 fragment 的 warp batch（SIMD 风格批量执行）
+    void executeWarpBatch(std::array<FragmentContext, 8>& warpContexts,
+                          const ShaderFunction& shader);
+    
     // ========================================================================
     // Shader 加载
     // ========================================================================

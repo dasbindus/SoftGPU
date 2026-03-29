@@ -115,6 +115,11 @@ void WarpScheduler::executeWarp(Warp& warp) {
     
     const ShaderFunction* shader = warp.getShader();
     
+    // PHASE3: Reuse Interpreter for ISA execution
+    // Each warp uses the shared Interpreter from WarpScheduler
+    static softgpu::isa::Interpreter warpInterpreter;
+    warpInterpreter.Reset();
+    
     // 为每个 active lane 执行 shader
     for (uint32_t lane = 0; lane < warp.getFragmentCount(); ++lane) {
         FragmentContext& frag = warp.getFragment(lane);
@@ -130,79 +135,57 @@ void WarpScheduler::executeWarp(Warp& warp) {
             continue;
         }
         
-        // 简单的 ISA 执行器
-        using softgpu::isa::Instruction;
-        using softgpu::isa::Opcode;
+        // 设置 fragment 输入到寄存器
+        warpInterpreter.SetRegister(1, frag.pos_x);
+        warpInterpreter.SetRegister(2, frag.pos_y);
+        warpInterpreter.SetRegister(3, frag.pos_z);
+        warpInterpreter.SetRegister(4, frag.color_r);
+        warpInterpreter.SetRegister(5, frag.color_g);
+        warpInterpreter.SetRegister(6, frag.color_b);
+        warpInterpreter.SetRegister(7, frag.color_a);
+        warpInterpreter.SetRegister(8, frag.u);
+        warpInterpreter.SetRegister(9, frag.v);
+        warpInterpreter.SetRegister(10, 0.0f);  // OUT_R
+        warpInterpreter.SetRegister(11, 0.0f);  // OUT_G
+        warpInterpreter.SetRegister(12, 0.0f);  // OUT_B
+        warpInterpreter.SetRegister(13, 1.0f);  // OUT_A
+        warpInterpreter.SetRegister(14, frag.pos_z);  // OUT_Z
+        warpInterpreter.SetRegister(15, 0.0f);  // KILLED
         
+        // 执行 shader 指令序列
         uint32_t max_instr = 256;
         uint32_t instr_count = 0;
+        uint32_t pc = 0;
         
         while (instr_count < max_instr) {
-            uint32_t pc = warp.getPC();
-            
             if (pc / 4 >= shader->code.size()) {
                 break;
             }
             
             uint32_t instr_word = shader->code[pc / 4];
-            Instruction inst(instr_word);
-            Opcode op = inst.GetOpcode();
+            softgpu::isa::Instruction inst(instr_word);
+            softgpu::isa::Opcode op = inst.GetOpcode();
             
-            if (op == Opcode::INVALID || op == Opcode::NOP) {
+            if (op == softgpu::isa::Opcode::INVALID || op == softgpu::isa::Opcode::NOP) {
                 break;
             }
             
-            // 执行指令 (简化版 - 实际需要更完整的实现)
-            // 这里主要处理 MOV 指令作为演示
-            switch (op) {
-                case Opcode::MOV: {
-                    uint8_t rd = inst.GetRd();
-                    uint8_t ra = inst.GetRa();
-                    // 从 frag 上下文读取值
-                    float val = 0.0f;
-                    switch (ra) {
-                        case 1: val = frag.pos_x; break;
-                        case 2: val = frag.pos_y; break;
-                        case 3: val = frag.pos_z; break;
-                        case 4: val = frag.color_r; break;
-                        case 5: val = frag.color_g; break;
-                        case 6: val = frag.color_b; break;
-                        case 7: val = frag.color_a; break;
-                        case 8: val = frag.u; break;
-                        case 9: val = frag.v; break;
-                        default: val = 0.0f; break;
-                    }
-                    // 写入 frag 上下文
-                    switch (rd) {
-                        case 10: frag.out_r = val; break;
-                        case 11: frag.out_g = val; break;
-                        case 12: frag.out_b = val; break;
-                        case 13: frag.out_a = val; break;
-                        case 14: frag.out_z = val; break;
-                        default: break;
-                    }
-                    warp.advancePC(4);
-                    break;
-                }
-                case Opcode::ADD: {
-                    uint8_t rd = inst.GetRd();
-                    uint8_t ra = inst.GetRa();
-                    uint8_t rb = inst.GetRb();
-                    // 简化: ADD 只做 Rb = Ra + Rb
-                    float val_a = 0.0f, val_b = 0.0f;
-                    (void)val_a; (void)val_b;
-                    warp.advancePC(4);
-                    warp.getStats().instructions_executed++;
-                    break;
-                }
-                default:
-                    warp.advancePC(4);
-                    break;
-            }
+            // 使用 Interpreter 执行指令
+            warpInterpreter.ExecuteInstruction(inst);
+            warpInterpreter.SetRegister(0, 0.0f);  // R0 = zero
             
+            pc += 4;
             warp.getStats().instructions_executed++;
             instr_count++;
         }
+        
+        // 捕获输出
+        frag.out_r = warpInterpreter.GetRegister(10);
+        frag.out_g = warpInterpreter.GetRegister(11);
+        frag.out_b = warpInterpreter.GetRegister(12);
+        frag.out_a = warpInterpreter.GetRegister(13);
+        frag.out_z = warpInterpreter.GetRegister(14);
+        frag.killed = (warpInterpreter.GetRegister(15) != 0.0f);
     }
     
     // Warp 完成

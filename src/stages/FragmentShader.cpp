@@ -65,42 +65,71 @@ void FragmentShader::setInputAndExecuteTile(const std::vector<Fragment>& fragmen
     // Reset ShaderCore stats for this tile
     m_shaderCore.reset();
 
-    for (const auto& frag : fragments) {
-        // Get stats before execution for delta calculation
+    // PHASE3: Batch processing - 8 fragments at a time (warp size)
+    const size_t WARP_SIZE = 8;
+    size_t numFragments = fragments.size();
+    size_t batchCount = (numFragments + WARP_SIZE - 1) / WARP_SIZE;
+    
+    for (size_t batch = 0; batch < batchCount; ++batch) {
+        size_t batchStart = batch * WARP_SIZE;
+        size_t batchEnd = std::min(batchStart + WARP_SIZE, numFragments);
+        size_t batchSize = batchEnd - batchStart;
+        
+        // Get stats before batch execution
         uint64_t prevCycles = m_shaderCore.getStats().cycles_spent;
         uint64_t prevInstructions = m_shaderCore.getStats().instructions_executed;
-
-        // Convert Fragment to FragmentContext
-        FragmentContext ctx = fragmentToContext(frag);
-        ctx.tile_x = tileX;
-        ctx.tile_y = tileY;
-
-        // Execute via ShaderCore ISA interpreter
-        m_shaderCore.executeFragment(ctx, m_shaderFunction);
-
-        // Accumulate delta stats (stats are cumulative, so compute delta)
+        
+        // PHASE3: Use warp batch execution when we have 8 fragments
+        if (batchSize == WARP_SIZE) {
+            // Build warp batch
+            std::array<FragmentContext, WARP_SIZE> warpContexts;
+            for (size_t i = 0; i < WARP_SIZE; ++i) {
+                const Fragment& frag = fragments[batchStart + i];
+                warpContexts[i] = fragmentToContext(frag);
+                warpContexts[i].tile_x = tileX;
+                warpContexts[i].tile_y = tileY;
+            }
+            
+            // Execute warp batch
+            m_shaderCore.executeWarpBatch(warpContexts, m_shaderFunction);
+            
+            // Process results
+            for (size_t i = 0; i < WARP_SIZE; ++i) {
+                const Fragment& frag = fragments[batchStart + i];
+                FragmentContext& ctx = warpContexts[i];
+                
+                if (ctx.killed) continue;
+                
+                Fragment shaded = contextToFragment(ctx);
+                uint32_t localX = frag.x - tileX * TILE_WIDTH;
+                uint32_t localY = frag.y - tileY * TILE_HEIGHT;
+                float color[4] = {shaded.r, shaded.g, shaded.b, shaded.a};
+                bool passed = m_tileBuffer->depthTestAndWrite(m_tileIndex, localX, localY, shaded.z, color);
+                if (passed) fragmentsShaded++;
+            }
+        } else {
+            // Partial batch - process individually
+            for (size_t i = batchStart; i < batchEnd; ++i) {
+                const auto& frag = fragments[i];
+                FragmentContext ctx = fragmentToContext(frag);
+                ctx.tile_x = tileX;
+                ctx.tile_y = tileY;
+                m_shaderCore.executeFragment(ctx, m_shaderFunction);
+                
+                if (ctx.killed) continue;
+                
+                Fragment shaded = contextToFragment(ctx);
+                uint32_t localX = frag.x - tileX * TILE_WIDTH;
+                uint32_t localY = frag.y - tileY * TILE_HEIGHT;
+                float color[4] = {shaded.r, shaded.g, shaded.b, shaded.a};
+                bool passed = m_tileBuffer->depthTestAndWrite(m_tileIndex, localX, localY, shaded.z, color);
+                if (passed) fragmentsShaded++;
+            }
+        }
+        
+        // Accumulate delta stats
         totalInstructions += m_shaderCore.getStats().instructions_executed - prevInstructions;
         totalCycles += m_shaderCore.getStats().cycles_spent - prevCycles;
-
-        // Skip killed fragments
-        if (ctx.killed) {
-            continue;
-        }
-
-        // Convert output back to Fragment format
-        Fragment shaded = contextToFragment(ctx);
-
-        // Compute local coordinates within tile
-        uint32_t localX = frag.x - tileX * TILE_WIDTH;
-        uint32_t localY = frag.y - tileY * TILE_HEIGHT;
-
-        // Write to TileBuffer (depth test happens inside)
-        float color[4] = {shaded.r, shaded.g, shaded.b, shaded.a};
-        bool passed = m_tileBuffer->depthTestAndWrite(m_tileIndex, localX, localY, shaded.z, color);
-
-        if (passed) {
-            fragmentsShaded++;
-        }
     }
 
     m_counters.invocation_count = static_cast<uint64_t>(fragments.size());

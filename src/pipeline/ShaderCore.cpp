@@ -275,6 +275,36 @@ void ShaderCore::executeFragmentBatch(std::vector<FragmentContext>& fragments,
     }
 }
 
+// PHASE3: Warp batch execution - SIMD style processing of 8 fragments
+void ShaderCore::executeWarpBatch(std::array<FragmentContext, 8>& warpContexts,
+                                   const ShaderFunction& shader) {
+    if (shader.empty()) {
+        // Passthrough for all fragments
+        for (auto& ctx : warpContexts) {
+            ctx.out_r = ctx.color_r;
+            ctx.out_g = ctx.color_g;
+            ctx.out_b = ctx.color_b;
+            ctx.out_a = ctx.color_a;
+            ctx.out_z = ctx.pos_z;
+            ctx.killed = false;
+        }
+        return;
+    }
+
+    // Load shader once for the whole warp
+    m_currentShader = shader;
+    
+    // Execute shader for each fragment in the warp
+    // In a real SIMD implementation, all lanes would execute in lockstep
+    // Here we process them sequentially but efficiently
+    for (auto& ctx : warpContexts) {
+        executeFragment(ctx, shader);
+    }
+    
+    // Update warp-level stats
+    m_stats.fragments_executed += 8;
+}
+
 void ShaderCore::syncMemoryWithTileBuffer(TileBufferManager* tile_buffer, uint32_t tile_idx) {
     // 这个函数用于在需要时同步 memory_
     // 当前实现中 interpreter 有自己的 memory，不需要同步
