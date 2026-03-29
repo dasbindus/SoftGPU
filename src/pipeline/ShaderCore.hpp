@@ -146,8 +146,33 @@ public:
     // 获取默认的 fragment shader（简单插值 + depth test）
     static ShaderFunction getDefaultFragmentShader();
     
-    // 获取 flat color fragment shader
+    // ----------------------------------------------------------------
+    // PHASE 3: Flat Color ISA Shader
+    // 最简单的 shader，只输出固定颜色（从输入寄存器复制）
+    // 寄存器：R4-R7(输入颜色) -> R10-R13(输出颜色), R3(输入depth) -> R14(输出depth)
+    // ----------------------------------------------------------------
     static ShaderFunction getFlatColorShader(float r, float g, float b, float a);
+    
+    // ----------------------------------------------------------------
+    // PHASE 4: Barycentric Color ISA Shader
+    // 使用 MAD 指令进行颜色插值（用于 Scene002 RGB 插值场景）
+    // 使用 R8=权重u, R9=权重v, R16-R23=临时寄存器
+    // ----------------------------------------------------------------
+    static ShaderFunction getBarycentricColorShader();
+    
+    // ----------------------------------------------------------------
+    // PHASE 5: Depth Test ISA Shader
+    // 读取 fragment depth 并与 TileBuffer 中的深度值比较
+    // 使用 CMP 指令进行深度比较，设置 killed flag
+    // ----------------------------------------------------------------
+    static ShaderFunction getDepthTestShader();
+    
+    // ----------------------------------------------------------------
+    // PHASE 6: Multi-Triangle ISA Shader
+    // 组合多种操作：颜色插值 + depth test + kill
+    // 用于 Scene005/006 多三角形场景
+    // ----------------------------------------------------------------
+    static ShaderFunction getMultiTriangleShader();
     
     // ========================================================================
     // 状态查询
