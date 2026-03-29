@@ -77,28 +77,28 @@ void TileWriteBack::loadTileFromGMEM(uint32_t tileIndex,
     size_t depthOffset = getTileDepthOffset(tileIndex);
 
     // Record bandwidth for color load: TILE_SIZE * 4 floats
-    // Only perform memcpy if bandwidth allows and memory is valid
-    bool colorAllowed = (memory != nullptr);
+    // Only perform memcpy if bandwidth allows
+    bool colorAllowed = true;
     if (memory) {
         colorAllowed = memory->addAccess(TILE_SIZE * 4 * sizeof(float), MemoryAccessType::LoadTile);
     }
 
-    // Copy color data only if bandwidth allowed and memory is valid
-    if (colorAllowed && memory != nullptr) {
+    // Copy color data only if bandwidth allowed
+    if (colorAllowed) {
         std::memcpy(outTileBuffer.color.data(),
                     m_gmemColor.data() + colorOffset,
                     TILE_SIZE * 4 * sizeof(float));
     }
 
     // Record bandwidth for depth load: TILE_SIZE * 1 float
-    // Only perform memcpy if bandwidth allows and memory is valid
-    bool depthAllowed = (memory != nullptr);
+    // Only perform memcpy if bandwidth allows
+    bool depthAllowed = true;
     if (memory) {
         depthAllowed = memory->addAccess(TILE_SIZE * sizeof(float), MemoryAccessType::LoadTile);
     }
 
-    // Copy depth data only if bandwidth allowed and memory is valid
-    if (depthAllowed && memory != nullptr) {
+    // Copy depth data only if bandwidth allowed
+    if (depthAllowed) {
         std::memcpy(outTileBuffer.depth.data(),
                     m_gmemDepth.data() + depthOffset,
                     TILE_SIZE * sizeof(float));
@@ -112,28 +112,28 @@ void TileWriteBack::storeTileToGMEM(uint32_t tileIndex,
     size_t depthOffset = getTileDepthOffset(tileIndex);
 
     // Record bandwidth for color store: TILE_SIZE * 4 floats
-    // Only perform memcpy if bandwidth allows and memory is valid
-    bool colorAllowed = (memory != nullptr);
+    // Only perform memcpy if bandwidth allows
+    bool colorAllowed = true;
     if (memory) {
         colorAllowed = memory->addAccess(TILE_SIZE * 4 * sizeof(float), MemoryAccessType::StoreTile);
     }
 
-    // Copy color data only if bandwidth allowed and memory is valid
-    if (colorAllowed && memory != nullptr) {
+    // Copy color data only if bandwidth allowed
+    if (colorAllowed) {
         std::memcpy(m_gmemColor.data() + colorOffset,
                     tileBuffer.color.data(),
                     TILE_SIZE * 4 * sizeof(float));
     }
 
     // Record bandwidth for depth store: TILE_SIZE * 1 float
-    // Only perform memcpy if bandwidth allows and memory is valid
-    bool depthAllowed = (memory != nullptr);
+    // Only perform memcpy if bandwidth allows
+    bool depthAllowed = true;
     if (memory) {
         depthAllowed = memory->addAccess(TILE_SIZE * sizeof(float), MemoryAccessType::StoreTile);
     }
 
-    // Copy depth data only if bandwidth allowed and memory is valid
-    if (depthAllowed && memory != nullptr) {
+    // Copy depth data only if bandwidth allowed
+    if (depthAllowed) {
         std::memcpy(m_gmemDepth.data() + depthOffset,
                     tileBuffer.depth.data(),
                     TILE_SIZE * sizeof(float));
@@ -146,8 +146,7 @@ void TileWriteBack::loadAllTilesToBuffer(TileBufferManager& manager) {
         size_t colorOffset = getTileColorOffset(tileIndex);
         size_t depthOffset = getTileDepthOffset(tileIndex);
 
-        // Load color using memcpy (bandwidth check happens in loadTileFromGMEM for PHASE2)
-        // For PHASE1 compat, we do the memcpy directly but still track bandwidth if memory provided
+        // Load color using memcpy
         std::memcpy(tile.color.data(), m_gmemColor.data() + colorOffset, TILE_SIZE * 4 * sizeof(float));
 
         // Load depth using memcpy
@@ -162,28 +161,22 @@ void TileWriteBack::storeAllTilesFromBuffer(const TileBufferManager& manager, Me
         size_t depthOffset = getTileDepthOffset(tileIndex);
 
         // Record bandwidth for color store: TILE_SIZE * 4 floats
-        // Skip memcpy if memory is null or bandwidth is exhausted
-        bool colorAllowed = (memory != nullptr);
         if (memory) {
-            colorAllowed = memory->addAccess(TILE_SIZE * 4 * sizeof(float), MemoryAccessType::StoreTile);
+            memory->addAccess(TILE_SIZE * 4 * sizeof(float), MemoryAccessType::StoreTile);
+            memory->recordWrite(TILE_SIZE * 4 * sizeof(float));
         }
 
-        // Store color using memcpy only if allowed
-        if (colorAllowed && memory != nullptr) {
-            std::memcpy(m_gmemColor.data() + colorOffset, tile.color.data(), TILE_SIZE * 4 * sizeof(float));
-        }
+        // Store color using memcpy
+        std::memcpy(m_gmemColor.data() + colorOffset, tile.color.data(), TILE_SIZE * 4 * sizeof(float));
 
         // Record bandwidth for depth store: TILE_SIZE * 1 float
-        // Skip memcpy if memory is null or bandwidth is exhausted
-        bool depthAllowed = (memory != nullptr);
         if (memory) {
-            depthAllowed = memory->addAccess(TILE_SIZE * sizeof(float), MemoryAccessType::StoreTile);
+            memory->addAccess(TILE_SIZE * sizeof(float), MemoryAccessType::StoreTile);
+            memory->recordWrite(TILE_SIZE * sizeof(float));
         }
 
-        // Store depth using memcpy only if allowed
-        if (depthAllowed && memory != nullptr) {
-            std::memcpy(m_gmemDepth.data() + depthOffset, tile.depth.data(), TILE_SIZE * sizeof(float));
-        }
+        // Store depth using memcpy
+        std::memcpy(m_gmemDepth.data() + depthOffset, tile.depth.data(), TILE_SIZE * sizeof(float));
     }
 }
 

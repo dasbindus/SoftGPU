@@ -55,9 +55,6 @@ public:
     void dumpFrame(uint32_t frameIndex);
     const std::string& getDumpOutputPath() const { return m_dumper.getOutputPath(); }
 
-    // 同步 GMEM 到 Framebuffer（用于测试兼容 headless 模式路径）
-    void syncGMEMToFramebuffer();
-
     // ========================================================================
     // 性能报告
     // ========================================================================
@@ -120,6 +117,9 @@ private:
 
     // 内部：执行单个 tile
     void executeTile(uint32_t tileIndex, uint32_t tileX, uint32_t tileY);
+
+    // 内部：同步 GMEM 到 Framebuffer（PHASE1 测试兼容）
+    void syncGMEMToFramebuffer();
 
     // 内部：连接各阶段的数据流（PHASE1 风格连接）
     void connectStages();

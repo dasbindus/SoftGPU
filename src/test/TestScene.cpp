@@ -46,9 +46,9 @@ inline vec3 normalize(const vec3& v) { return glm::normalize(v); }
 // ============================================================================
 static void createCubeVertices(std::vector<float>& vertices, float size = 1.0f) {
     float h = size * 0.5f;
-    // 8 vertices of cube, each with position (x,y,z,w) + color (r,g,b,a)
+    // 8 vertices of cube, each with position (x,y,z) + color (r,g,b,a)
     // Using separate triangles for each face (12 triangles total)
-    // Format per vertex: x, y, z, w, r, g, b, a (8 floats)
+    // Format per vertex: x, y, z, r, g, b, a (7 floats)
 
     // Reset
     vertices.clear();
@@ -56,64 +56,64 @@ static void createCubeVertices(std::vector<float>& vertices, float size = 1.0f) 
     // Front face (z = +h) - Green
     // v0: (-h, -h, +h), v1: (+h, -h, +h), v2: (+h, +h, +h), v3: (-h, +h, +h)
     // Triangle 1
-    vertices.insert(vertices.end(), {-h, -h, +h, 1.0f,  0.0f, 1.0f, 0.0f, 1.0f});
-    vertices.insert(vertices.end(), {+h, -h, +h, 1.0f,  0.0f, 1.0f, 0.0f, 1.0f});
-    vertices.insert(vertices.end(), {+h, +h, +h, 1.0f,  0.0f, 1.0f, 0.0f, 1.0f});
+    vertices.insert(vertices.end(), {-h, -h, +h,  0.0f, 1.0f, 0.0f, 1.0f});
+    vertices.insert(vertices.end(), {+h, -h, +h,  0.0f, 1.0f, 0.0f, 1.0f});
+    vertices.insert(vertices.end(), {+h, +h, +h,  0.0f, 1.0f, 0.0f, 1.0f});
     // Triangle 2
-    vertices.insert(vertices.end(), {-h, -h, +h, 1.0f,  0.0f, 1.0f, 0.0f, 1.0f});
-    vertices.insert(vertices.end(), {+h, +h, +h, 1.0f,  0.0f, 1.0f, 0.0f, 1.0f});
-    vertices.insert(vertices.end(), {-h, +h, +h, 1.0f,  0.0f, 1.0f, 0.0f, 1.0f});
+    vertices.insert(vertices.end(), {-h, -h, +h,  0.0f, 1.0f, 0.0f, 1.0f});
+    vertices.insert(vertices.end(), {+h, +h, +h,  0.0f, 1.0f, 0.0f, 1.0f});
+    vertices.insert(vertices.end(), {-h, +h, +h,  0.0f, 1.0f, 0.0f, 1.0f});
 
     // Back face (z = -h) - Blue
     // v4: (-h, -h, -h), v5: (+h, -h, -h), v6: (+h, +h, -h), v7: (-h, +h, -h)
     // Triangle 3
-    vertices.insert(vertices.end(), {+h, -h, -h, 1.0f,  0.0f, 0.0f, 1.0f, 1.0f});
-    vertices.insert(vertices.end(), {-h, -h, -h, 1.0f,  0.0f, 0.0f, 1.0f, 1.0f});
-    vertices.insert(vertices.end(), {-h, +h, -h, 1.0f,  0.0f, 0.0f, 1.0f, 1.0f});
+    vertices.insert(vertices.end(), {+h, -h, -h,  0.0f, 0.0f, 1.0f, 1.0f});
+    vertices.insert(vertices.end(), {-h, -h, -h,  0.0f, 0.0f, 1.0f, 1.0f});
+    vertices.insert(vertices.end(), {-h, +h, -h,  0.0f, 0.0f, 1.0f, 1.0f});
     // Triangle 4
-    vertices.insert(vertices.end(), {+h, -h, -h, 1.0f,  0.0f, 0.0f, 1.0f, 1.0f});
-    vertices.insert(vertices.end(), {-h, +h, -h, 1.0f,  0.0f, 0.0f, 1.0f, 1.0f});
-    vertices.insert(vertices.end(), {+h, +h, -h, 1.0f,  0.0f, 0.0f, 1.0f, 1.0f});
+    vertices.insert(vertices.end(), {+h, -h, -h,  0.0f, 0.0f, 1.0f, 1.0f});
+    vertices.insert(vertices.end(), {-h, +h, -h,  0.0f, 0.0f, 1.0f, 1.0f});
+    vertices.insert(vertices.end(), {+h, +h, -h,  0.0f, 0.0f, 1.0f, 1.0f});
 
     // Left face (x = -h) - Red
     // Triangle 5
-    vertices.insert(vertices.end(), {-h, -h, -h, 1.0f,  1.0f, 0.0f, 0.0f, 1.0f});
-    vertices.insert(vertices.end(), {-h, -h, +h, 1.0f,  1.0f, 0.0f, 0.0f, 1.0f});
-    vertices.insert(vertices.end(), {-h, +h, +h, 1.0f,  1.0f, 0.0f, 0.0f, 1.0f});
+    vertices.insert(vertices.end(), {-h, -h, -h,  1.0f, 0.0f, 0.0f, 1.0f});
+    vertices.insert(vertices.end(), {-h, -h, +h,  1.0f, 0.0f, 0.0f, 1.0f});
+    vertices.insert(vertices.end(), {-h, +h, +h,  1.0f, 0.0f, 0.0f, 1.0f});
     // Triangle 6
-    vertices.insert(vertices.end(), {-h, -h, -h, 1.0f,  1.0f, 0.0f, 0.0f, 1.0f});
-    vertices.insert(vertices.end(), {-h, +h, +h, 1.0f,  1.0f, 0.0f, 0.0f, 1.0f});
-    vertices.insert(vertices.end(), {-h, +h, -h, 1.0f,  1.0f, 0.0f, 0.0f, 1.0f});
+    vertices.insert(vertices.end(), {-h, -h, -h,  1.0f, 0.0f, 0.0f, 1.0f});
+    vertices.insert(vertices.end(), {-h, +h, +h,  1.0f, 0.0f, 0.0f, 1.0f});
+    vertices.insert(vertices.end(), {-h, +h, -h,  1.0f, 0.0f, 0.0f, 1.0f});
 
     // Right face (x = +h) - Yellow
     // Triangle 7
-    vertices.insert(vertices.end(), {+h, -h, +h, 1.0f,  1.0f, 1.0f, 0.0f, 1.0f});
-    vertices.insert(vertices.end(), {+h, -h, -h, 1.0f,  1.0f, 1.0f, 0.0f, 1.0f});
-    vertices.insert(vertices.end(), {+h, +h, -h, 1.0f,  1.0f, 1.0f, 0.0f, 1.0f});
+    vertices.insert(vertices.end(), {+h, -h, +h,  1.0f, 1.0f, 0.0f, 1.0f});
+    vertices.insert(vertices.end(), {+h, -h, -h,  1.0f, 1.0f, 0.0f, 1.0f});
+    vertices.insert(vertices.end(), {+h, +h, -h,  1.0f, 1.0f, 0.0f, 1.0f});
     // Triangle 8
-    vertices.insert(vertices.end(), {+h, -h, +h, 1.0f,  1.0f, 1.0f, 0.0f, 1.0f});
-    vertices.insert(vertices.end(), {+h, +h, -h, 1.0f,  1.0f, 1.0f, 0.0f, 1.0f});
-    vertices.insert(vertices.end(), {+h, +h, +h, 1.0f,  1.0f, 1.0f, 0.0f, 1.0f});
+    vertices.insert(vertices.end(), {+h, -h, +h,  1.0f, 1.0f, 0.0f, 1.0f});
+    vertices.insert(vertices.end(), {+h, +h, -h,  1.0f, 1.0f, 0.0f, 1.0f});
+    vertices.insert(vertices.end(), {+h, +h, +h,  1.0f, 1.0f, 0.0f, 1.0f});
 
     // Top face (y = +h) - Magenta
     // Triangle 9
-    vertices.insert(vertices.end(), {-h, +h, +h, 1.0f,  1.0f, 0.0f, 1.0f, 1.0f});
-    vertices.insert(vertices.end(), {+h, +h, +h, 1.0f,  1.0f, 0.0f, 1.0f, 1.0f});
-    vertices.insert(vertices.end(), {+h, +h, -h, 1.0f,  1.0f, 0.0f, 1.0f, 1.0f});
+    vertices.insert(vertices.end(), {-h, +h, +h,  1.0f, 0.0f, 1.0f, 1.0f});
+    vertices.insert(vertices.end(), {+h, +h, +h,  1.0f, 0.0f, 1.0f, 1.0f});
+    vertices.insert(vertices.end(), {+h, +h, -h,  1.0f, 0.0f, 1.0f, 1.0f});
     // Triangle 10
-    vertices.insert(vertices.end(), {-h, +h, +h, 1.0f,  1.0f, 0.0f, 1.0f, 1.0f});
-    vertices.insert(vertices.end(), {+h, +h, -h, 1.0f,  1.0f, 0.0f, 1.0f, 1.0f});
-    vertices.insert(vertices.end(), {-h, +h, -h, 1.0f,  1.0f, 0.0f, 1.0f, 1.0f});
+    vertices.insert(vertices.end(), {-h, +h, +h,  1.0f, 0.0f, 1.0f, 1.0f});
+    vertices.insert(vertices.end(), {+h, +h, -h,  1.0f, 0.0f, 1.0f, 1.0f});
+    vertices.insert(vertices.end(), {-h, +h, -h,  1.0f, 0.0f, 1.0f, 1.0f});
 
     // Bottom face (y = -h) - Cyan
     // Triangle 11
-    vertices.insert(vertices.end(), {-h, -h, -h, 1.0f,  0.0f, 1.0f, 1.0f, 1.0f});
-    vertices.insert(vertices.end(), {+h, -h, -h, 1.0f,  0.0f, 1.0f, 1.0f, 1.0f});
-    vertices.insert(vertices.end(), {+h, -h, +h, 1.0f,  0.0f, 1.0f, 1.0f, 1.0f});
+    vertices.insert(vertices.end(), {-h, -h, -h,  0.0f, 1.0f, 1.0f, 1.0f});
+    vertices.insert(vertices.end(), {+h, -h, -h,  0.0f, 1.0f, 1.0f, 1.0f});
+    vertices.insert(vertices.end(), {+h, -h, +h,  0.0f, 1.0f, 1.0f, 1.0f});
     // Triangle 12
-    vertices.insert(vertices.end(), {-h, -h, -h, 1.0f,  0.0f, 1.0f, 1.0f, 1.0f});
-    vertices.insert(vertices.end(), {+h, -h, +h, 1.0f,  0.0f, 1.0f, 1.0f, 1.0f});
-    vertices.insert(vertices.end(), {-h, -h, +h, 1.0f,  0.0f, 1.0f, 1.0f, 1.0f});
+    vertices.insert(vertices.end(), {-h, -h, -h,  0.0f, 1.0f, 1.0f, 1.0f});
+    vertices.insert(vertices.end(), {+h, -h, +h,  0.0f, 1.0f, 1.0f, 1.0f});
+    vertices.insert(vertices.end(), {-h, -h, +h,  0.0f, 1.0f, 1.0f, 1.0f});
 }
 
 // ============================================================================
@@ -123,11 +123,11 @@ class Triangle1TriScene : public TestScene {
 public:
     Triangle1TriScene() : TestScene("Triangle-1Tri", "Single green triangle") {
         // 1 triangle = 3 vertices
-        // Format: x, y, z, w, r, g, b, a (8 floats per vertex)
+        // Format: x, y, z, r, g, b, a
         m_vertices = {
-            -0.5f, -0.5f, 0.0f, 1.0f,   0.0f, 1.0f, 0.0f, 1.0f,  // bottom-left, green
-             0.5f, -0.5f, 0.0f, 1.0f,   0.0f, 1.0f, 0.0f, 1.0f,  // bottom-right, green
-             0.0f,  0.5f, 0.0f, 1.0f,   0.0f, 1.0f, 0.0f, 1.0f   // top, green
+            -0.5f, -0.5f, 0.0f,   0.0f, 1.0f, 0.0f, 1.0f,  // bottom-left, green
+             0.5f, -0.5f, 0.0f,   0.0f, 1.0f, 0.0f, 1.0f,  // bottom-right, green
+             0.0f,  0.5f, 0.0f,   0.0f, 1.0f, 0.0f, 1.0f   // top, green
         };
     }
 
@@ -144,12 +144,12 @@ public:
         outCommand.drawParams.firstVertex = 0;
         outCommand.drawParams.indexed = false;
 
-        // 单位矩阵 (与 test_Integration 相同)
+        // 默认视角矩阵
         outCommand.viewMatrix = std::array<float, 16>{
             1.0f, 0.0f, 0.0f, 0.0f,
             0.0f, 1.0f, 0.0f, 0.0f,
             0.0f, 0.0f, 1.0f, 0.0f,
-            0.0f, 0.0f, 0.0f, 1.0f
+            0.0f, 0.0f, -5.0f, 1.0f
         };
 
         // 单位投影矩阵
@@ -168,7 +168,7 @@ public:
             0.0f, 0.0f, 0.0f, 1.0f
         };
 
-        outCommand.clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
+        outCommand.clearColor = {0.1f, 0.1f, 0.15f, 1.0f};
     }
 
     const std::vector<float>& getVertexData() const override { return m_vertices; }
@@ -195,7 +195,7 @@ public:
         outCommand.vertexBufferSize = m_vertices.size();
         outCommand.indexBufferData = nullptr;
         outCommand.indexBufferSize = 0;
-        outCommand.drawParams.vertexCount = static_cast<uint32_t>(m_vertices.size() / 8);
+        outCommand.drawParams.vertexCount = static_cast<uint32_t>(m_vertices.size() / 7);
         outCommand.drawParams.firstVertex = 0;
         outCommand.drawParams.indexed = false;
 
@@ -243,18 +243,16 @@ public:
                 float pz = offset + z * spacing;
 
                 // Add 36 vertices per cube (12 triangles * 3 vertices)
-                // Format per vertex: x, y, z, w, r, g, b, a (8 floats)
-                for (size_t i = 0; i < cubeTemplate.size(); i += 8) {
+                for (size_t i = 0; i < cubeTemplate.size(); i += 7) {
                     float vx = cubeTemplate[i] + px;
                     float vy = cubeTemplate[i + 1];
                     float vz = cubeTemplate[i + 2] + pz;
-                    float vw = cubeTemplate[i + 3];
-                    float vr = cubeTemplate[i + 4];
-                    float vg = cubeTemplate[i + 5];
-                    float vb = cubeTemplate[i + 6];
-                    float va = cubeTemplate[i + 7];
+                    float vr = cubeTemplate[i + 3];
+                    float vg = cubeTemplate[i + 4];
+                    float vb = cubeTemplate[i + 5];
+                    float va = cubeTemplate[i + 6];
 
-                    m_vertices.insert(m_vertices.end(), {vx, vy, vz, vw, vr, vg, vb, va});
+                    m_vertices.insert(m_vertices.end(), {vx, vy, vz, vr, vg, vb, va});
                 }
             }
         }
@@ -269,7 +267,7 @@ public:
         outCommand.vertexBufferSize = m_vertices.size();
         outCommand.indexBufferData = nullptr;
         outCommand.indexBufferSize = 0;
-        outCommand.drawParams.vertexCount = static_cast<uint32_t>(m_vertices.size() / 8);
+        outCommand.drawParams.vertexCount = static_cast<uint32_t>(m_vertices.size() / 7);
         outCommand.drawParams.firstVertex = 0;
         outCommand.drawParams.indexed = false;
 
@@ -306,7 +304,7 @@ public:
         buildSponzaStyleGeometry();
     }
 
-    uint32_t getTriangleCount() const override { return static_cast<uint32_t>(m_vertices.size() / 24); } // 8 floats per vertex
+    uint32_t getTriangleCount() const override { return static_cast<uint32_t>(m_vertices.size() / 21); } // 7 floats per vertex
 
     const std::string& getDescription() const override { return m_description; }
 
@@ -315,7 +313,7 @@ public:
         outCommand.vertexBufferSize = m_vertices.size();
         outCommand.indexBufferData = nullptr;
         outCommand.indexBufferSize = 0;
-        outCommand.drawParams.vertexCount = static_cast<uint32_t>(m_vertices.size() / 8);
+        outCommand.drawParams.vertexCount = static_cast<uint32_t>(m_vertices.size() / 7);
         outCommand.drawParams.firstVertex = 0;
         outCommand.drawParams.indexed = false;
 
@@ -342,20 +340,19 @@ private:
     std::vector<float> m_vertices;
 
     // Helper to add a quad (2 triangles)
-    // Format per vertex: x, y, z, w, r, g, b, a (8 floats)
     void addQuad(float x0, float y0, float z0,
                  float x1, float y1, float z1,
                  float x2, float y2, float z2,
                  float x3, float y3, float z3,
                  float r, float g, float b) {
         // Triangle 1: v0, v1, v2
-        m_vertices.insert(m_vertices.end(), {x0, y0, z0, 1.0f, r, g, b, 1.0f});
-        m_vertices.insert(m_vertices.end(), {x1, y1, z1, 1.0f, r, g, b, 1.0f});
-        m_vertices.insert(m_vertices.end(), {x2, y2, z2, 1.0f, r, g, b, 1.0f});
+        m_vertices.insert(m_vertices.end(), {x0, y0, z0, r, g, b, 1.0f});
+        m_vertices.insert(m_vertices.end(), {x1, y1, z1, r, g, b, 1.0f});
+        m_vertices.insert(m_vertices.end(), {x2, y2, z2, r, g, b, 1.0f});
         // Triangle 2: v0, v2, v3
-        m_vertices.insert(m_vertices.end(), {x0, y0, z0, 1.0f, r, g, b, 1.0f});
-        m_vertices.insert(m_vertices.end(), {x2, y2, z2, 1.0f, r, g, b, 1.0f});
-        m_vertices.insert(m_vertices.end(), {x3, y3, z3, 1.0f, r, g, b, 1.0f});
+        m_vertices.insert(m_vertices.end(), {x0, y0, z0, r, g, b, 1.0f});
+        m_vertices.insert(m_vertices.end(), {x2, y2, z2, r, g, b, 1.0f});
+        m_vertices.insert(m_vertices.end(), {x3, y3, z3, r, g, b, 1.0f});
     }
 
     // Helper to add a pillar (4 thin quads)
@@ -462,7 +459,7 @@ private:
         };
 
         for (auto& pos : positions) {
-            for (size_t i = 0; i < smallCube.size(); i += 8) {
+            for (size_t i = 0; i < smallCube.size(); i += 7) {
                 m_vertices.push_back(smallCube[i]     + pos[0]);
                 m_vertices.push_back(smallCube[i + 1] + pos[1]);
                 m_vertices.push_back(smallCube[i + 2] + pos[2]);
@@ -470,7 +467,6 @@ private:
                 m_vertices.push_back(smallCube[i + 4]);
                 m_vertices.push_back(smallCube[i + 5]);
                 m_vertices.push_back(smallCube[i + 6]);
-                m_vertices.push_back(smallCube[i + 7]);
             }
         }
     }
@@ -536,7 +532,7 @@ public:
         outCommand.vertexBufferSize = m_vertices.size();
         outCommand.indexBufferData = nullptr;
         outCommand.indexBufferSize = 0;
-        outCommand.drawParams.vertexCount = static_cast<uint32_t>(m_vertices.size() / 8);
+        outCommand.drawParams.vertexCount = static_cast<uint32_t>(m_vertices.size() / 7);
         outCommand.drawParams.firstVertex = 0;
         outCommand.drawParams.indexed = false;
 
@@ -591,14 +587,13 @@ private:
                 float z4 = cz + radius * sin(theta2) * sin(phi1);
 
                 // Triangle 1: v1, v2, v3
-                // Format: x, y, z, w, r, g, b, a (8 floats)
-                m_vertices.insert(m_vertices.end(), {x1, y1, z1, 1.0f, r, g, b, 1.0f});
-                m_vertices.insert(m_vertices.end(), {x2, y2, z2, 1.0f, r, g, b, 1.0f});
-                m_vertices.insert(m_vertices.end(), {x3, y3, z3, 1.0f, r, g, b, 1.0f});
+                m_vertices.insert(m_vertices.end(), {x1, y1, z1, r, g, b, 1.0f});
+                m_vertices.insert(m_vertices.end(), {x2, y2, z2, r, g, b, 1.0f});
+                m_vertices.insert(m_vertices.end(), {x3, y3, z3, r, g, b, 1.0f});
                 // Triangle 2: v1, v3, v4
-                m_vertices.insert(m_vertices.end(), {x1, y1, z1, 1.0f, r, g, b, 1.0f});
-                m_vertices.insert(m_vertices.end(), {x3, y3, z3, 1.0f, r, g, b, 1.0f});
-                m_vertices.insert(m_vertices.end(), {x4, y4, z4, 1.0f, r, g, b, 1.0f});
+                m_vertices.insert(m_vertices.end(), {x1, y1, z1, r, g, b, 1.0f});
+                m_vertices.insert(m_vertices.end(), {x3, y3, z3, r, g, b, 1.0f});
+                m_vertices.insert(m_vertices.end(), {x4, y4, z4, r, g, b, 1.0f});
             }
         }
     }

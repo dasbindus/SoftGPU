@@ -7,7 +7,6 @@
 
 #include <GLFW/glfw3.h>
 #include <string_view>
-#include "../core/Common.hpp"
 
 namespace SoftGPU {
 

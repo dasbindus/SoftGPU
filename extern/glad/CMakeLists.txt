@@ -26,9 +26,6 @@ else()
         target_link_libraries(glad PUBLIC
             ${OPENGL_gl_LIBRARY}
         )
-        target_include_directories(glad PUBLIC
-            ${OPENGL_INCLUDE_DIR}
-        )
     endif()
 endif()
 

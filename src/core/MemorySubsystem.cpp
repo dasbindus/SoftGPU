@@ -7,7 +7,6 @@
 #include "MemorySubsystem.hpp"
 
 #include <algorithm>
-#include <chrono>
 #include <cstring>
 
 namespace SoftGPU {
@@ -36,22 +35,11 @@ bool TokenBucket::tryConsume(size_t bytes) {
 }
 
 void TokenBucket::refill() {
-    using namespace std::chrono;
-    // Get current wall-clock time in milliseconds
-    double nowMs = static_cast<double>(
-        duration_cast<nanoseconds>(high_resolution_clock::now().time_since_epoch()).count()
-    ) / 1e6;
-
-    // Calculate elapsed time since last refill
-    double elapsedSeconds = (nowMs - lastRefillTime) / 1000.0;
-    if (elapsedSeconds < 0) elapsedSeconds = 0;  // Guard against clock skew
-
-    // Add tokens based on elapsed time
-    double tokensToAdd = refillRate * elapsedSeconds;
-    tokens = std::min(maxTokens, tokens + tokensToAdd);
-
-    // Update last refill time
-    lastRefillTime = nowMs;
+    // 使用墙上时间计算补充量
+    // 注意：这里简化处理，每次 tryConsume 时补充到满
+    if (tokens < maxTokens) {
+        tokens = maxTokens;
+    }
 }
 
 // ============================================================================
@@ -81,51 +69,15 @@ bool L2CacheSim::access(uint64_t address, bool isWrite) {
         }
     }
 
-    // ================================================================
-    // PHASE3: Non-write-allocate policy
-    // Write miss: do NOT allocate cache line, just write to memory
-    // ================================================================
-    if (isWrite) {
-        m_misses++;
-        m_writeMissNoAlloc++;
-        return false;
-    }
-
-    // ================================================================
-    // PHASE3: Tile-aware replacement strategy
-    // Prioritize evicting lines from different tiles first
-    // ================================================================
-    uint32_t currentTile = (address / (TILE_WIDTH * TILE_HEIGHT * 4)) & 0xFFFF;
+    // MISS：选择 LRU 行替换
     uint32_t lruWay = 0;
-    uint32_t lruAge = 0;
-    bool foundCrossTile = false;
-
-    // First pass: look for lines from other tiles (lower priority)
+    uint32_t lruAge = UINT32_MAX;
     for (uint32_t way = 0; way < L2_CACHE_WAYS; ++way) {
         uint32_t lineIdx = setIdx * L2_CACHE_WAYS + way;
-        CacheLine& line = m_lines[lineIdx];
-
-        // Tile-aware: prefer evicting lines from different tiles
-        if (line.tile_id != currentTile && line.valid) {
-            uint32_t age = m_currentTick - line.lastUsed;
-            if (!foundCrossTile || age > lruAge) {
-                lruAge = age;
-                lruWay = way;
-                foundCrossTile = true;
-            }
-        }
-    }
-
-    // Second pass: if all lines are from same tile, use regular LRU
-    if (!foundCrossTile) {
-        lruAge = 0;
-        for (uint32_t way = 0; way < L2_CACHE_WAYS; ++way) {
-            uint32_t lineIdx = setIdx * L2_CACHE_WAYS + way;
-            uint32_t age = m_currentTick - m_lines[lineIdx].lastUsed;
-            if (age > lruAge) {
-                lruAge = age;
-                lruWay = way;
-            }
+        uint32_t age = m_currentTick - m_lines[lineIdx].lastUsed;
+        if (age < lruAge) {
+            lruAge = age;
+            lruWay = way;
         }
     }
 
@@ -137,7 +89,6 @@ bool L2CacheSim::access(uint64_t address, bool isWrite) {
     victim.valid = true;
     victim.dirty = isWrite;
     victim.lastUsed = m_currentTick++;
-    victim.tile_id = currentTile;
     m_misses++;
 
     return false;
@@ -152,14 +103,12 @@ double L2CacheSim::getHitRate() const {
 void L2CacheSim::resetStats() {
     m_hits = 0;
     m_misses = 0;
-    m_writeMissNoAlloc = 0;
     m_currentTick = 0;
     for (auto& line : m_lines) {
         line.valid = false;
         line.dirty = false;
         line.tag = 0;
         line.lastUsed = 0;
-        line.tile_id = 0;
     }
 }
 
@@ -175,7 +124,6 @@ uint64_t L2CacheSim::getTag(uint64_t address) const {
 // MemorySubsystem Implementation
 // ============================================================================
 MemorySubsystem::MemorySubsystem(double bandwidthGBps) {
-    m_bandwidthGBps = bandwidthGBps;
     m_bucket.init(bandwidthGBps);
     resetCounters();
     m_startTimeMs = getCurrentTimeMs();
@@ -299,7 +247,7 @@ void MemorySubsystem::resetCounters() {
     m_accessCount = 0;
     m_bandwidthOverLimitCount = 0;
     m_l2Cache.resetStats();
-    m_bucket.init(m_bandwidthGBps);
+    m_bucket.init(DEFAULT_BANDWIDTH_GBPS);
     m_startTimeMs = getCurrentTimeMs();
     m_elapsedMs = 0.0;
 }

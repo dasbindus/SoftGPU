@@ -10,7 +10,6 @@
 #include <algorithm>
 #include <chrono>
 #include <thread>
-#include <memory>
 
 namespace SoftGPU {
 
@@ -101,18 +100,18 @@ BenchmarkResult BenchmarkRunner::runSingleFrame(std::shared_ptr<TestScene> scene
     RenderCommand command;
     scene->buildRenderCommand(command);
 
-    // 创建渲染管线（堆分配，避免 ~8MB 栈溢出）
-    auto pipeline = std::make_unique<RenderPipeline>();
+    // 创建渲染管线
+    RenderPipeline pipeline;
 
     // 预热（第一次运行通常较慢）
-    pipeline->render(command);
+    pipeline.render(command);
 
     // 重置计数器
-    pipeline->getMemorySubsystem().resetCounters();
+    pipeline.getMemorySubsystem().resetCounters();
 
     // 正式测试
     auto startTime = std::chrono::high_resolution_clock::now();
-    pipeline->render(command);
+    pipeline.render(command);
     auto endTime = std::chrono::high_resolution_clock::now();
 
     double elapsedMs = std::chrono::duration<double, std::milli>(endTime - startTime).count();
@@ -127,7 +126,7 @@ BenchmarkResult BenchmarkRunner::runSingleFrame(std::shared_ptr<TestScene> scene
     result.fps = (elapsedMs > 0.0) ? (1000.0 / elapsedMs) : 0.0;
 
     // 带宽统计
-    auto& mem = pipeline->getMemorySubsystem();
+    auto& mem = pipeline.getMemorySubsystem();
     result.bandwidthUtilization = mem.getBandwidthUtilization();
     result.totalReadBytes = mem.getReadBytes();
     result.totalWriteBytes = mem.getWriteBytes();
@@ -139,7 +138,7 @@ BenchmarkResult BenchmarkRunner::runSingleFrame(std::shared_ptr<TestScene> scene
     result.L2Misses = mem.getL2Cache().getMisses();
 
     // 各阶段耗时 - 从 FrameProfiler 获取真实时间
-    const auto& perf = pipeline->getVertexShader().getCounters();
+    const auto& perf = pipeline.getVertexShader().getCounters();
     result.cycleCount = perf.cycle_count;
     result.vertexShaderTimeMs = perf.elapsed_ms;
 

@@ -11,28 +11,8 @@
 #include <iomanip>
 #include <cmath>
 #include <ctime>
-#include <cstdlib>
 
 namespace SoftGPU {
-
-// Safe string-to-number converters that return 0 for empty fields
-static uint64_t safeStoull(const std::string& s) {
-    if (s.empty()) return 0;
-    try { return std::stoull(s); }
-    catch (...) { return 0; }
-}
-
-static uint32_t safeStoul(const std::string& s) {
-    if (s.empty()) return 0;
-    try { return std::stoul(s); }
-    catch (...) { return 0; }
-}
-
-static double safeStod(const std::string& s) {
-    if (s.empty()) return 0.0;
-    try { return std::stod(s); }
-    catch (...) { return 0.0; }
-}
 
 // ============================================================================
 // BenchmarkResult Implementation
@@ -332,26 +312,26 @@ bool BenchmarkSet::loadFromCSV(const std::string& filepath) {
 
         std::getline(ss, r.sceneName, ',');
         std::getline(ss, r.timestamp, ',');
-        std::getline(ss, val, ','); r.runIndex = safeStoul(val);
-        std::getline(ss, val, ','); r.triangleCount = safeStoul(val);
-        std::getline(ss, val, ','); r.vertexCount = safeStoul(val);
-        std::getline(ss, val, ','); r.frameTimeMs = safeStod(val);
-        std::getline(ss, val, ','); r.fps = safeStod(val);
-        std::getline(ss, val, ','); r.cycleCount = safeStoull(val);
-        std::getline(ss, val, ','); r.bandwidthUtilization = safeStod(val);
-        std::getline(ss, val, ','); r.totalReadBytes = safeStoull(val);
-        std::getline(ss, val, ','); r.totalWriteBytes = safeStoull(val);
-        std::getline(ss, val, ','); r.consumedBandwidthGBps = safeStod(val);
-        std::getline(ss, val, ','); r.L2HitRate = safeStod(val);
-        std::getline(ss, val, ','); r.L2Hits = safeStoull(val);
-        std::getline(ss, val, ','); r.L2Misses = safeStoull(val);
-        std::getline(ss, val, ','); r.vertexShaderTimeMs = safeStod(val);
-        std::getline(ss, val, ','); r.tilingTimeMs = safeStod(val);
-        std::getline(ss, val, ','); r.rasterizerTimeMs = safeStod(val);
-        std::getline(ss, val, ','); r.fragmentShaderTimeMs = safeStod(val);
-        std::getline(ss, val, ','); r.tileWriteBackTimeMs = safeStod(val);
-        std::getline(ss, val, ','); r.fragmentsProcessed = safeStoull(val);
-        std::getline(ss, val, ','); r.pixelsWritten = safeStoull(val);
+        std::getline(ss, val, ','); r.runIndex = std::stoul(val);
+        std::getline(ss, val, ','); r.triangleCount = std::stoul(val);
+        std::getline(ss, val, ','); r.vertexCount = std::stoul(val);
+        std::getline(ss, val, ','); r.frameTimeMs = std::stod(val);
+        std::getline(ss, val, ','); r.fps = std::stod(val);
+        std::getline(ss, val, ','); r.cycleCount = std::stoull(val);
+        std::getline(ss, val, ','); r.bandwidthUtilization = std::stod(val);
+        std::getline(ss, val, ','); r.totalReadBytes = std::stoull(val);
+        std::getline(ss, val, ','); r.totalWriteBytes = std::stoull(val);
+        std::getline(ss, val, ','); r.consumedBandwidthGBps = std::stod(val);
+        std::getline(ss, val, ','); r.L2HitRate = std::stod(val);
+        std::getline(ss, val, ','); r.L2Hits = std::stoull(val);
+        std::getline(ss, val, ','); r.L2Misses = std::stoull(val);
+        std::getline(ss, val, ','); r.vertexShaderTimeMs = std::stod(val);
+        std::getline(ss, val, ','); r.tilingTimeMs = std::stod(val);
+        std::getline(ss, val, ','); r.rasterizerTimeMs = std::stod(val);
+        std::getline(ss, val, ','); r.fragmentShaderTimeMs = std::stod(val);
+        std::getline(ss, val, ','); r.tileWriteBackTimeMs = std::stod(val);
+        std::getline(ss, val, ','); r.fragmentsProcessed = std::stoull(val);
+        std::getline(ss, val, ','); r.pixelsWritten = std::stoull(val);
 
         results.push_back(r);
     }

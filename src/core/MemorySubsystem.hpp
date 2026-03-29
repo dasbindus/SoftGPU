@@ -10,7 +10,6 @@
 #include <cstddef>
 #include <array>
 #include <chrono>
-#include "core/PipelineTypes.hpp"
 
 namespace SoftGPU {
 
@@ -22,9 +21,9 @@ constexpr double NS_PER_SEC = 1e9;
 
 // Cache 配置
 constexpr uint32_t CACHE_LINE_SIZE = 64;   // bytes（模拟 L2 cache line）
-constexpr uint32_t L2_CACHE_SETS   = 512;  // PHASE3: 512 sets (was 256)
+constexpr uint32_t L2_CACHE_SETS   = 256;  // 简化：256 sets
 constexpr uint32_t L2_CACHE_WAYS   = 8;    // 8-way set associative
-constexpr size_t   L2_CACHE_SIZE   = CACHE_LINE_SIZE * L2_CACHE_SETS * L2_CACHE_WAYS; // 256 KB (was 128KB)
+constexpr size_t   L2_CACHE_SIZE   = CACHE_LINE_SIZE * L2_CACHE_SETS * L2_CACHE_WAYS; // 128 KB
 
 // ============================================================================
 // MemoryAccessType - 访问类型
@@ -57,7 +56,6 @@ struct CacheLine {
     bool valid = false;
     bool dirty = false;
     uint32_t lastUsed = 0;  // 简化 LRU
-    uint32_t tile_id = 0;    // PHASE3: Tile-aware replacement
 };
 
 // ============================================================================
@@ -79,7 +77,6 @@ public:
 private:
     uint64_t m_hits = 0;
     uint64_t m_misses = 0;
-    uint64_t m_writeMissNoAlloc = 0;  // PHASE3: Non-write-allocate write misses
     uint32_t m_currentTick = 0;
     std::array<CacheLine, L2_CACHE_SETS * L2_CACHE_WAYS> m_lines;
 
@@ -137,7 +134,6 @@ private:
     double      m_elapsedMs = 0.0;
     double      m_startTimeMs = 0.0;
     uint64_t    m_bandwidthOverLimitCount = 0;  // 带宽超限次数
-    double      m_bandwidthGBps = DEFAULT_BANDWIDTH_GBPS;  // 保存构造时带宽值
 
     // GMEM 基址（指向 TileWriteBack 的 m_gmemColor/m_gmemDepth，由 RenderPipeline 注入）
     float*      m_gmemColorBase = nullptr;

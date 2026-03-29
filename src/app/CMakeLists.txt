@@ -1,10 +1,11 @@
 # ============================================
 # app 库 - 应用框架
 # ============================================
-add_library(app INTERFACE)
-add_library(SoftGPU::app ALIAS app)
+add_library(app STATIC
+    Application.hpp
+)
 
-target_link_libraries(app INTERFACE
+target_link_libraries(app PUBLIC
     core
     platform
     renderer
@@ -12,6 +13,6 @@ target_link_libraries(app INTERFACE
     pipeline
 )
 
-target_include_directories(app INTERFACE
+target_include_directories(app PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
 )

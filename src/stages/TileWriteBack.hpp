@@ -62,8 +62,6 @@ public:
     // ========================================================================
     const float* getGMEMColor() const { return m_gmemColor.data(); }
     const float* getGMEMDepth() const { return m_gmemDepth.data(); }
-    float* getGMEMColorData() { return m_gmemColor.data(); }
-    float* getGMEMDepthData() { return m_gmemDepth.data(); }
 
     // 获取 GMEM tile 偏移量（供 MemorySubsystem 使用）
     size_t getTileColorOffset(uint32_t tileIndex) const;

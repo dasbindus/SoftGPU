@@ -84,57 +84,56 @@ TestSceneBuilder& TestSceneBuilder::withCustomDescription(const std::string& des
 }
 
 // Helper: create cube vertices
-// Format per vertex: x, y, z, w, r, g, b, a (8 floats)
 static void createCubeTemplate(std::vector<float>& vertices, float size) {
     float h = size * 0.5f;
 
     // Front face
-    vertices.insert(vertices.end(), {-h, -h, +h, 1.0f,  0.0f, 1.0f, 0.0f, 1.0f});
-    vertices.insert(vertices.end(), {+h, -h, +h, 1.0f,  0.0f, 1.0f, 0.0f, 1.0f});
-    vertices.insert(vertices.end(), {+h, +h, +h, 1.0f,  0.0f, 1.0f, 0.0f, 1.0f});
-    vertices.insert(vertices.end(), {-h, -h, +h, 1.0f,  0.0f, 1.0f, 0.0f, 1.0f});
-    vertices.insert(vertices.end(), {+h, +h, +h, 1.0f,  0.0f, 1.0f, 0.0f, 1.0f});
-    vertices.insert(vertices.end(), {-h, +h, +h, 1.0f,  0.0f, 1.0f, 0.0f, 1.0f});
+    vertices.insert(vertices.end(), {-h, -h, +h,  0.0f, 1.0f, 0.0f, 1.0f});
+    vertices.insert(vertices.end(), {+h, -h, +h,  0.0f, 1.0f, 0.0f, 1.0f});
+    vertices.insert(vertices.end(), {+h, +h, +h,  0.0f, 1.0f, 0.0f, 1.0f});
+    vertices.insert(vertices.end(), {-h, -h, +h,  0.0f, 1.0f, 0.0f, 1.0f});
+    vertices.insert(vertices.end(), {+h, +h, +h,  0.0f, 1.0f, 0.0f, 1.0f});
+    vertices.insert(vertices.end(), {-h, +h, +h,  0.0f, 1.0f, 0.0f, 1.0f});
 
     // Back face
-    vertices.insert(vertices.end(), {+h, -h, -h, 1.0f,  0.0f, 0.0f, 1.0f, 1.0f});
-    vertices.insert(vertices.end(), {-h, -h, -h, 1.0f,  0.0f, 0.0f, 1.0f, 1.0f});
-    vertices.insert(vertices.end(), {-h, +h, -h, 1.0f,  0.0f, 0.0f, 1.0f, 1.0f});
-    vertices.insert(vertices.end(), {+h, -h, -h, 1.0f,  0.0f, 0.0f, 1.0f, 1.0f});
-    vertices.insert(vertices.end(), {-h, +h, -h, 1.0f,  0.0f, 0.0f, 1.0f, 1.0f});
-    vertices.insert(vertices.end(), {+h, +h, -h, 1.0f,  0.0f, 0.0f, 1.0f, 1.0f});
+    vertices.insert(vertices.end(), {+h, -h, -h,  0.0f, 0.0f, 1.0f, 1.0f});
+    vertices.insert(vertices.end(), {-h, -h, -h,  0.0f, 0.0f, 1.0f, 1.0f});
+    vertices.insert(vertices.end(), {-h, +h, -h,  0.0f, 0.0f, 1.0f, 1.0f});
+    vertices.insert(vertices.end(), {+h, -h, -h,  0.0f, 0.0f, 1.0f, 1.0f});
+    vertices.insert(vertices.end(), {-h, +h, -h,  0.0f, 0.0f, 1.0f, 1.0f});
+    vertices.insert(vertices.end(), {+h, +h, -h,  0.0f, 0.0f, 1.0f, 1.0f});
 
     // Left face
-    vertices.insert(vertices.end(), {-h, -h, -h, 1.0f,  1.0f, 0.0f, 0.0f, 1.0f});
-    vertices.insert(vertices.end(), {-h, -h, +h, 1.0f,  1.0f, 0.0f, 0.0f, 1.0f});
-    vertices.insert(vertices.end(), {-h, +h, +h, 1.0f,  1.0f, 0.0f, 0.0f, 1.0f});
-    vertices.insert(vertices.end(), {-h, -h, -h, 1.0f,  1.0f, 0.0f, 0.0f, 1.0f});
-    vertices.insert(vertices.end(), {-h, +h, +h, 1.0f,  1.0f, 0.0f, 0.0f, 1.0f});
-    vertices.insert(vertices.end(), {-h, +h, -h, 1.0f,  1.0f, 0.0f, 0.0f, 1.0f});
+    vertices.insert(vertices.end(), {-h, -h, -h,  1.0f, 0.0f, 0.0f, 1.0f});
+    vertices.insert(vertices.end(), {-h, -h, +h,  1.0f, 0.0f, 0.0f, 1.0f});
+    vertices.insert(vertices.end(), {-h, +h, +h,  1.0f, 0.0f, 0.0f, 1.0f});
+    vertices.insert(vertices.end(), {-h, -h, -h,  1.0f, 0.0f, 0.0f, 1.0f});
+    vertices.insert(vertices.end(), {-h, +h, +h,  1.0f, 0.0f, 0.0f, 1.0f});
+    vertices.insert(vertices.end(), {-h, +h, -h,  1.0f, 0.0f, 0.0f, 1.0f});
 
     // Right face
-    vertices.insert(vertices.end(), {+h, -h, +h, 1.0f,  1.0f, 1.0f, 0.0f, 1.0f});
-    vertices.insert(vertices.end(), {+h, -h, -h, 1.0f,  1.0f, 1.0f, 0.0f, 1.0f});
-    vertices.insert(vertices.end(), {+h, +h, -h, 1.0f,  1.0f, 1.0f, 0.0f, 1.0f});
-    vertices.insert(vertices.end(), {+h, -h, +h, 1.0f,  1.0f, 1.0f, 0.0f, 1.0f});
-    vertices.insert(vertices.end(), {+h, +h, -h, 1.0f,  1.0f, 1.0f, 0.0f, 1.0f});
-    vertices.insert(vertices.end(), {+h, +h, +h, 1.0f,  1.0f, 1.0f, 0.0f, 1.0f});
+    vertices.insert(vertices.end(), {+h, -h, +h,  1.0f, 1.0f, 0.0f, 1.0f});
+    vertices.insert(vertices.end(), {+h, -h, -h,  1.0f, 1.0f, 0.0f, 1.0f});
+    vertices.insert(vertices.end(), {+h, +h, -h,  1.0f, 1.0f, 0.0f, 1.0f});
+    vertices.insert(vertices.end(), {+h, -h, +h,  1.0f, 1.0f, 0.0f, 1.0f});
+    vertices.insert(vertices.end(), {+h, +h, -h,  1.0f, 1.0f, 0.0f, 1.0f});
+    vertices.insert(vertices.end(), {+h, +h, +h,  1.0f, 1.0f, 0.0f, 1.0f});
 
     // Top face
-    vertices.insert(vertices.end(), {-h, +h, +h, 1.0f,  1.0f, 0.0f, 1.0f, 1.0f});
-    vertices.insert(vertices.end(), {+h, +h, +h, 1.0f,  1.0f, 0.0f, 1.0f, 1.0f});
-    vertices.insert(vertices.end(), {+h, +h, -h, 1.0f,  1.0f, 0.0f, 1.0f, 1.0f});
-    vertices.insert(vertices.end(), {-h, +h, +h, 1.0f,  1.0f, 0.0f, 1.0f, 1.0f});
-    vertices.insert(vertices.end(), {+h, +h, -h, 1.0f,  1.0f, 0.0f, 1.0f, 1.0f});
-    vertices.insert(vertices.end(), {-h, +h, -h, 1.0f,  1.0f, 0.0f, 1.0f, 1.0f});
+    vertices.insert(vertices.end(), {-h, +h, +h,  1.0f, 0.0f, 1.0f, 1.0f});
+    vertices.insert(vertices.end(), {+h, +h, +h,  1.0f, 0.0f, 1.0f, 1.0f});
+    vertices.insert(vertices.end(), {+h, +h, -h,  1.0f, 0.0f, 1.0f, 1.0f});
+    vertices.insert(vertices.end(), {-h, +h, +h,  1.0f, 0.0f, 1.0f, 1.0f});
+    vertices.insert(vertices.end(), {+h, +h, -h,  1.0f, 0.0f, 1.0f, 1.0f});
+    vertices.insert(vertices.end(), {-h, +h, -h,  1.0f, 0.0f, 1.0f, 1.0f});
 
     // Bottom face
-    vertices.insert(vertices.end(), {-h, -h, -h, 1.0f,  0.0f, 1.0f, 1.0f, 1.0f});
-    vertices.insert(vertices.end(), {+h, -h, -h, 1.0f,  0.0f, 1.0f, 1.0f, 1.0f});
-    vertices.insert(vertices.end(), {+h, -h, +h, 1.0f,  0.0f, 1.0f, 1.0f, 1.0f});
-    vertices.insert(vertices.end(), {-h, -h, -h, 1.0f,  0.0f, 1.0f, 1.0f, 1.0f});
-    vertices.insert(vertices.end(), {+h, -h, +h, 1.0f,  0.0f, 1.0f, 1.0f, 1.0f});
-    vertices.insert(vertices.end(), {-h, -h, +h, 1.0f,  0.0f, 1.0f, 1.0f, 1.0f});
+    vertices.insert(vertices.end(), {-h, -h, -h,  0.0f, 1.0f, 1.0f, 1.0f});
+    vertices.insert(vertices.end(), {+h, -h, -h,  0.0f, 1.0f, 1.0f, 1.0f});
+    vertices.insert(vertices.end(), {+h, -h, +h,  0.0f, 1.0f, 1.0f, 1.0f});
+    vertices.insert(vertices.end(), {-h, -h, -h,  0.0f, 1.0f, 1.0f, 1.0f});
+    vertices.insert(vertices.end(), {+h, -h, +h,  0.0f, 1.0f, 1.0f, 1.0f});
+    vertices.insert(vertices.end(), {-h, -h, +h,  0.0f, 1.0f, 1.0f, 1.0f});
 }
 
 std::shared_ptr<TestScene> TestSceneBuilder::build() {
@@ -225,7 +224,7 @@ std::shared_ptr<TestScene> TestSceneBuilder::buildFromConfig() {
                 float px = offset + x * spacing;
                 float pz = offset + z * spacing;
 
-                for (size_t j = 0; j < cubeTemplate.size(); j += 8) {
+                for (size_t j = 0; j < cubeTemplate.size(); j += 7) {
                     vertices.push_back(cubeTemplate[j] + px);
                     vertices.push_back(cubeTemplate[j + 1]);
                     vertices.push_back(cubeTemplate[j + 2] + pz);
@@ -233,7 +232,6 @@ std::shared_ptr<TestScene> TestSceneBuilder::buildFromConfig() {
                     vertices.push_back(cubeTemplate[j + 4]);
                     vertices.push_back(cubeTemplate[j + 5]);
                     vertices.push_back(cubeTemplate[j + 6]);
-                    vertices.push_back(cubeTemplate[j + 7]);
                 }
             }
             triCount = count * 12;
@@ -285,12 +283,12 @@ std::shared_ptr<TestScene> TestSceneBuilder::buildFromConfig() {
                         float y4 = cz + radius * cos(theta2);
                         float z4 = cz + radius * sin(theta2) * sin(phi1);
 
-                        vertices.insert(vertices.end(), {x1, y1, z1, 1.0f, cr, cg, cb, 1.0f});
-                        vertices.insert(vertices.end(), {x2, y2, z2, 1.0f, cr, cg, cb, 1.0f});
-                        vertices.insert(vertices.end(), {x3, y3, z3, 1.0f, cr, cg, cb, 1.0f});
-                        vertices.insert(vertices.end(), {x1, y1, z1, 1.0f, cr, cg, cb, 1.0f});
-                        vertices.insert(vertices.end(), {x3, y3, z3, 1.0f, cr, cg, cb, 1.0f});
-                        vertices.insert(vertices.end(), {x4, y4, z4, 1.0f, cr, cg, cb, 1.0f});
+                        vertices.insert(vertices.end(), {x1, y1, z1, cr, cg, cb, 1.0f});
+                        vertices.insert(vertices.end(), {x2, y2, z2, cr, cg, cb, 1.0f});
+                        vertices.insert(vertices.end(), {x3, y3, z3, cr, cg, cb, 1.0f});
+                        vertices.insert(vertices.end(), {x1, y1, z1, cr, cg, cb, 1.0f});
+                        vertices.insert(vertices.end(), {x3, y3, z3, cr, cg, cb, 1.0f});
+                        vertices.insert(vertices.end(), {x4, y4, z4, cr, cg, cb, 1.0f});
                     }
                 }
             }
@@ -355,7 +353,7 @@ std::shared_ptr<TestScene> InstancedSceneBuilder::buildCubeInstances(uint32_t ma
             outCommand.vertexBufferSize = m_vertices.size();
             outCommand.indexBufferData = nullptr;
             outCommand.indexBufferSize = 0;
-            outCommand.drawParams.vertexCount = static_cast<uint32_t>(m_vertices.size() / 8);
+            outCommand.drawParams.vertexCount = static_cast<uint32_t>(m_vertices.size() / 7);
             outCommand.drawParams.firstVertex = 0;
             outCommand.drawParams.indexed = false;
 
@@ -394,7 +392,7 @@ std::shared_ptr<TestScene> InstancedSceneBuilder::buildCubeInstances(uint32_t ma
                         rotate(inst.rotation, vec3(0.0f, 1.0f, 0.0f)) *
                         scale(vec3(inst.scale));
 
-        for (size_t j = 0; j < cubeTemplate.size(); j += 8) {
+        for (size_t j = 0; j < cubeTemplate.size(); j += 7) {
             vec4 v(cubeTemplate[j], cubeTemplate[j+1], cubeTemplate[j+2], 1.0f);
             vec4 transformed = transform * v;
 
@@ -404,7 +402,7 @@ std::shared_ptr<TestScene> InstancedSceneBuilder::buildCubeInstances(uint32_t ma
             vertices.push_back(inst.color.r);
             vertices.push_back(inst.color.g);
             vertices.push_back(inst.color.b);
-            vertices.push_back(cubeTemplate[j + 7]);
+            vertices.push_back(cubeTemplate[j + 6]);
         }
     }
 
@@ -487,12 +485,12 @@ std::shared_ptr<TestScene> InstancedSceneBuilder::buildSphereInstances(uint32_t 
                 float y4 = inst.position.y + inst.scale * cos(theta2);
                 float z4 = inst.position.z + inst.scale * sin(theta2) * sin(phi1);
 
-                vertices.insert(vertices.end(), {x1, y1, z1, 1.0f, inst.color.r, inst.color.g, inst.color.b, 1.0f});
-                vertices.insert(vertices.end(), {x2, y2, z2, 1.0f, inst.color.r, inst.color.g, inst.color.b, 1.0f});
-                vertices.insert(vertices.end(), {x3, y3, z3, 1.0f, inst.color.r, inst.color.g, inst.color.b, 1.0f});
-                vertices.insert(vertices.end(), {x1, y1, z1, 1.0f, inst.color.r, inst.color.g, inst.color.b, 1.0f});
-                vertices.insert(vertices.end(), {x3, y3, z3, 1.0f, inst.color.r, inst.color.g, inst.color.b, 1.0f});
-                vertices.insert(vertices.end(), {x4, y4, z4, 1.0f, inst.color.r, inst.color.g, inst.color.b, 1.0f});
+                vertices.insert(vertices.end(), {x1, y1, z1, inst.color.r, inst.color.g, inst.color.b, 1.0f});
+                vertices.insert(vertices.end(), {x2, y2, z2, inst.color.r, inst.color.g, inst.color.b, 1.0f});
+                vertices.insert(vertices.end(), {x3, y3, z3, inst.color.r, inst.color.g, inst.color.b, 1.0f});
+                vertices.insert(vertices.end(), {x1, y1, z1, inst.color.r, inst.color.g, inst.color.b, 1.0f});
+                vertices.insert(vertices.end(), {x3, y3, z3, inst.color.r, inst.color.g, inst.color.b, 1.0f});
+                vertices.insert(vertices.end(), {x4, y4, z4, inst.color.r, inst.color.g, inst.color.b, 1.0f});
             }
         }
     }
