@@ -6,9 +6,11 @@ add_library(platform STATIC
     Window.hpp
 )
 
-# Find glfw3 package if not already found
-if(NOT glfw3_FOUND)
-    find_package(glfw3 REQUIRED)
+# Use glfw from FetchContent if available, otherwise find system package
+if(NOT TARGET glfw)
+    if(NOT glfw3_FOUND)
+        find_package(glfw3 REQUIRED)
+    endif()
 endif()
 
 target_link_libraries(platform PUBLIC
