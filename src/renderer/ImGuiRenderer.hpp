@@ -7,6 +7,7 @@
 
 #include "Renderer.hpp"
 
+#include <string>
 #include <imgui.h>
 #include <GLFW/glfw3.h>
 

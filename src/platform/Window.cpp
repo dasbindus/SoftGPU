@@ -84,7 +84,7 @@ bool Window::create(const WindowConfig& config) {
     if (config.coreProfile) {
         glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     } else {
-        glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_OPENGL_ANY_PROFILE);
+        glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_ANY_PROFILE);
     }
 
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, config.forwardCompat ? GLFW_TRUE : GLFW_FALSE);
@@ -99,16 +99,6 @@ bool Window::create(const WindowConfig& config) {
     glfwWindowHint(GLFW_FOCUSED, config.focused ? GLFW_TRUE : GLFW_FALSE);
 
     glfwWindowHint(GLFW_SAMPLES, config.samples);
-
-    // 设置尺寸限制
-    if (config.minWidth > 0 && config.minHeight > 0) {
-        glfwWindowHint(GLFW_MIN_WIDTH, config.minWidth);
-        glfwWindowHint(GLFW_MIN_HEIGHT, config.minHeight);
-    }
-    if (config.maxWidth > 0 && config.maxHeight > 0) {
-        glfwWindowHint(GLFW_MAX_WIDTH, config.maxWidth);
-        glfwWindowHint(GLFW_MAX_HEIGHT, config.maxHeight);
-    }
 
     // 创建窗口
     m_window = glfwCreateWindow(

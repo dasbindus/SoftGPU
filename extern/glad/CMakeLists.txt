@@ -11,8 +11,10 @@ if(glad_FOUND)
 else()
     message(STATUS "Building glad from source")
 
-    # Create library from source (specify C language explicitly)
+    # Enable C language for glad.c compilation
     enable_language(C)
+
+    # Create library from source
     add_library(glad STATIC
         src/glad.c
     )
@@ -20,6 +22,14 @@ else()
     target_include_directories(glad PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/include
     )
+
+    # Link against GLFW if available
+    # Note: glfw3 package provides 'glfw' target
+    if(glfw3_FOUND)
+        target_link_libraries(glad PUBLIC glfw)
+    elseif(glfw_FOUND)
+        target_link_libraries(glad PUBLIC glfw)
+    endif()
 
     # Use system OpenGL if available
     if(OpenGL_FOUND)

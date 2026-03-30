@@ -13,7 +13,7 @@ endif()
 
 target_link_libraries(platform PUBLIC
     core
-    glfw3
+    glfw
     OpenGL::GL
 )
 

@@ -1,7 +1,7 @@
-# ============================================================================
-# SoftGPU - Common.hpp
-# 通用类型定义、宏、工具函数
-# ============================================================================
+// ============================================================================
+// SoftGPU - Common.hpp
+// 通用类型定义、宏、工具函数
+// ============================================================================
 
 #pragma once
 
@@ -79,6 +79,10 @@ constexpr float32 HALF_PI   = 1.57079632679489f;
 constexpr float32 INV_PI    = 0.31830988618379f;
 
 constexpr float32 EPSILON   = 1.19209289550781e-7f;
-constexpr float32 INFINITY  = 3.402823466e+38f;
+// Undefine INFINITY macro if defined (conflicts with cmath)
+#ifdef INFINITY
+#undef INFINITY
+#endif
+constexpr float32 INFINITY_F = 3.402823466e+38f;
 
 } // namespace SoftGPU

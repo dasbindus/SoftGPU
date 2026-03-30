@@ -18,4 +18,5 @@ target_link_libraries(test
     PUBLIC
     core
     stages
+    glm
 )

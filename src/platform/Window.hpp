@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include "core/Common.hpp"
 #include <GLFW/glfw3.h>
 #include <string_view>
 

@@ -114,8 +114,10 @@ target_link_libraries(SoftGPU PRIVATE
     renderer
     stages
     pipeline
+    test
     OpenGL::GL
-    glfw3
+    glfw
+    glad
     imgui
 )
 

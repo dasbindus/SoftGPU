@@ -1,11 +1,9 @@
 # ============================================
 # app 库 - 应用框架
 # ============================================
-add_library(app STATIC
-    Application.hpp
-)
+add_library(app INTERFACE)
 
-target_link_libraries(app PUBLIC
+target_link_libraries(app INTERFACE
     core
     platform
     renderer
@@ -13,6 +11,6 @@ target_link_libraries(app PUBLIC
     pipeline
 )
 
-target_include_directories(app PUBLIC
+target_include_directories(app INTERFACE
     ${CMAKE_CURRENT_SOURCE_DIR}
 )

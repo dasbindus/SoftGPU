@@ -1,30 +1,12 @@
 #ifndef GLAD_GL_H_
 #define GLAD_GL_H_
 
-#ifdef __gl_h_
-#error OpenGL header already included, remove this include, glad already provides it
-#endif
+/* Don't check for __gl_h_ since we may need to coexist with system OpenGL */
+#ifndef __gl_h_
 #define __gl_h_
+#endif
 
-#define GLAD_GL_VERSION_1_0 1
-#define GLAD_GL_VERSION_1_1 1
-#define GLAD_GL_VERSION_1_2 1
-#define GLAD_GL_VERSION_1_3 1
-#define GLAD_GL_VERSION_1_4 1
-#define GLAD_GL_VERSION_1_5 1
-#define GLAD_GL_VERSION_2_0 1
-#define GLAD_GL_VERSION_2_1 1
-#define GLAD_GL_VERSION_3_0 1
-#define GLAD_GL_VERSION_3_1 1
-#define GLAD_GL_VERSION_3_2 1
-#define GLAD_GL_VERSION_3_3 1
-#define GLAD_GL_VERSION_4_0 1
-#define GLAD_GL_VERSION_4_1 1
-#define GLAD_GL_VERSION_4_2 1
-#define GLAD_GL_VERSION_4_3 1
-#define GLAD_GL_VERSION_4_4 1
-#define GLAD_GL_VERSION_4_5 1
-#define GLAD_GL_VERSION_4_6 1
+/* Version flags are defined in glad.c, not as macros here */
 
 #include <stddef.h>
 #include <stdlib.h>
@@ -39,6 +21,19 @@
 
 #define GL_GLEXT_VERSION 202301
 
+/* GLAPI macro definition - extern for declarations */
+#ifndef GLAPI
+#if defined(_WIN32) && !defined(GLAD_GLAPI_IMPL)
+#define GLAPI extern __declspec(dllimport)
+#elif defined(__GNUC__) && !defined(GLAD_GLAPI_IMPL)
+#define GLAPI extern __attribute__((visibility("default")))
+#else
+#define GLAPI extern
+#endif
+#endif
+
+/* Only define types if not already defined by system OpenGL */
+#ifndef GL_VERSION_1_1
 typedef unsigned int GLenum;
 typedef unsigned int GLuint;
 typedef int GLint;
@@ -53,9 +48,13 @@ typedef unsigned short GLushort;
 typedef signed char GLbyte;
 typedef void GLvoid;
 typedef unsigned int GLbitfield;
-typedef int GLsizei;
 typedef double GLclampd;
 typedef float GLclampf;
+typedef char GLchar;
+typedef unsigned char GLboolean;
+typedef long long GLint64;
+typedef unsigned long long GLuint64;
+#endif
 
 #define GL_VERSION_1_1 1
 #define GL_TRUE 1
