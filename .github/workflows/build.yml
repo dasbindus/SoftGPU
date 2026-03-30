@@ -118,17 +118,17 @@ jobs:
 
       - name: Run headless Triangle-1Tri
         run: |
-          ./build/bin/SoftGPU --headless --scene Triangle-1Tri --output .
+          ./build/bin/SoftGPU --headless --scene Triangle-1Tri --output . --output-filename headless_triangle_1tri.ppm
           ls -la *.ppm 2>/dev/null || echo "No PPM generated"
 
       - name: Run headless Triangle-Cube
         run: |
-          ./build/bin/SoftGPU --headless --scene Triangle-Cube --output .
+          ./build/bin/SoftGPU --headless --scene Triangle-Cube --output . --output-filename headless_triangle_cube.ppm
           ls -la *.ppm 2>/dev/null || echo "No PPM generated"
 
       - name: Run headless Triangle-Cubes-100
         run: |
-          ./build/bin/SoftGPU --headless --scene Triangle-Cubes-100 --output .
+          ./build/bin/SoftGPU --headless --scene Triangle-Cubes-100 --output . --output-filename headless_triangle_cubes_100.ppm
           ls -la *.ppm 2>/dev/null || echo "No PPM generated"
 
       - name: Upload PPM outputs
