@@ -273,9 +273,9 @@ TEST(IntegrationTest, PPM_Dump_GoldenTriangle) {
     pipeline.render(cmd);
 
     // Dump to PPM
-    pipeline.dump("test_green_triangle.ppm");
+    pipeline.dump(".test_green_triangle.ppm");
 
-    // 验证文件生成（RenderPipeline 会添加 . 前缀）
+    // 验证文件生成
     std::ifstream f(".test_green_triangle.ppm");
     EXPECT_TRUE(f.good());
     f.close();
@@ -307,9 +307,9 @@ TEST(IntegrationTest, PPM_Header_Correct) {
     cmd.clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
 
     pipeline.render(cmd);
-    pipeline.dump("test_header.ppm");
+    pipeline.dump(".test_header.ppm");
 
-    // 读取并验证 header（RenderPipeline 会添加 . 前缀）
+    // 读取并验证 header
     std::ifstream f(".test_header.ppm", std::ios::binary);
     ASSERT_TRUE(f.good());
     
