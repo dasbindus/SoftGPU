@@ -1,3 +1,33 @@
+# v1.3.1 (2026-03-30)
+
+## Bug 修复
+
+- fix: test_Integration PPM filename mismatch - 测试用例文件名不一致问题
+- fix: CI test_e2e XML output path - 使用绝对路径修复 artifact 上传
+- fix: headless render output filename collision - 使用唯一文件名避免覆盖
+
+## 改进
+
+- feat: 支持编译器自适应 golden 文件 - GCC/Clang 使用不同 golden reference
+- feat: CI 完善 - Ubuntu/macOS 双平台测试、headless 渲染验证
+- feat: README 完善 - 中文版、依赖说明、渲染效果展示
+
+## 文档
+
+- docs: README 翻译为中文
+- docs: 添加 LICENSE 文件 (MIT)
+- docs: 添加渲染效果截图 (3 个场景)
+- docs: 添加完整版本计划和微架构改造路线图
+- docs: 修正历史版本描述
+
+## 测试
+
+- test_e2e: 77 tests PASSED
+- test_Integration: 6 tests PASSED
+- test_test_scenarios: 18 tests PASSED
+
+---
+
 # v0.5 (2026-03-27)
 
 ## Bug 修复
