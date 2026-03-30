@@ -111,12 +111,30 @@ ctest --output-on-failure
 
 ## 性能分析
 
-分析器提供：
+FrameProfiler + BottleneckDetector 提供完整的性能分析能力：
 
-- **阶段耗时** - 纳秒级精度
-- **瓶颈检测** - Shader/Memory/FillRate 分析
-- **带宽利用率** - GMEM 读写统计
-- **L2 缓存命中率** - 缓存效率（256KB，tile-aware）
+### 阶段级分析
+- **阶段耗时** - 纳秒级精度，60 帧滚动平均
+- **各阶段调用次数** - 每帧各级 invocations 统计
+
+### 瓶颈判定
+| 瓶颈类型 | 判定依据 |
+|----------|----------|
+| ShaderBound | FragmentShader 耗时占比高 |
+| MemoryBound | GMEM 带宽饱和度高 |
+| FillRateBound | 光栅化输出受限 |
+| ComputeBound | VertexShader 计算瓶颈 |
+
+### 内存系统统计
+- **GMEM 读写字节数** - `getReadBytes() / getWriteBytes()`
+- **L2 Cache 命中率** - `getHitRate()` (256KB, 256 sets × 8-way)
+- **带宽利用率** - Token Bucket 模型计算
+- **访问次数统计** - `getAccessCount()`
+
+### 微架构指标
+- **Warp 调度统计** - fragments_executed, instructions_executed, cycles_spent
+- **ShaderCore IPC** - `getIPC()` 每周期指令数
+- **Rasterizer 效率** - `getRasterizerEfficiency()`
 
 ---
 
