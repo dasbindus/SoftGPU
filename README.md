@@ -240,6 +240,7 @@ TileWriteBack      ▓▓▓▓░░░░░░ 25%  [部分实现]
 
 ## 发布历史
 
+- **v1.3.1** - CI 改进、中文 README、微架构路线图 (2026-03-30)
 - **v1.3** - Fragment Shader ISA 执行，4 种 ISA 着色器，55 个 E2E 测试 (2026-03-30)
 - **v1.2** - 仅文档更新 (2026-03-30)
 - **v1.1** - Project Triangulum 补丁: GMEM 接线、DIV Newton-Raphson、TokenBucket、6 个 golden references (2026-03-29)
