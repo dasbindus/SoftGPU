@@ -30,6 +30,11 @@ shared/
 # Logs and temporary files
 *.log
 
+# E2E test output files (but keep golden references)
+.e2e_*.ppm
+*.ppm
+!/tests/e2e/golden/*.ppm
+
 # Development logs (local only)
 DEV_LOG.md
 DEV_LOG_BAK.md
