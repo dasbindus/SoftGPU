@@ -7,5 +7,10 @@ target_link_libraries(window_test PRIVATE
     gtest
 )
 
+# Fix macOS linker issue with GTest requiring explicit C++ stdlib
+if(APPLE)
+    target_link_libraries(window_test PRIVATE c++)
+endif()
+
 include(GoogleTest)
 gtest_discover_tests(window_test)

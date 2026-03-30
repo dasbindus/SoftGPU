@@ -16,4 +16,9 @@ target_link_libraries(test_benchmark_runner
     gtest
 )
 
+# Fix macOS linker issue with GTest requiring explicit C++ stdlib
+if(APPLE)
+    target_link_libraries(test_benchmark_runner PRIVATE c++)
+endif()
+
 gtest_discover_tests(test_benchmark_runner)

@@ -22,6 +22,11 @@ add_executable(test_e2e
     scene_011_pbr_material.cpp
 )
 target_link_libraries(test_e2e PRIVATE stages pipeline core test ${GTEST_LIBS})
+
+# Fix macOS linker issue with GTest requiring explicit C++ stdlib
+if(APPLE)
+    target_link_libraries(test_e2e PRIVATE c++)
+endif()
 include(GoogleTest)
 gtest_discover_tests(test_e2e)
 
