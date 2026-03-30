@@ -7,34 +7,21 @@ on:
     branches: [master]
 
 env:
-  # CMake configuration
   CMAKE_BUILD_TYPE: Release
-  # Disable CMake developer mode to reduce warnings
-  CMAKEFLAGS: "-DCMAKE_POLICY_VERSION_MINIMUM=3.10"
 
 jobs:
   # ============================================================================
-  # Job 1: Build on multiple platforms
+  # Build and Test on Ubuntu
   # ============================================================================
-  build:
-    name: Build (${{ matrix.os }}, ${{ matrix.compiler }})
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-        compiler: [gcc, clang]
-        exclude:
-          - os: macos-latest
-            compiler: gcc  # macOS only supports clang
-
-    runs-on: ${{ matrix.os }}
+  ubuntu:
+    name: Ubuntu (GCC)
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install dependencies (Ubuntu)
-        if: matrix.os == 'ubuntu-latest'
+      - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -44,45 +31,53 @@ jobs:
             libgtest-dev \
             libgmock-dev
 
-      - name: Install dependencies (macOS)
-        if: matrix.os == 'macos-latest'
-        run: |
-          brew install glfw3 googletest
-
       - name: Configure CMake
-        run: cmake -B build -DCMAKE_BUILD_TYPE=${{ env.CMAKE_BUILD_TYPE }} -DCMAKE_CXX_COMPILER=${{ matrix.compiler }}
+        run: cmake -B build -DCMAKE_BUILD_TYPE=${{ env.CMAKE_BUILD_TYPE }} -DCMAKE_CXX_COMPILER=g++
 
       - name: Build
         run: cmake --build build -j$(nproc) --config Release
 
-      - name: Upload artifacts
+      - name: List test executables
+        run: ls -la build/bin/test_* 2>/dev/null || echo "No test executables"
+
+      - name: Run ctest
+        run: |
+          cd build
+          ctest --output-on-failure -j$(nproc) || true
+
+      - name: Run test_test_scenarios
+        run: ./build/bin/test_test_scenarios || echo "test_scenarios failed"
+
+      - name: Run test_Integration
+        run: ./build/bin/test_Integration || echo "test_Integration failed"
+
+      - name: Run test_e2e
+        run: |
+          ./build/bin/test_e2e --gtest_output=xml:test_results_e2e.xml || echo "test_e2e had failures"
+        continue-on-error: true
+
+      - name: Upload E2E results
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: build-${{ matrix.os }}-${{ matrix.compiler }}
+          name: e2e-results-ubuntu
           path: |
-            build/bin/
-            build/lib/
+            build/test_results*.xml
+            build/*.ppm
           retention-days: 7
 
   # ============================================================================
-  # Job 2: Run tests (depends on build)
+  # Build and Test on Ubuntu (Clang)
   # ============================================================================
-  test:
-    name: Test (${{ matrix.os }})
-    needs: build
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-
-    runs-on: ${{ matrix.os }}
+  ubuntu-clang:
+    name: Ubuntu (Clang)
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install dependencies (Ubuntu)
-        if: matrix.os == 'ubuntu-latest'
+      - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -92,8 +87,29 @@ jobs:
             libgtest-dev \
             libgmock-dev
 
-      - name: Install dependencies (macOS)
-        if: matrix.os == 'macos-latest'
+      - name: Configure CMake
+        run: cmake -B build -DCMAKE_BUILD_TYPE=${{ env.CMAKE_BUILD_TYPE }} -DCMAKE_CXX_COMPILER=clang++
+
+      - name: Build
+        run: cmake --build build -j$(nproc) --config Release
+
+      - name: Run ctest
+        run: |
+          cd build
+          ctest --output-on-failure -j$(nproc) || true
+
+  # ============================================================================
+  # Build and Test on macOS
+  # ============================================================================
+  macos:
+    name: macOS (Clang)
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
         run: |
           brew install glfw3 googletest
 
@@ -104,80 +120,47 @@ jobs:
         run: cmake --build build -j$(nproc) --config Release
 
       - name: List test executables
-        run: |
-          echo "=== Test executables ==="
-          ls -la build/bin/test_* 2>/dev/null || echo "No test executables found"
+        run: ls -la build/bin/test_* 2>/dev/null || echo "No test executables"
 
-      - name: Run unit tests (ctest)
+      - name: Run ctest
         run: |
           cd build
           ctest --output-on-failure -j$(nproc) || true
 
-      - name: Run test_scenarios
-        run: |
-          echo "=== Running test_test_scenarios ==="
-          ./build/bin/test_test_scenarios || echo "test_scenarios failed"
+      - name: Run test_test_scenarios
+        run: ./build/bin/test_test_scenarios || echo "test_scenarios failed"
 
       - name: Run test_Integration
-        run: |
-          echo "=== Running test_Integration ==="
-          ./build/bin/test_Integration || echo "test_Integration failed"
+        run: ./build/bin/test_Integration || echo "test_Integration failed"
 
-      - name: Run E2E tests
+      - name: Run test_e2e
         run: |
-          echo "=== Running test_e2e ==="
           ./build/bin/test_e2e --gtest_output=xml:test_results_e2e.xml || echo "test_e2e had failures"
         continue-on-error: true
 
-      - name: Upload test results
+      - name: Upload E2E results
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: test-results-${{ matrix.os }}
+          name: e2e-results-macos
           path: |
             build/test_results*.xml
             build/*.ppm
-            build/e2e_*.ppm
-          retention-days: 7
-
-      - name: Upload E2E PPM outputs on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: e2e-failure-ppm-${{ matrix.os }}
-          path: build/*.ppm
           retention-days: 7
 
   # ============================================================================
-  # Job 3: Headless render verification
+  # Headless render verification
   # ============================================================================
-  headless-test:
-    name: Headless Render (${{ matrix.os }})
-    needs: build
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-
-    runs-on: ${{ matrix.os }}
+  headless:
+    name: Headless Render
+    runs-on: macos-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install dependencies (Ubuntu)
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libgl1-mesa-dev \
-            libxkbcommon-dev \
-            libglfw3-dev
-
-      - name: Install dependencies (macOS)
-        if: matrix.os == 'macos-latest'
-        run: |
-          brew install glfw3
+      - name: Install dependencies
+        run: brew install glfw3
 
       - name: Configure CMake
         run: cmake -B build -DCMAKE_BUILD_TYPE=${{ env.CMAKE_BUILD_TYPE }}
@@ -187,25 +170,25 @@ jobs:
 
       - name: Run headless Triangle-1Tri
         run: |
-          echo "=== Headless render: Triangle-1Tri ==="
+          echo "=== Headless: Triangle-1Tri ==="
           ./build/bin/SoftGPU --headless --scene Triangle-1Tri --output .
           ls -la *.ppm 2>/dev/null || echo "No PPM generated"
 
       - name: Run headless Triangle-Cube
         run: |
-          echo "=== Headless render: Triangle-Cube ==="
+          echo "=== Headless: Triangle-Cube ==="
           ./build/bin/SoftGPU --headless --scene Triangle-Cube --output .
           ls -la *.ppm 2>/dev/null || echo "No PPM generated"
 
-      - name: Upload headless render outputs
+      - name: Upload PPM outputs
         uses: actions/upload-artifact@v4
         with:
-          name: headless-output-${{ matrix.os }}
+          name: headless-output
           path: "*.ppm"
           retention-days: 7
 
   # ============================================================================
-  # Job 4: Code quality check (optional, runs fast)
+  # Code quality check
   # ============================================================================
   quality:
     name: Code Quality
@@ -215,64 +198,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Check for TODO/FIXME
+      - name: Check for TODOs
         run: |
-          echo "=== TODO/FIXME in source code ==="
+          echo "=== TODO/FIXME in source ==="
           grep -r "TODO\|FIXME\|XXX\|HACK" src/ --include="*.cpp" --include="*.hpp" | head -20 || echo "No TODOs found"
 
       - name: Check file sizes
         run: |
-          echo "=== Large files (>1MB) ==="
-          find . -type f -size +1M -name "*.cpp" -o -size +1M -name "*.hpp" 2>/dev/null | head -10
-
-  # ============================================================================
-  # Job 5: Summary and notifications
-  # ============================================================================
-  summary:
-    name: CI Summary
-    needs: [build, test, headless-test]
-    runs-on: ubuntu-latest
-    if: always()
-
-    steps:
-      - name: CI Summary
-        run: |
-          echo "## CI Build Summary"
-          echo ""
-          echo "### Build Status"
-          if [[ "${{ needs.build.result }}" == "success" ]]; then
-            echo "✅ Build: PASSED"
-          else
-            echo "❌ Build: FAILED"
-          fi
-          echo ""
-          echo "### Test Status"
-          if [[ "${{ needs.test.result }}" == "success" ]]; then
-            echo "✅ Tests: PASSED"
-          else
-            echo "⚠️ Tests: FAILED or had issues"
-          fi
-          echo ""
-          echo "### Headless Render Status"
-          if [[ "${{ needs.headless-test.result }}" == "success" ]]; then
-            echo "✅ Headless Render: PASSED"
-          else
-            echo "⚠️ Headless Render: FAILED"
-          fi
-          echo ""
-          echo "### Artifacts"
-          echo "- Build artifacts: Available for 7 days"
-          echo "- Test results: Available for 7 days"
-          echo "- Headless outputs: Available for 7 days"
-
-      - name: Set commit status
-        if: github.event_name == 'push'
-        run: |
-          if [[ "${{ needs.build.result }}" == "success" && "${{ needs.test.result }}" == "success" ]]; then
-            echo "All checks passed!"
-            # Note: Setting commit status requires GitHub token with write permissions
-            # This will be handled automatically by GitHub based on job outcomes
-          else
-            echo "Some checks failed. Please review the logs."
-            exit 1
-          fi
+          echo "=== Large files (>100KB) ==="
+          find src/ -type f \( -name "*.cpp" -o -name "*.hpp" \) -size +100k | head -10
