@@ -11,10 +11,10 @@ env:
 
 jobs:
   # ============================================================================
-  # Build and Test on Ubuntu
+  # Build on Ubuntu (GCC)
   # ============================================================================
-  ubuntu:
-    name: Ubuntu (GCC)
+  build-ubuntu:
+    name: Build (Ubuntu/GCC)
     runs-on: ubuntu-latest
 
     steps:
@@ -37,72 +37,11 @@ jobs:
       - name: Build
         run: cmake --build build -j$(nproc) --config Release
 
-      - name: List test executables
-        run: ls -la build/bin/test_* 2>/dev/null || echo "No test executables"
-
-      - name: Run ctest
-        run: |
-          cd build
-          ctest --output-on-failure -j$(nproc) || true
-
-      - name: Run test_test_scenarios
-        run: ./build/bin/test_test_scenarios || echo "test_scenarios failed"
-
-      - name: Run test_Integration
-        run: ./build/bin/test_Integration || echo "test_Integration failed"
-
-      - name: Run test_e2e
-        run: |
-          ./build/bin/test_e2e --gtest_output=xml:test_results_e2e.xml || echo "test_e2e had failures"
-        continue-on-error: true
-
-      - name: Upload E2E results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: e2e-results-ubuntu
-          path: |
-            build/test_results*.xml
-            build/*.ppm
-          retention-days: 7
-
   # ============================================================================
-  # Build and Test on Ubuntu (Clang)
+  # Build on macOS (Clang)
   # ============================================================================
-  ubuntu-clang:
-    name: Ubuntu (Clang)
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libgl1-mesa-dev \
-            libxkbcommon-dev \
-            libglfw3-dev \
-            libgtest-dev \
-            libgmock-dev
-
-      - name: Configure CMake
-        run: cmake -B build -DCMAKE_BUILD_TYPE=${{ env.CMAKE_BUILD_TYPE }} -DCMAKE_CXX_COMPILER=clang++
-
-      - name: Build
-        run: cmake --build build -j$(nproc) --config Release
-
-      - name: Run ctest
-        run: |
-          cd build
-          ctest --output-on-failure -j$(nproc) || true
-
-  # ============================================================================
-  # Build and Test on macOS
-  # ============================================================================
-  macos:
-    name: macOS (Clang)
+  build-macos:
+    name: Build (macOS/Clang)
     runs-on: macos-latest
 
     steps:
@@ -119,41 +58,53 @@ jobs:
       - name: Build
         run: cmake --build build -j$(nproc) --config Release
 
-      - name: List test executables
-        run: ls -la build/bin/test_* 2>/dev/null || echo "No test executables"
+  # ============================================================================
+  # Headless tests on macOS
+  # ============================================================================
+  headless-test:
+    name: Headless Tests (macOS)
+    runs-on: macos-latest
+    needs: build-macos
 
-      - name: Run ctest
-        run: |
-          cd build
-          ctest --output-on-failure -j$(nproc) || true
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - name: Run test_test_scenarios
-        run: ./build/bin/test_test_scenarios || echo "test_scenarios failed"
+      - name: Install dependencies
+        run: brew install glfw3 googletest
 
-      - name: Run test_Integration
-        run: ./build/bin/test_Integration || echo "test_Integration failed"
+      - name: Configure CMake
+        run: cmake -B build -DCMAKE_BUILD_TYPE=${{ env.CMAKE_BUILD_TYPE }}
 
-      - name: Run test_e2e
-        run: |
-          ./build/bin/test_e2e --gtest_output=xml:test_results_e2e.xml || echo "test_e2e had failures"
-        continue-on-error: true
+      - name: Build
+        run: cmake --build build -j$(nproc) --config Release
 
-      - name: Upload E2E results
+      - name: Run headless test_scenarios
+        run: ./build/bin/test_test_scenarios
+
+      - name: Run headless test_Integration
+        run: ./build/bin/test_Integration
+
+      - name: Run headless test_e2e
+        run: ./build/bin/test_e2e --gtest_output=xml:test_results_e2e.xml
+
+      - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: e2e-results-macos
+          name: test-results
           path: |
             build/test_results*.xml
             build/*.ppm
           retention-days: 7
 
   # ============================================================================
-  # Headless render verification
+  # Headless render verification on macOS
   # ============================================================================
-  headless:
-    name: Headless Render
+  headless-render:
+    name: Headless Render (macOS)
     runs-on: macos-latest
+    needs: build-macos
 
     steps:
       - name: Checkout code
@@ -170,14 +121,17 @@ jobs:
 
       - name: Run headless Triangle-1Tri
         run: |
-          echo "=== Headless: Triangle-1Tri ==="
           ./build/bin/SoftGPU --headless --scene Triangle-1Tri --output .
           ls -la *.ppm 2>/dev/null || echo "No PPM generated"
 
       - name: Run headless Triangle-Cube
         run: |
-          echo "=== Headless: Triangle-Cube ==="
           ./build/bin/SoftGPU --headless --scene Triangle-Cube --output .
+          ls -la *.ppm 2>/dev/null || echo "No PPM generated"
+
+      - name: Run headless Triangle-Cubes-100
+        run: |
+          ./build/bin/SoftGPU --headless --scene Triangle-Cubes-100 --output .
           ls -la *.ppm 2>/dev/null || echo "No PPM generated"
 
       - name: Upload PPM outputs
