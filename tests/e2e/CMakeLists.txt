@@ -15,7 +15,12 @@ add_executable(test_e2e
     scene_004_mad_verification.cpp
     scene_005_multi_triangle.cpp
     scene_006_warp_scheduling.cpp
+    scene_007_triangle_1tri.cpp
+    scene_008_triangle_cube.cpp
+    scene_009_triangle_cubes100.cpp
+    scene_010_triangle_sponzastyle.cpp
+    scene_011_pbr_material.cpp
 )
-target_link_libraries(test_e2e PRIVATE stages pipeline core ${GTEST_LIBS})
+target_link_libraries(test_e2e PRIVATE stages pipeline core test ${GTEST_LIBS})
 include(GoogleTest)
 gtest_discover_tests(test_e2e)
