@@ -44,7 +44,7 @@ jobs:
         run: ./build/bin/test_Integration
 
       - name: Run test_e2e
-        run: ./build/bin/test_e2e --gtest_output=xml:test_results_e2e.xml
+        run: ./build/bin/test_e2e --gtest_output=xml:./build/test_results_e2e.xml
 
       - name: Upload test results
         if: always()
@@ -84,7 +84,7 @@ jobs:
         run: ./build/bin/test_Integration
 
       - name: Run test_e2e
-        run: ./build/bin/test_e2e --gtest_output=xml:test_results_e2e.xml
+        run: ./build/bin/test_e2e --gtest_output=xml:./build/test_results_e2e.xml
 
       - name: Upload test results
         if: always()
