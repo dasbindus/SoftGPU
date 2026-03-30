@@ -124,6 +124,11 @@ target_link_libraries(SoftGPU PRIVATE
     imgui
 )
 
+# Fix macOS C++ stdlib linking
+if(APPLE)
+    target_link_libraries(SoftGPU PRIVATE c++)
+endif()
+
 # Windows: 链接 Windows 库
 if(WIN32)
     target_link_libraries(SoftGPU PRIVATE
