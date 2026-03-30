@@ -36,9 +36,8 @@ TEST_F(E2ETest, Scene009_TriangleCubes100_GoldenReference) {
     PPMVerifier verifier(ppmPath);
     ASSERT_TRUE(verifier.isLoaded()) << "PPM should be generated";
 
-    // Compare with golden reference
-    const char* goldenFile = "tests/e2e/golden/scene009_triangle_cubes100.ppm";
-    bool match = verifier.compareWithGolden(goldenFile, 0.05f);
+    // Compare with golden reference (uses compiler-specific golden file)
+    bool match = verifier.compareWithGolden(getGoldenPath("scene009_triangle_cubes100").c_str(), 0.05f);
     EXPECT_TRUE(match) << "Scene009: Triangle-Cubes-100 should match golden reference";
 }
 

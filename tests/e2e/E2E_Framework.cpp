@@ -488,6 +488,20 @@ std::array<float, 16> E2ETest::identityMatrix() {
     };
 }
 
+const char* E2ETest::getCompilerSuffix() {
+#if defined(__clang__)
+    return "_clang";
+#elif defined(__GNUC__)
+    return "_gcc";
+#else
+    return "";
+#endif
+}
+
+std::string E2ETest::getGoldenPath(const std::string& baseName) {
+    return "tests/e2e/golden/" + baseName + getCompilerSuffix() + ".ppm";
+}
+
 // ============================================================================
 // GoldenRef Implementation
 // ============================================================================

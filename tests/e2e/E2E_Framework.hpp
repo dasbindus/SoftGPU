@@ -155,6 +155,14 @@ protected:
     PixelBounds getRedBoundsFromBuffer() const;
 
     static std::array<float, 16> identityMatrix();
+
+    // Get compiler-specific suffix for golden file differentiation
+    // Returns "_gcc" for GCC, "_clang" for Clang, empty string otherwise
+    static const char* getCompilerSuffix();
+
+    // Get full golden file path with compiler-specific suffix
+    // e.g., getGoldenPath("scene001") returns "tests/e2e/golden/scene001_gcc.ppm" on GCC
+    static std::string getGoldenPath(const std::string& baseName);
 };
 
 // ============================================================================
