@@ -217,11 +217,12 @@ TEST_F(TestSceneTest, SceneVertexDataConsistency) {
 
     const auto& vertices = scene->getVertexData();
 
-    // Should have 36 vertices * 7 floats = 252 floats
-    EXPECT_EQ(vertices.size(), 36u * 7u);
+    // Should have 36 vertices * 8 floats = 288 floats (x,y,z,w,r,g,b,a)
+    EXPECT_EQ(vertices.size(), 36u * 8u);
 
     // Each vertex should have valid color (alpha = 1.0)
-    for (size_t i = 6; i < vertices.size(); i += 7) {
+    // Alpha is at index i+7 for every 8 floats
+    for (size_t i = 7; i < vertices.size(); i += 8) {
         EXPECT_FLOAT_EQ(vertices[i], 1.0f);  // Alpha
     }
 }
