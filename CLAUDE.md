@@ -6,24 +6,33 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 # Build
-mkdir build && cd build && cmake .. && make -j4
+mkdir -p build && cd build && cmake .. && make -j4
 
-# Run all tests
-ctest --output-on-failure
-
-# Run specific test executable
-./build/tests/stages/test_Integration
-./build/tests/benchmark/test_benchmark_runner
-
-# Run main program
+# Run main program (GUI mode - requires display)
 ./build/bin/SoftGPU
-./build/bin/SoftGPU --headless                    # No display required
-./build/bin/SoftGPU --headless --output /tmp      # Custom output dir
+
+# Run main program (headless mode - no display required)
+./build/bin/SoftGPU --headless
+./build/bin/SoftGPU --headless --scene Triangle-1Tri --output .
+```
+
+## Test Commands
+
+```bash
+# Run all tests via ctest
+cd build && ctest --output-on-failure
+
+# Run test executables directly
+./build/bin/test_test_scenarios    # TestScene unit tests (18 tests)
+./build/bin/test_Integration       # Integration tests
+./build/bin/test_e2e              # E2E tests with golden references (55 tests)
+./build/bin/test_PipelineVerification
+./build/bin/test_benchmark_runner  # Benchmark suite
 ```
 
 ## Architecture
 
-SoftGPU is a software **Tile-Based Deferred Rendering (TBDR)** GPU simulator with an 8-stage pipeline.
+SoftGPU is a software **Tile-Based Deferred Rendering (TBDR)** GPU simulator with an 8-stage pipeline and programmable fragment shaders via ISA interpreter.
 
 ### 8-Stage Rendering Pipeline
 
@@ -37,9 +46,18 @@ CommandProcessor → VertexShader → PrimitiveAssembly → TilingStage
 - **PrimitiveAssembly**: View frustum culling, triangle assembly
 - **TilingStage**: Bins triangles into 300 tiles (20×15 grid)
 - **Rasterizer**: Edge function DDA per tile
-- **FragmentShader**: Per-fragment shading
+- **FragmentShader**: ISA interpreter with 36 instructions, 4 shader types
 - **Framebuffer**: Z-buffer depth test, color write
 - **TileWriteBack**: GMEM ↔ LMEM synchronization
+
+### ISA Fragment Shader
+
+The fragment shader uses a custom ISA (Instruction Set Architecture) with 36 instructions:
+- **ShaderCore**: Execution unit pool with multiple ExecutionUnits
+- **Interpreter**: Decodes and executes ISA instructions
+- **WarpScheduler**: Batch processing with 8-thread warps
+
+4 programmable shader types: Flat Color, Barycentric Color, Depth Test, Multi-Triangle
 
 ### Memory Architecture
 
@@ -52,35 +70,52 @@ CommandProcessor → VertexShader → PrimitiveAssembly → TilingStage
 
 | Directory | Purpose |
 |-----------|---------|
-| `src/pipeline/` | RenderPipeline orchestrator (TBR main loop) |
+| `src/pipeline/` | RenderPipeline orchestrator, ShaderCore, WarpScheduler |
 | `src/stages/` | Individual pipeline stage implementations |
+| `src/isa/` | ISA interpreter, Decoder, ExecutionUnits, RegisterFile |
 | `src/core/` | MemorySubsystem, RenderCommand, PipelineTypes |
 | `src/profiler/` | FrameProfiler, BottleneckDetector |
 | `src/renderer/` | ImGui visualization |
-| `src/app/` | Application/Scene management |
+| `src/test/` | TestScene, TestSceneBuilder (scene definitions) |
+| `tests/` | Unit tests, E2E tests, benchmarks |
 
 ### TBR Flow
 
 1. **Geometry Phase**: CommandProcessor → VertexShader → PrimitiveAssembly → TilingStage (bins triangles to tiles)
-2. **Per-Tile Loop**: For each tile: load from GMEM → rasterize → fragment shader → framebuffer → store to GMEM
+2. **Per-Tile Loop**: For each tile: load from GMEM → rasterize → fragment shader (ISA) → framebuffer → store to GMEM
 3. **Frame Output**: Sync all tiles to framebuffer, dump to PPM
 
-## Verification Requirements (from TEAM_RULES.md)
+## Headless Mode Scenes
 
-Before every commit, you MUST verify:
+```bash
+./build/bin/SoftGPU --headless --scene Triangle-1Tri
+./build/bin/SoftGPU --headless --scene Triangle-Cube
+./build/bin/SoftGPU --headless --scene Triangle-Cubes-100
+./build/bin/SoftGPU --headless --scene Triangle-SponzaStyle
+./build/bin/SoftGPU --headless --scene PBR-Material
+```
+
+## E2E Test Scenes (Golden Reference Tests)
+
+The E2E tests compare rendering output against golden reference PPM files in `tests/e2e/golden/`:
+- `scene001_green_triangle.ppm` - Single green triangle
+- `scene002_rgb_interpolation.ppm` - RGB color interpolation
+- `scene003_depth_test.ppm` - Depth testing with occlusion
+- `scene004_mad_verification.ppm` - MAD operation verification
+- `scene005_multi_triangle.ppm` - Multiple triangles
+- `scene006_warp_scheduling.ppm` - Warp scheduling demonstration
+
+## Verification Requirements
+
+Before every commit, verify:
 1. Main program compiles: `make -j4` shows `Built target SoftGPU`
-2. Tests compile: `make -j4` shows `Built target test_Integration`
-3. Program runs in headless mode: `./build/bin/SoftGPU --headless`
-4. All tests pass: `ctest --output-on-failure`
+2. Program runs headless: `./build/bin/SoftGPU --headless --scene Triangle-1Tri`
+3. All tests pass: `ctest --output-on-failure`
 
-Do NOT report "build success" without verifying both the main program AND test programs compile.
+## Vertex Format
 
-## Test Scenes
+TestScene vertices use format: `x, y, z, w, r, g, b, a` (8 floats per vertex)
+- **w**: Homogeneous coordinate (typically 1.0)
+- **r, g, b, a**: Color values (typically 0.0-1.0)
 
-| Scene | Triangles | Description |
-|-------|-----------|-------------|
-| Triangle-1Tri | 1 | Single triangle |
-| Triangle-Cube | 12 | Basic cube |
-| Triangle-Cubes-100 | 1200 | 100 cubes |
-| Triangle-SponzaStyle | ~80 | Architecture test |
-| PBR-Material | ~180 | PBR materials |
+Note: VertexShader performs MVP transformation, so w component is critical for proper clipping.
