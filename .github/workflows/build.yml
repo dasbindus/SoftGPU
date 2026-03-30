@@ -46,25 +46,6 @@ jobs:
       - name: Run test_e2e
         run: ./build/bin/test_e2e --gtest_output=xml:./build/test_results_e2e.xml
 
-      - name: Generate GCC golden file if missing
-        if: failure()
-        run: |
-          # Test failed likely due to missing GCC golden file
-          # Generate it by running the specific scene and copying
-          if [ -f scene009_triangle_cubes100.ppm ]; then
-            mkdir -p tests/e2e/golden
-            cp scene009_triangle_cubes100.ppm tests/e2e/golden/scene009_triangle_cubes100_gcc.ppm
-            echo "Generated GCC golden file"
-          fi
-
-      - name: Upload GCC golden file
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: gcc-golden-file
-          path: tests/e2e/golden/scene009_triangle_cubes100_gcc.ppm
-          retention-days: 7
-
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
