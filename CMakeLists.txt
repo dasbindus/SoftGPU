@@ -18,6 +18,9 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 include(FetchContent)
 
 # GLFW - use system if available
+# Disable Wayland and X11 to avoid dependency issues in CI
+set(GLFW_USE_WAYLAND OFF CACHE BOOL "" FORCE)
+set(GLFW_USE_X11 OFF CACHE BOOL "" FORCE)
 find_package(glfw3 QUIET)
 if(NOT glfw3_FOUND)
     FetchContent_Declare(
