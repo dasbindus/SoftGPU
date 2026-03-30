@@ -117,7 +117,10 @@ void WarpScheduler::executeWarp(Warp& warp) {
     
     // PHASE3: Reuse Interpreter for ISA execution
     // Each warp uses the shared Interpreter from WarpScheduler
-    static softgpu::isa::Interpreter warpInterpreter;
+    // thread_local ensures each thread has its own Interpreter instance
+    // This fixes non-determinism bug in multi-threaded mode where multiple
+    // threads were sharing the same static Interpreter causing race conditions
+    thread_local static softgpu::isa::Interpreter warpInterpreter;
     warpInterpreter.Reset();
     
     // 为每个 active lane 执行 shader

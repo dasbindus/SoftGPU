@@ -102,7 +102,7 @@ public:
     // ========================================================================
 
     // 每帧更新（逻辑）
-    virtual void onUpdate(float deltaTime) {}
+    virtual void onUpdate([[maybe_unused]] float deltaTime) {}
 
     // 每帧渲染
     virtual void onRender() {}

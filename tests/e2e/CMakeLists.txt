@@ -24,3 +24,6 @@ add_executable(test_e2e
 target_link_libraries(test_e2e PRIVATE stages pipeline core test ${GTEST_LIBS})
 include(GoogleTest)
 gtest_discover_tests(test_e2e)
+
+# Copy golden reference files to build directory for tests
+file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/golden/ DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/golden)

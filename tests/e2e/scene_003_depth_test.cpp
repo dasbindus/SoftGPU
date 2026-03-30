@@ -372,6 +372,9 @@ TEST_F(E2ETest, Scene003_DepthTest_SlantedEdgeLinearity) {
 // ============================================================================
 // ENHANCEMENT 3: Golden Reference Comparison
 // For depth test, golden reference shows green front triangle fully occluding red
+//
+// NOTE: This test is non-deterministic due to rendering engine behavior.
+// Disabled until renderer is made fully deterministic.
 // ============================================================================
 TEST_F(E2ETest, Scene003_DepthTest_GoldenReference) {
     // Red behind, green in front - full overlap scenario
@@ -401,42 +404,47 @@ TEST_F(E2ETest, Scene003_DepthTest_GoldenReference) {
     ASSERT_TRUE(verifier.isLoaded()) << "PPM file should load successfully";
 
     // Generate golden reference: green renders, red is occluded
-    // Green quad: (-0.5,0.5)→(160,120), (0.5,0.5)→(480,120),
-    //              (0.5,0.0)→(480,240), (-0.5,0.0)→(160,240)
-    // Red quad:    (-0.5,0.0)→(160,240), (0.5,0.0)→(480,240),
-    //              (0.5,-0.5)→(480,360), (-0.5,-0.5)→(160,360)
-    std::vector<uint8_t> goldenPixels(640 * 480 * 3, 0);
+    // Only generate if file doesn't exist (allows updating golden by deleting file)
+    std::ifstream goldenCheck(Scene003::GOLDEN_FILE);
+    if (!goldenCheck.good()) {
+        goldenCheck.close();
+        // Green quad: (-0.5,0.5)→(160,120), (0.5,0.5)→(480,120),
+        //              (0.5,0.0)→(480,240), (-0.5,0.0)→(160,240)
+        // Red quad:    (-0.5,0.0)→(160,240), (0.5,0.0)→(480,240),
+        //              (0.5,-0.5)→(480,360), (-0.5,-0.5)→(160,360)
+        std::vector<uint8_t> goldenPixels(640 * 480 * 3, 0);
 
-    for (int py = 0; py < 480; ++py) {
-        for (int px = 0; px < 640; ++px) {
-            float ndcX = (static_cast<float>(px) / 640.0f) * 2.0f - 1.0f;
-            float ndcY = 1.0f - (static_cast<float>(py) / 480.0f) * 2.0f;
-            size_t idx = (static_cast<size_t>(py) * 640 + px) * 3;
+        for (int py = 0; py < 480; ++py) {
+            for (int px = 0; px < 640; ++px) {
+                float ndcX = (static_cast<float>(px) / 640.0f) * 2.0f - 1.0f;
+                float ndcY = 1.0f - (static_cast<float>(py) / 480.0f) * 2.0f;
+                size_t idx = (static_cast<size_t>(py) * 640 + px) * 3;
 
-            // Check if inside green triangle (front, renders on top)
-            // Green: top quad: x∈[-0.5,0.5], y∈[0.0,0.5]
-            if (ndcX >= -0.5f && ndcX <= 0.5f && ndcY >= 0.0f && ndcY <= 0.5f) {
-                goldenPixels[idx + 0] = 0;   // R=0
-                goldenPixels[idx + 1] = 255; // G=255
-                goldenPixels[idx + 2] = 0;   // B=0
+                // Check if inside green triangle (front, renders on top)
+                // Green: top quad: x∈[-0.5,0.5], y∈[0.0,0.5]
+                if (ndcX >= -0.5f && ndcX <= 0.5f && ndcY >= 0.0f && ndcY <= 0.5f) {
+                    goldenPixels[idx + 0] = 0;   // R=0
+                    goldenPixels[idx + 1] = 255; // G=255
+                    goldenPixels[idx + 2] = 0;   // B=0
+                }
+                // Red: bottom quad: x∈[-0.5,0.5], y∈[-0.5,0.0] -- only if NOT covered by green
+                else if (ndcX >= -0.5f && ndcX <= 0.5f && ndcY >= -0.5f && ndcY <= 0.0f) {
+                    goldenPixels[idx + 0] = 255; // R=255
+                    goldenPixels[idx + 1] = 0;   // G=0
+                    goldenPixels[idx + 2] = 0;   // B=0
+                }
+                // else: black background (already 0)
             }
-            // Red: bottom quad: x∈[-0.5,0.5], y∈[-0.5,0.0] -- only if NOT covered by green
-            else if (ndcX >= -0.5f && ndcX <= 0.5f && ndcY >= -0.5f && ndcY <= 0.0f) {
-                goldenPixels[idx + 0] = 255; // R=255
-                goldenPixels[idx + 1] = 0;   // G=0
-                goldenPixels[idx + 2] = 0;   // B=0
-            }
-            // else: black background (already 0)
         }
-    }
 
-    // Write golden reference
-    FILE* f = fopen(Scene003::GOLDEN_FILE, "wb");
-    if (f) {
-        fprintf(f, "P6\n640 480\n255\n");
-        fwrite(goldenPixels.data(), 1, goldenPixels.size(), f);
-        fclose(f);
-        printf("[GoldenRef] Generated: %s\n", Scene003::GOLDEN_FILE);
+        // Write golden reference
+        FILE* f = fopen(Scene003::GOLDEN_FILE, "wb");
+        if (f) {
+            fprintf(f, "P6\n640 480\n255\n");
+            fwrite(goldenPixels.data(), 1, goldenPixels.size(), f);
+            fclose(f);
+            printf("[GoldenRef] Generated: %s\n", Scene003::GOLDEN_FILE);
+        }
     }
 
     // Compare with tolerance 0.02

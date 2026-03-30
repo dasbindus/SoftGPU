@@ -2,9 +2,7 @@
 
 #include "Opcode.hpp"
 #include "Instruction.hpp"
-#include "Decoder.hpp"
 #include "RegisterFile.hpp"
-#include "ExecutionUnits.hpp"
 #include <cstdint>
 #include <vector>
 #include <string>
@@ -83,8 +81,6 @@ public:
 
 private:
     RegisterFile reg_file_;
-    Decoder decoder_;
-    ExecutionUnitPool exec_units_;
     PC pc_;
     Stats stats_;
     
@@ -95,7 +91,7 @@ public:
     Interpreter() : memory_(1024 * 1024) {}
     
     // Initialize with program (code as vector of 32-bit words)
-    void LoadProgram(const uint32_t* code, size_t word_count, uint32_t start_addr = 0)
+    void LoadProgram([[maybe_unused]] const uint32_t* code, [[maybe_unused]] size_t word_count, uint32_t start_addr = 0)
     {
         // Simple loader: copy code to memory
         // In real implementation, this would be more sophisticated
@@ -489,10 +485,13 @@ public:
     {
         char buf[512];
         snprintf(buf, sizeof(buf),
-            "PC=%08X  Cycles=%lu  Insts=%lu  Loads=%lu  Stores=%lu\n"
+            "PC=%08X  Cycles=%llu  Insts=%llu  Loads=%llu  Stores=%llu\n"
             "R0=%.6f R1=%.6f R2=%.6f R3=%.6f R4=%.6f R5=%.6f R6=%.6f R7=%.6f",
-            pc_.addr, stats_.cycles, stats_.instructions_executed,
-            stats_.loads, stats_.stores,
+            pc_.addr,
+            (unsigned long long)stats_.cycles,
+            (unsigned long long)stats_.instructions_executed,
+            (unsigned long long)stats_.loads,
+            (unsigned long long)stats_.stores,
             reg_file_.Read(0), reg_file_.Read(1), reg_file_.Read(2),
             reg_file_.Read(3), reg_file_.Read(4), reg_file_.Read(5),
             reg_file_.Read(6), reg_file_.Read(7));
