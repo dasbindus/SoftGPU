@@ -11,10 +11,10 @@ env:
 
 jobs:
   # ============================================================================
-  # Build on Ubuntu (GCC)
+  # Build and Test on Ubuntu (GCC)
   # ============================================================================
-  build-ubuntu:
-    name: Build (Ubuntu/GCC)
+  ubuntu:
+    name: Ubuntu (GCC)
     runs-on: ubuntu-latest
 
     steps:
@@ -37,11 +37,30 @@ jobs:
       - name: Build
         run: cmake --build build -j$(nproc) --config Release
 
+      - name: Run test_test_scenarios
+        run: ./build/bin/test_test_scenarios
+
+      - name: Run test_Integration
+        run: ./build/bin/test_Integration
+
+      - name: Run test_e2e
+        run: ./build/bin/test_e2e --gtest_output=xml:test_results_e2e.xml
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-ubuntu
+          path: |
+            build/test_results*.xml
+            build/*.ppm
+          retention-days: 7
+
   # ============================================================================
-  # Build on macOS (Clang)
+  # Build and Test on macOS (Clang)
   # ============================================================================
-  build-macos:
-    name: Build (macOS/Clang)
+  macos:
+    name: macOS (Clang)
     runs-on: macos-latest
 
     steps:
@@ -58,53 +77,31 @@ jobs:
       - name: Build
         run: cmake --build build -j$(nproc) --config Release
 
-  # ============================================================================
-  # Headless tests on macOS
-  # ============================================================================
-  headless-test:
-    name: Headless Tests (macOS)
-    runs-on: macos-latest
-    needs: build-macos
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Install dependencies
-        run: brew install glfw3 googletest
-
-      - name: Configure CMake
-        run: cmake -B build -DCMAKE_BUILD_TYPE=${{ env.CMAKE_BUILD_TYPE }}
-
-      - name: Build
-        run: cmake --build build -j$(nproc) --config Release
-
-      - name: Run headless test_scenarios
+      - name: Run test_test_scenarios
         run: ./build/bin/test_test_scenarios
 
-      - name: Run headless test_Integration
+      - name: Run test_Integration
         run: ./build/bin/test_Integration
 
-      - name: Run headless test_e2e
+      - name: Run test_e2e
         run: ./build/bin/test_e2e --gtest_output=xml:test_results_e2e.xml
 
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: test-results
+          name: test-results-macos
           path: |
             build/test_results*.xml
             build/*.ppm
           retention-days: 7
 
   # ============================================================================
-  # Headless render verification on macOS
+  # Headless render verification (macOS)
   # ============================================================================
   headless-render:
     name: Headless Render (macOS)
     runs-on: macos-latest
-    needs: build-macos
 
     steps:
       - name: Checkout code
