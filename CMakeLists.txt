@@ -17,8 +17,7 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 # ============================================
 include(FetchContent)
 
-# GLFW - use system if available
-# Disable Wayland and X11 to avoid dependency issues in CI
+# GLFW - use system if available, create alias target for consistency
 set(GLFW_USE_WAYLAND OFF CACHE BOOL "" FORCE)
 set(GLFW_USE_X11 OFF CACHE BOOL "" FORCE)
 find_package(glfw3 QUIET)
@@ -32,24 +31,30 @@ if(NOT glfw3_FOUND)
     set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
     set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
     FetchContent_MakeAvailable(glfw)
+    add_library(glfw ALIAS glfw3)
 endif()
 
-# GLM - use system if available (check for header)
-set(_GLM_SYSTEM_INCLUDE "/usr/include")
-if(EXISTS "${_GLM_SYSTEM_INCLUDE}/glm/glm.hpp")
-    set(GLM_FOUND TRUE)
-    message(STATUS "Using system GLM: ${_GLM_SYSTEM_INCLUDE}")
+# GLM - header-only, use system or FetchContent
+# Try system GLM first (header-only, no library needed)
+find_package(GLM QUIET)
+if(GLM_FOUND)
+    message(STATUS "Using system GLM")
+    # Create glm::glm alias pointing to GLM::GLM for consistent usage
+    if(NOT TARGET glm::glm)
+        add_library(glm::glm ALIAS GLM::GLM)
+    endif()
 else()
-    set(GLM_FOUND FALSE)
-endif()
-
-if(NOT GLM_FOUND)
+    # FetchContent GLM (also header-only, but builds a dummy library)
     FetchContent_Declare(
         glm
         GIT_REPOSITORY https://github.com/g-truc/glm.git
         GIT_TAG 1.0.1
     )
     FetchContent_MakeAvailable(glm)
+    # Create glm::glm alias pointing to glm for consistent usage
+    if(NOT TARGET glm::glm)
+        add_library(glm::glm ALIAS glm)
+    endif()
 endif()
 
 # imgui - use extern/ directory
@@ -83,11 +88,6 @@ include_directories(
     ${CMAKE_SOURCE_DIR}/src
     ${CMAKE_SOURCE_DIR}/extern/glad/include
 )
-
-# Add GLM include path if using system GLM
-if(GLM_FOUND)
-    include_directories(${_GLM_SYSTEM_INCLUDE})
-endif()
 
 # ============================================
 # 子目录
