@@ -6,6 +6,8 @@ add_library(pipeline STATIC
     RenderPipeline.cpp
     ShaderCore.hpp
     ShaderCore.cpp
+    WarpScheduler.hpp
+    WarpScheduler.cpp
 )
 
 target_link_libraries(pipeline PUBLIC
@@ -14,6 +16,10 @@ target_link_libraries(pipeline PUBLIC
     utils
     profiler
 )
+
+# pthread for std::thread in WarpScheduler
+find_package(Threads REQUIRED)
+target_link_libraries(pipeline PUBLIC Threads::Threads)
 
 target_include_directories(pipeline PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}

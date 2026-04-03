@@ -109,6 +109,31 @@ private:
 };
 
 // ============================================================================
+// WarpBatchConfig - executeWarpBatch() 参数
+// ============================================================================
+struct WarpBatchConfig {
+    uint32_t max_cycles_per_warp = 1024;     // 单 warp 最大执行周期（防死循环）
+    uint32_t max_warps_to_schedule = 0;      // 本批次最多调度 warp 数（0=全部）
+    bool enable_tile_write = true;           // 是否将结果写入 TileBuffer
+    bool yield_on_stall = false;             // stall 时是否主动 yield（多线程模式）
+};
+
+// ============================================================================
+// WarpBatchResult - executeWarpBatch() 返回值
+// ============================================================================
+struct WarpBatchResult {
+    uint32_t warps_completed = 0;     // 本批次完成的 warp 数
+    uint32_t fragments_written = 0;  // 写入 TileBuffer 的 fragment 数
+    uint64_t cycles_this_batch = 0;  // 本批次执行的周期数
+    bool all_done = false;            // 所有 warp 是否已完成
+};
+
+// ============================================================================
+// TileBufferManager 前向声明
+// ============================================================================
+class TileBufferManager;
+
+// ============================================================================
 // WarpScheduler - Warp 调度器
 // ============================================================================
 class WarpScheduler {
@@ -153,6 +178,10 @@ public:
     
     // 执行所有 Warp（单次调度轮次）
     void scheduleRound();
+    
+    // P0-1 核心接口：执行有限调度轮次后返回（非 blocking）
+    // 供 FragmentShader 主循环控制节奏
+    WarpBatchResult executeWarpBatch(WarpBatchConfig cfg);
     
     // 运行直到所有 Warp 完成
     void run();
@@ -228,6 +257,22 @@ public:
     // 获取活跃 Warp 数
     uint32_t activeWarpCount() const;
     
+    // 查询活跃 warp（不修改状态）
+    Warp* getWarpIfActive(uint32_t index);
+    const Warp* getWarpIfActive(uint32_t index) const;
+    
+    // 待调度队列是否非空
+    bool hasPendingWork() const { return !m_pending_fragments.empty(); }
+    
+    // 单个 warp 重置
+    void resetWarp(uint32_t warp_id);
+    
+    // ========================================================================
+    // TileBuffer 注入（P0-1 委托模式）
+    // ========================================================================
+    void setTileBufferManager(TileBufferManager* tbm);
+    TileBufferManager* getTileBufferManager() const { return m_tile_buffer_manager; }
+    
     // 重置调度器
     void reset();
     
@@ -247,9 +292,13 @@ private:
     CycleCallback m_cycle_callback;
     WarpDoneCallback m_warp_done_callback;
     
+    // P0-1: TileBuffer 委托写入
+    TileBufferManager* m_tile_buffer_manager = nullptr;
+    
     // 内部方法
     void initializeWarps();
     void executeWarp(Warp& warp);
+    void executeWarpWithTileWrite(Warp& warp, bool enable_tile_write);
     bool allWarpsDone() const;
     void updateStats();
     

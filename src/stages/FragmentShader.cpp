@@ -46,6 +46,14 @@ void FragmentShader::setTileBufferManager(TileBufferManager* manager) {
     m_tileBuffer = manager;
 }
 
+void FragmentShader::setWarpScheduler(WarpScheduler* scheduler) {
+    m_warpScheduler = scheduler;
+    // 同步注入 TileBufferManager 到 WarpScheduler（委托模式）
+    if (scheduler != nullptr && m_tileBuffer != nullptr) {
+        scheduler->setTileBufferManager(m_tileBuffer);
+    }
+}
+
 void FragmentShader::setTileIndex(uint32_t idx) {
     m_tileIndex = idx;
 }
@@ -58,27 +66,61 @@ void FragmentShader::setInputAndExecuteTile(const std::vector<Fragment>& fragmen
 
     auto start = std::chrono::high_resolution_clock::now();
 
-    uint64_t fragmentsShaded = 0;
-
-    for (const auto& frag : fragments) {
-        Fragment shaded = shade(frag);
-
-        // Compute local coordinates within tile
-        uint32_t localX = frag.x - tileX * TILE_WIDTH;
-        uint32_t localY = frag.y - tileY * TILE_HEIGHT;
-
-        // Write to TileBuffer (depth test happens inside)
-        float color[4] = {shaded.r, shaded.g, shaded.b, shaded.a};
-        bool passed = m_tileBuffer->depthTestAndWrite(m_tileIndex, localX, localY, shaded.z, color);
-
-        if (passed) {
-            fragmentsShaded++;
+    // P0-1: WarpScheduler 模式
+    if (m_warpScheduler != nullptr) {
+        // 1. Fragment -> FragmentContext（携带 tile 坐标）
+        std::vector<FragmentContext> contexts;
+        contexts.reserve(fragments.size());
+        for (const auto& frag : fragments) {
+            FragmentContext ctx = fragmentToContext(frag);
+            ctx.tile_x = tileX;
+            ctx.tile_y = tileY;
+            contexts.push_back(ctx);
         }
-    }
 
-    m_counters.invocation_count = static_cast<uint64_t>(fragments.size());
-    m_counters.extra_count0 = fragmentsShaded;   // fragments_shade
-    m_counters.extra_count1 = m_tileBuffer->getDepthTestCount();  // depth_tests
+        // 2. 提交到 WarpScheduler
+        m_warpScheduler->submitFragments(contexts, m_currentShader);
+
+        // 3. 调度执行
+        WarpBatchConfig cfg;
+        cfg.enable_tile_write = true;
+        cfg.yield_on_stall = m_warpScheduler->getConfig().enable_multithreading;
+
+        WarpBatchResult result;
+        uint64_t total_cycles = 0;
+        do {
+            result = m_warpScheduler->executeWarpBatch(cfg);
+            total_cycles += result.cycles_this_batch;
+        } while (!result.all_done);
+
+        m_counters.invocation_count = static_cast<uint64_t>(fragments.size());
+        m_counters.extra_count0 = result.fragments_written;
+        m_counters.extra_count1 = m_tileBuffer ? m_tileBuffer->getDepthTestCount() : 0;
+        m_counters.cycle_count = total_cycles;
+    } else {
+        // Fallback: 串行执行（PHASE1 兼容）
+        uint64_t fragmentsShaded = 0;
+
+        for (const auto& frag : fragments) {
+            Fragment shaded = shade(frag);
+
+            // Compute local coordinates within tile
+            uint32_t localX = frag.x - tileX * TILE_WIDTH;
+            uint32_t localY = frag.y - tileY * TILE_HEIGHT;
+
+            // Write to TileBuffer (depth test happens inside)
+            float color[4] = {shaded.r, shaded.g, shaded.b, shaded.a};
+            bool passed = m_tileBuffer->depthTestAndWrite(m_tileIndex, localX, localY, shaded.z, color);
+
+            if (passed) {
+                fragmentsShaded++;
+            }
+        }
+
+        m_counters.invocation_count = static_cast<uint64_t>(fragments.size());
+        m_counters.extra_count0 = fragmentsShaded;
+        m_counters.extra_count1 = m_tileBuffer ? m_tileBuffer->getDepthTestCount() : 0;
+    }
 
     auto end = std::chrono::high_resolution_clock::now();
     m_counters.elapsed_ms =
@@ -93,14 +135,48 @@ void FragmentShader::execute() {
         ? *m_inputFragmentsPtr
         : m_inputFragments;
 
-    m_outputFragments.clear();
-    m_outputFragments.reserve(input.size());
+    // P0-1: WarpScheduler 模式
+    if (m_warpScheduler != nullptr && isTileBufferMode()) {
+        // 1. Fragment -> FragmentContext
+        std::vector<FragmentContext> contexts;
+        contexts.reserve(input.size());
+        for (const auto& frag : input) {
+            contexts.push_back(fragmentToContext(frag));
+        }
 
-    for (const auto& frag : input) {
-        m_outputFragments.push_back(shade(frag));
+        // 2. 提交到 WarpScheduler
+        m_warpScheduler->submitFragments(contexts, m_currentShader);
+
+        // 3. 调度执行，直到所有 warp 完成
+        WarpBatchConfig cfg;
+        cfg.enable_tile_write = true;
+        cfg.yield_on_stall = m_warpScheduler->getConfig().enable_multithreading;
+
+        WarpBatchResult result;
+        uint64_t total_cycles = 0;
+        do {
+            result = m_warpScheduler->executeWarpBatch(cfg);
+            total_cycles += result.cycles_this_batch;
+        } while (!result.all_done);
+
+        // 4. 统计
+        m_counters.invocation_count = result.warps_completed;
+        m_counters.cycle_count = total_cycles;
+
+        // 委托模式下 TileBuffer 写入由 WarpScheduler 内部完成
+        // FragmentShader 无需维护 m_outputFragments 列表
+        m_outputFragments.clear();
+    } else {
+        // PHASE1 兼容：fallback 串行
+        m_outputFragments.clear();
+        m_outputFragments.reserve(input.size());
+
+        for (const auto& frag : input) {
+            m_outputFragments.push_back(shade(frag));
+        }
+
+        m_counters.invocation_count = static_cast<uint64_t>(m_outputFragments.size());
     }
-
-    m_counters.invocation_count = static_cast<uint64_t>(m_outputFragments.size());
 
     auto end = std::chrono::high_resolution_clock::now();
     m_counters.elapsed_ms =

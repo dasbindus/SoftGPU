@@ -25,6 +25,7 @@ add_library(stages STATIC
 
 target_link_libraries(stages PUBLIC
     core
+    pipeline
 )
 
 target_include_directories(stages PUBLIC

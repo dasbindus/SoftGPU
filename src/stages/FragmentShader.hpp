@@ -2,6 +2,7 @@
 // SoftGPU - FragmentShader.hpp
 // 片段着色器
 // PHASE2: Added TileBuffer output support
+// P0-1:  WarpScheduler 集成
 // ============================================================================
 
 #pragma once
@@ -10,6 +11,7 @@
 #include "core/PipelineTypes.hpp"
 #include "stages/TileBuffer.hpp"
 #include "pipeline/ShaderCore.hpp"
+#include "pipeline/WarpScheduler.hpp"
 #include <memory>
 #include <vector>
 
@@ -17,8 +19,8 @@ namespace SoftGPU {
 
 // ============================================================================
 // FragmentShader - 片段着色器
-// 职责：逐 fragment 执行着色（Phase1: flat color / passthrough）
-// PHASE2: 支持输出到 TileBuffer（per-tile LMEM）
+// 职责:逐 fragment 执行着色(Phase1: flat color / passthrough)
+// PHASE2: 支持输出到 TileBuffer(per-tile LMEM)
 // PHASE2: 集成 ShaderCore ISA 解释器
 // ============================================================================
 class FragmentShader : public IStage {
@@ -34,11 +36,14 @@ public:
     // ========================================================================
     // PHASE2 TileBuffer 接口
     // ========================================================================
-    // 注入 TileBufferManager 引用（PHASE2 模式）
+    // 注入 TileBufferManager 引用(PHASE2 模式)
     void setTileBufferManager(TileBufferManager* manager);
     void setTileIndex(uint32_t idx);
 
-    // 设置输入并执行 PHASE2 模式（写入 TileBuffer）
+    // P0-1: 注入 WarpScheduler 引用
+    void setWarpScheduler(WarpScheduler* scheduler);
+
+    // 设置输入并执行 PHASE2 模式(写入 TileBuffer)
     void setInputAndExecuteTile(const std::vector<Fragment>& fragments,
                                  uint32_t tileX, uint32_t tileY);
 
@@ -50,7 +55,7 @@ public:
     const PerformanceCounters& getCounters() const override { return m_counters; }
     void resetCounters() override;
 
-    // 供后续 Stage 获取着色后的 fragments（PHASE1 模式）
+    // 供后续 Stage 获取着色后的 fragments(PHASE1 模式)
     const std::vector<Fragment>& getOutput() const { return m_outputFragments; }
 
     // 是否为 PHASE2 TileBuffer 模式
@@ -71,14 +76,17 @@ private:
 
     // PHASE2: ShaderCore 执行引擎
     ShaderCore            m_shaderCore;
-
+    
     // PHASE2: ISA shader 函数
     ShaderFunction        m_currentShader;
+    
+    // P0-1: WarpScheduler 引用（外部注入）
+    WarpScheduler*        m_warpScheduler = nullptr;
 
-    // 内部：逐 fragment 着色
+    // 内部:逐 fragment 着色
     Fragment shade(const Fragment& input);
 
-    // 辅助：Fragment <-> FragmentContext 互转
+    // 辅助:Fragment <-> FragmentContext 互转
     FragmentContext fragmentToContext(const Fragment& frag) const;
     Fragment contextToFragment(const FragmentContext& ctx) const;
 };

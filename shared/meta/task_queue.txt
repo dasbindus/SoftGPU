@@ -1,5 +1,27 @@
+PHASE1
 # 任务队列
 # 格式：每行一个任务类型，完成后删除
 # 任务类型：architect / coder / reviewer
 
-# 当前无待处理任务
+# 当前待处理任务（v1.4）
+
+# P0 — 必须完成（回归修复）
+[P0-1] FragmentShader WarpScheduler 真正集成 — executeWarpBatch() 实现，test_warp.cpp
+[P0-2] DIV 指令 Newton-Raphson 实现 — ExecutionUnits.hpp + Interpreter.cpp
+[P0-3] TokenBucket 带宽限制生效 — MemorySubsystem.cpp + TileWriteBack.cpp
+[P0-4] L2 Cache 增大到 256KB — MemorySubsystem.hpp 配置 + tile-aware 替换
+
+# P1 — 高优先级（新功能 + 验证）
+[P1-1] ISA 扩展 8 条指令 — SHL/SHR/NOT/FLOOR/CEIL/ABS/NEG/DP3 + test_isa.cpp
+[P1-2] Early-Z 深度预测试 — EarlyZ.hpp/cpp + RenderPipeline 集成
+[P1-3] TEX/SAMPLE 指令骨架 — checkerboard placeholder 实现
+[P1-4] E2E 测试补充到 60+ — 新增 Early-Z/TEX/Warp 正确性测试
+[P1-5] CI 覆盖率提升 — test_coverage.yml gcov 阈值 ≥ 80%
+
+# P2 — 中优先级
+[P2-1] Warp Divergence 统计 — ProfilerStats 新增字段
+[P2-2] 性能基准数据建立 — benchmark CSV 新列定义
+[P2-3] Rasterizer 命名澄清 — setInputPerTile 语义修正
+
+# 设计评审
+[v1.4] 设计方案评审 — shared/design/v1.4_DESIGN.md 评审确认

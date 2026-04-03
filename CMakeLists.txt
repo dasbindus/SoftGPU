@@ -39,9 +39,13 @@ endif()
 find_package(GLM QUIET)
 if(GLM_FOUND)
     message(STATUS "Using system GLM")
-    # Create glm::glm alias pointing to GLM::GLM for consistent usage
+    # Create glm::glm alias pointing to the correct target (system GLM uses 'glm', not 'GLM::GLM')
     if(NOT TARGET glm::glm)
-        add_library(glm::glm ALIAS GLM::GLM)
+        if(TARGET glm)
+            add_library(glm::glm ALIAS glm)
+        elseif(TARGET GLM::GLM)
+            add_library(glm::glm ALIAS GLM::GLM)
+        endif()
     endif()
 else()
     # FetchContent GLM (also header-only, but builds a dummy library)
@@ -77,6 +81,7 @@ endif()
 # 查找 OpenGL 依赖
 # ============================================
 find_package(OpenGL REQUIRED)
+find_package(Threads REQUIRED)
 
 # glad - OpenGL loader (本地源码)
 add_subdirectory(extern/glad)
