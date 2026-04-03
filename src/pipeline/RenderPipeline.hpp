@@ -41,6 +41,9 @@ public:
     // 获取当前 framebuffer（PHASE1 兼容，仍可用）
     const Framebuffer* getFramebuffer() const { return &m_framebuffer; }
 
+    // 获取颜色缓冲数据（用于 GUI 显示）
+    const float* getColorBuffer() const { return m_framebuffer.getColorBuffer(); }
+
     // ========================================================================
     // GMEM 数据访问（用于 Present / 导出）
     // ========================================================================

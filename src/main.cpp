@@ -165,7 +165,7 @@ int runHeadless(const CmdArgs& args) {
 // ============================================================================
 // GUI模式：标准GLFW + ImGui
 // ============================================================================
-int runGUI() {
+int runGUI(const char* sceneName) {
     // ========================================================================
     // Step 1: GLFW 初始化
     // ========================================================================
@@ -174,9 +174,15 @@ int runGUI() {
         return -1;
     }
 
-    // 配置 OpenGL 上下文（Core Profile 4.6）
+    // 配置 OpenGL 上下文
+    // macOS 支持 OpenGL 4.1，Linux/Windows 支持 OpenGL 4.6
+#ifdef __APPLE__
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
+#else
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
+#endif
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 
@@ -214,10 +220,48 @@ int runGUI() {
 
     printf("[INFO] OpenGL Version: %s\n", glGetString(GL_VERSION));
     printf("[INFO] Renderer: %s\n", glGetString(GL_RENDERER));
-    printf("[INFO] SoftGPU Phase0 - Environment Ready\n");
 
     // ========================================================================
-    // Step 4: 初始化 ImGui
+    // Step 4: 设置渲染场景
+    // ========================================================================
+    TestSceneRegistry::instance().registerBuiltinScenes();
+    auto scene = TestSceneRegistry::instance().getScene(sceneName);
+    if (!scene) {
+        fprintf(stderr, "[ERROR] Scene not found: %s\n", sceneName);
+        fprintf(stderr, "[INFO] Available scenes:\n");
+        for (const auto& name : TestSceneRegistry::instance().getAllSceneNames()) {
+            fprintf(stderr, "  - %s\n", name.c_str());
+        }
+        glfwTerminate();
+        return -1;
+    }
+    printf("[INFO] Scene: %s (%s)\n", scene->getName().c_str(), scene->getDescription().c_str());
+
+    RenderPipeline pipeline;
+    RenderCommand cmd;
+    scene->buildRenderCommand(cmd);
+    cmd.clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
+
+    printf("[INFO] Rendering scene...\n");
+    pipeline.render(cmd);
+
+    // 获取帧缓冲数据并创建 OpenGL 纹理
+    const float* colorData = pipeline.getColorBuffer();
+    GLuint frameTexture;
+    glGenTextures(1, &frameTexture);
+    glBindTexture(GL_TEXTURE_2D, frameTexture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, FRAMEBUFFER_WIDTH, FRAMEBUFFER_HEIGHT, 0, GL_RGBA, GL_FLOAT, colorData);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    printf("[INFO] Scene rendered and texture created\n");
+    printf("[INFO] SoftGPU - GUI Mode\n");
+
+    // ========================================================================
+    // Step 5: 初始化 ImGui
     // ========================================================================
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
@@ -226,10 +270,14 @@ int runGUI() {
 
     ImGui::StyleColorsDark();
     ImGui_ImplGlfw_InitForOpenGL(glfwWindow, true);
+#ifdef __APPLE__
+    ImGui_ImplOpenGL3_Init("#version 410 core");
+#else
     ImGui_ImplOpenGL3_Init("#version 460 core");
+#endif
 
     // ========================================================================
-    // Step 5: 主循环
+    // Step 6: 主循环
     // ========================================================================
     while (!glfwWindowShouldClose(glfwWindow)) {
         glfwPollEvents();
@@ -238,24 +286,34 @@ int runGUI() {
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
 
+        // 渲染纹理显示区域
+        ImGui::SetNextWindowPos(ImVec2(0, 0));
+        ImGui::SetNextWindowSize(ImVec2(FRAMEBUFFER_WIDTH + 320, FRAMEBUFFER_HEIGHT + 100));
+        ImGui::Begin("Render Output", nullptr, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove);
+
+        // 显示渲染结果纹理
+        ImGui::Image((ImTextureID)(intptr_t)frameTexture, ImVec2(FRAMEBUFFER_WIDTH, FRAMEBUFFER_HEIGHT));
+
+        ImGui::End();
+
         // UI面板
-        {
-            ImGui::Begin("SoftGPU Status");
-            ImGui::Text("Phase: PHASE0 - Environment Setup");
-            ImGui::Text("Status: OK");
-            ImGui::Separator();
-            ImGui::Text("FPS: %.1f", io.Framerate);
-            ImGui::Text("Frame Time: %.3f ms", 1000.0f / io.Framerate);
-            ImGui::Separator();
-            ImGui::Text("OpenGL Info:");
-            ImGui::BulletText("Version: %s", glGetString(GL_VERSION));
-            ImGui::BulletText("Renderer: %s", glGetString(GL_RENDERER));
-            ImGui::Separator();
-            if (ImGui::Button("Exit", ImVec2(100, 30))) {
-                glfwSetWindowShouldClose(glfwWindow, GLFW_TRUE);
-            }
-            ImGui::End();
+        ImGui::Begin("SoftGPU Control Panel");
+        ImGui::Text("SoftGPU - Tile-Based Renderer");
+        ImGui::Separator();
+        ImGui::Text("FPS: %.1f", io.Framerate);
+        ImGui::Text("Frame Time: %.3f ms", 1000.0f / io.Framerate);
+        ImGui::Separator();
+        ImGui::Text("Scene: %s", sceneName);
+        ImGui::Text("Triangles: %d", scene->getTriangleCount());
+        ImGui::Separator();
+        ImGui::Text("OpenGL:");
+        ImGui::BulletText("%s", glGetString(GL_VERSION));
+        ImGui::BulletText("%s", glGetString(GL_RENDERER));
+        ImGui::Separator();
+        if (ImGui::Button("Exit", ImVec2(280, 30))) {
+            glfwSetWindowShouldClose(glfwWindow, GLFW_TRUE);
         }
+        ImGui::End();
 
         ImGui::Render();
         glClearColor(CLEAR_COLOR[0], CLEAR_COLOR[1], CLEAR_COLOR[2], CLEAR_COLOR[3]);
@@ -265,8 +323,9 @@ int runGUI() {
     }
 
     // ========================================================================
-    // Step 6: 清理资源
+    // Step 7: 清理资源
     // ========================================================================
+    glDeleteTextures(1, &frameTexture);
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
@@ -308,6 +367,6 @@ int main(int argc, char* argv[])
     if (args.headless) {
         return runHeadless(args);
     } else {
-        return runGUI();
+        return runGUI(args.scene_name);
     }
 }

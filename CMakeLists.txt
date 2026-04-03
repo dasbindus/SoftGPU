@@ -124,6 +124,11 @@ target_link_libraries(SoftGPU PRIVATE
     imgui
 )
 
+# Linux: 需要 dl library for dlopen/dlclose (used by imgui loader)
+if(UNIX AND NOT APPLE AND NOT WIN32)
+    target_link_libraries(SoftGPU PRIVATE dl)
+endif()
+
 # Fix macOS C++ stdlib linking
 if(APPLE)
     target_link_libraries(SoftGPU PRIVATE c++)
