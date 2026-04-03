@@ -1,3 +1,32 @@
+# v1.3.2 (2026-04-03)
+
+## Bug 修复
+
+- fix: Framebuffer depth test 逻辑 - 改回 z < oldZ (OpenGL 惯例)
+
+## 改进
+
+- feat: GUI 模式支持场景渲染和纹理显示
+- feat: GUI 模式支持 --scene 参数
+- feat: macOS OpenGL 4.1 + GLSL 410 兼容性
+
+## 构建
+
+- fix: 添加 Linux -ldl 库链接 (dlopen/dlclose 符号)
+
+## 测试
+
+- test_Framebuffer: 7 tests PASSED
+- test_Integration: 6 tests PASSED
+- test_test_scenarios: 18 tests PASSED
+- test_benchmark_runner: 14 tests PASSED
+- test_Rasterizer: 5 tests PASSED
+- test_PrimitiveAssembly: 5 tests PASSED
+- test_VertexShader: 3 tests PASSED
+- test_e2e: 77 tests PASSED
+
+---
+
 # v1.3.1 (2026-03-30)
 
 ## Bug 修复
