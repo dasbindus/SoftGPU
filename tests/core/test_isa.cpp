@@ -126,6 +126,29 @@ TEST_F(DIVLatencyTest, DIVPendingQueueFIFO) {
 }
 
 // ---------------------------------------------------------------------------
+// P1-1: DP3 Three-Component Dot Product
+// ---------------------------------------------------------------------------
+TEST_F(DIVLatencyTest, DP3ThreeComponentDotProduct) {
+    Interpreter interp;
+    
+    // Ra.xyz = {R4, R5, R6} = {1, 2, 3}
+    interp.SetRegister(4, 1.0f);
+    interp.SetRegister(5, 2.0f);
+    interp.SetRegister(6, 3.0f);
+    // Rb.xyz = {R1, R2, R3} = {4, 5, 6} (R0 is zero-reg, cannot hold values)
+    interp.SetRegister(1, 4.0f);
+    interp.SetRegister(2, 5.0f);
+    interp.SetRegister(3, 6.0f);
+
+    // R8 = dot(R4.xyz, R1.xyz) = 1*4 + 2*5 + 3*6 = 32
+    Instruction inst = Instruction::MakeR(Opcode::DP3, 8, 4, 1);
+    interp.ExecuteInstruction(inst);
+
+    float result = interp.GetRegister(8);
+    EXPECT_NEAR(result, 32.0f, 0.001f);
+}
+
+// ---------------------------------------------------------------------------
 // P0-2 Placeholder: DIV Cycle Counting Test
 // ---------------------------------------------------------------------------
 // TODO: When pipeline model is complete, implement cycle counting test:

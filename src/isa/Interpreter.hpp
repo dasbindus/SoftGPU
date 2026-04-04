@@ -524,10 +524,14 @@ public:
         
         case Opcode::DP3: {
             // DP3: Rd = dot(Ra.xyz, Rb.xyz) = Ra.x*Rb.x + Ra.y*Rb.y + Ra.z*Rb.z
-            float result = val_a * val_b;  // 简化为二维点积（Ra.xy, Rb.xy）
-            // 实际上 RegisterFile 是标量，需要取 Ra.xyz 和 Rb.xyz 三个分量
-            // 简化实现：如果 RegisterFile 支持向量索引，用 Ra[0]*Rb[0] + Ra[1]*Rb[1]
-            // 当前是标量寄存器，所以取 val_a 和 val_b 做点积
+            // Ra and Rb must be 4-aligned (Ra % 4 == 0)
+            float v0 = reg_file_.Read(ra);       // Ra   = x component
+            float v1 = reg_file_.Read(ra + 1);  // Ra+1 = y component
+            float v2 = reg_file_.Read(ra + 2);  // Ra+2 = z component
+            float r0 = reg_file_.Read(rb);       // Rb   = x component
+            float r1 = reg_file_.Read(rb + 1);  // Rb+1 = y component
+            float r2 = reg_file_.Read(rb + 2);  // Rb+2 = z component
+            float result = v0 * r0 + v1 * r1 + v2 * r2;
             reg_file_.Write(rd, result);
             pc_.addr += 4;
             break;
