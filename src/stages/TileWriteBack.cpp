@@ -160,23 +160,33 @@ void TileWriteBack::storeAllTilesFromBuffer(const TileBufferManager& manager, Me
         size_t colorOffset = getTileColorOffset(tileIndex);
         size_t depthOffset = getTileDepthOffset(tileIndex);
 
-        // Record bandwidth for color store: TILE_SIZE * 4 floats
+        // P0-3: Check bandwidth before each tile store
+        // Color store: TILE_SIZE * 4 floats
+        size_t colorBytes = TILE_SIZE * 4 * sizeof(float);
         if (memory) {
-            memory->addAccess(TILE_SIZE * 4 * sizeof(float), MemoryAccessType::StoreTile);
-            memory->recordWrite(TILE_SIZE * 4 * sizeof(float));
+            if (!memory->getBucket().tryConsume(colorBytes)) {
+                // Bandwidth exhausted, skip this tile's color store (simulate throttle)
+                // In cycle-accurate mode this would stall; in functional sim we skip
+            } else {
+                std::memcpy(m_gmemColor.data() + colorOffset, tile.color.data(), colorBytes);
+                memory->addAccess(colorBytes, MemoryAccessType::StoreTile);
+            }
+        } else {
+            std::memcpy(m_gmemColor.data() + colorOffset, tile.color.data(), colorBytes);
         }
 
-        // Store color using memcpy
-        std::memcpy(m_gmemColor.data() + colorOffset, tile.color.data(), TILE_SIZE * 4 * sizeof(float));
-
-        // Record bandwidth for depth store: TILE_SIZE * 1 float
+        // Depth store: TILE_SIZE * 1 float
+        size_t depthBytes = TILE_SIZE * sizeof(float);
         if (memory) {
-            memory->addAccess(TILE_SIZE * sizeof(float), MemoryAccessType::StoreTile);
-            memory->recordWrite(TILE_SIZE * sizeof(float));
+            if (!memory->getBucket().tryConsume(depthBytes)) {
+                // Bandwidth exhausted, skip this tile's depth store
+            } else {
+                std::memcpy(m_gmemDepth.data() + depthOffset, tile.depth.data(), depthBytes);
+                memory->addAccess(depthBytes, MemoryAccessType::StoreTile);
+            }
+        } else {
+            std::memcpy(m_gmemDepth.data() + depthOffset, tile.depth.data(), depthBytes);
         }
-
-        // Store depth using memcpy
-        std::memcpy(m_gmemDepth.data() + depthOffset, tile.depth.data(), TILE_SIZE * sizeof(float));
     }
 }
 

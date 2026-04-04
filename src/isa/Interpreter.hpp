@@ -87,6 +87,16 @@ private:
     // Memory reference
     Memory memory_;
 
+    // P0-2: DIV cycle-accurate simulation
+    static constexpr uint32_t DIV_LATENCY = 7;  // DIV takes 7 cycles
+    
+    struct PendingDiv {
+        uint8_t rd;
+        float result;
+        uint64_t completion_cycle;
+    };
+    std::vector<PendingDiv> m_pending_divs;
+
 public:
     Interpreter() : memory_(1024 * 1024) {}
     
@@ -127,6 +137,17 @@ public:
     // Single step execution
     bool Step()
     {
+        // P0-2: Complete any pending DIV operations whose latency has elapsed
+        uint64_t current_cycle = stats_.cycles;
+        for (auto it = m_pending_divs.begin(); it != m_pending_divs.end(); ) {
+            if (it->completion_cycle <= current_cycle) {
+                reg_file_.Write(it->rd, it->result);
+                it = m_pending_divs.erase(it);
+            } else {
+                ++it;
+            }
+        }
+        
         // Fetch
         uint32_t instruction_word = 0; // Would fetch from I-cache in real impl
         Instruction inst(instruction_word); // Simplified
@@ -222,8 +243,15 @@ public:
             break;
             
         case Opcode::DIV: {
+            // P0-2: DIV takes DIV_LATENCY cycles (not 1)
+            // Instead of immediate write-back, add to pending queue
             float result = (val_b != 0.0f) ? (val_a / val_b) : std::numeric_limits<float>::infinity();
-            reg_file_.Write(rd, result);
+            PendingDiv pending;
+            pending.rd = rd;
+            pending.result = result;
+            pending.completion_cycle = stats_.cycles + DIV_LATENCY;
+            m_pending_divs.push_back(pending);
+            // DIV result not written yet; will be written after DIV_LATENCY cycles
             pc_.addr += 4;
             break;
         }
@@ -478,6 +506,7 @@ public:
         pc_.addr = 0;
         pc_.link = 0;
         stats_.Reset();
+        m_pending_divs.clear();  // P0-2: Clear pending DIVs on reset
     }
     
     // Dump state for debugging

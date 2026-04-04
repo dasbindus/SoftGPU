@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <chrono>
 
 namespace SoftGPU {
 
@@ -35,11 +36,26 @@ bool TokenBucket::tryConsume(size_t bytes) {
 }
 
 void TokenBucket::refill() {
-    // 使用墙上时间计算补充量
-    // 注意：这里简化处理，每次 tryConsume 时补充到满
-    if (tokens < maxTokens) {
-        tokens = maxTokens;
+    // P0-3: 使用墙上时间线性补充令牌（累积式）
+    using namespace std::chrono;
+    
+    auto now = steady_clock::now();
+    
+    // 首次 refill，初始化基准时间
+    if (start_time.time_since_epoch().count() == 0) {
+        start_time = now;
+        lastRefillTime = 0.0;
+        lastRefillTokens = tokens;  // 记录初始 tokens 基准
+        return;
     }
+    
+    double elapsed_s = duration<double>(now - start_time).count();
+    double elapsed_tokens = elapsed_s * refillRate;
+    
+    // 线性补充：tokens = min(maxTokens, lastRefillTokens + elapsed_tokens)
+    // lastRefillTokens 是上次 refill 时的 tokens 值（扣除已消耗后的基准）
+    tokens = std::min(maxTokens, lastRefillTokens + elapsed_tokens);
+    lastRefillTime = elapsed_s * 1000.0;
 }
 
 // ============================================================================

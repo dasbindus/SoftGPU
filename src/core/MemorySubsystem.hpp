@@ -42,10 +42,14 @@ struct TokenBucket {
     double maxTokens = 0.0;       // 桶容量（bytes）
     double refillRate = 0.0;       // 每秒补充令牌数（bytes/s）
     double lastRefillTime = 0.0;   // 上次补充时间（墙上时间，ms）
+    double lastRefillTokens = 0.0; // 上次 refill 时的 tokens 基准值
 
     void init(double bandwidthGBps, double capacityMultiplier = 1.0);
     bool tryConsume(size_t bytes);
     void refill();
+    
+private:
+    std::chrono::steady_clock::time_point start_time;  // 首个 refill 时刻
 };
 
 // ============================================================================
@@ -110,6 +114,10 @@ public:
     // L2 Cache 查询
     L2CacheSim& getL2Cache() { return m_l2Cache; }
     const L2CacheSim& getL2Cache() const { return m_l2Cache; }
+
+    // P0-3: 暴露 TokenBucket 供外部检查带宽
+    TokenBucket& getBucket() { return m_bucket; }
+    const TokenBucket& getBucket() const { return m_bucket; }
 
     // 带宽利用率（0.0 ~ 1.0）
     double getBandwidthUtilization() const;
