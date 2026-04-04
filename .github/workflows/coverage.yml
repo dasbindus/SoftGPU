@@ -1,0 +1,75 @@
+name: Coverage
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          apt-get update && apt-get install -y lcov gcovr cmake build-essential
+
+      - name: CMake configure
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_CXX_FLAGS="-coverage -O0 -g"
+
+      - name: Build
+        run: cmake --build build -j$(nproc)
+
+      - name: Run tests
+        run: |
+          ctest --test-dir build -j$(nproc) --output-on-failure || true
+
+      - name: Capture coverage
+        run: |
+          lcov --capture --directory build --output-file coverage.info \
+            --exclude '*/tests/*' --exclude '*/extern/*' --exclude '*/_deps/*'
+
+      - name: Generate HTML report
+        run: genhtml coverage.info --output-directory coverage_html
+
+      - name: Generate JSON summary
+        run: gcovr --json --output coverage.json --filter 'src/.*' .
+
+      - name: Check coverage gate
+        run: |
+          LINE_RATE=$(python3 -c "import json; d=json.load(open('coverage.json')); print(d.get('lineCoverageRate', 0))")
+          BRANCH_RATE=$(python3 -c "import json; d=json.load(open('coverage.json')); print(d.get('branchCoverageRate', 0))")
+          
+          echo "Line coverage: $LINE_RATE"
+          echo "Branch coverage: $BRANCH_RATE"
+          
+          PASS=true
+          python3 -c "
+import json
+d = json.load(open('coverage.json'))
+line = d.get('lineCoverageRate', 0)
+branch = d.get('branchCoverageRate', 0)
+files = d.get('files', [])
+for f in files:
+    lr = f.get('lineCoverageRate', 0)
+    if lr < 0.80:
+        print(f'::error file={f[\"path\"]}::Line coverage {lr:.1%} < 80%')
+if line < 0.80:
+    print(f'::error ::Line coverage {line:.1%} < 80%')
+    exit(1)
+if branch < 0.70:
+    print(f'::error ::Branch coverage {branch:.1%} < 70%')
+    exit(1)
+"
+          
+          if [ $? -ne 0 ]; then exit 1; fi
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-html
+          path: coverage_html/

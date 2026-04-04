@@ -54,9 +54,11 @@ void TokenBucket::refill() {
     
     // 线性补充：tokens = min(maxTokens, lastRefillTokens + elapsed_tokens)
     // lastRefillTokens 是上次 refill 时的 tokens 值（扣除已消耗后的基准）
-    tokens = std::min(maxTokens, lastRefillTokens + elapsed_tokens);
+    // 关键修复：用 cap 前的原始值更新 lastRefillTokens，避免累积误差
+    double raw_tokens = lastRefillTokens + elapsed_tokens;
+    lastRefillTokens = raw_tokens;  // 先更新基准（cap 前）
+    tokens = std::min(maxTokens, raw_tokens);  // 再 cap
     lastRefillTime = elapsed_s * 1000.0;
-    lastRefillTokens = tokens;
 }
 
 // ============================================================================
