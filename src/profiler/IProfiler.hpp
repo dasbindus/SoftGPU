@@ -44,6 +44,11 @@ struct ProfilerStats {
         ms = 0.0;
         percent = 0.0;
     }
+
+    // P2-1: Warp divergence statistics
+    uint32_t divergenceCount = 0;        // 分歧发生的次数
+    uint32_t divergenceThreads = 0;     // 分歧涉及的总线程数
+    uint64_t divergenceLostCycles = 0; // 因分歧损失的 cycles
 };
 
 // ============================================================================

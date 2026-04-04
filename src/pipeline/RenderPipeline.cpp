@@ -310,13 +310,13 @@ void RenderPipeline::executeTile(uint32_t tileIndex, uint32_t tileX, uint32_t ti
     // For tiles with triangles, skip load - we want fresh rendering
 
     // Step 2: Rasterizer (per-tile) - outputs fragments with screen coords
-    m_rasterizer.setInputPerTile(tileTriangles, tileX, tileY);
+    m_rasterizer.setTrianglesForTile(tileTriangles, tileX, tileY);
     m_rasterizer.executePerTile();
     const auto& fragments = m_rasterizer.getOutput();
 
     // Step 2.5: EarlyZ - filter occluded fragments before FragmentShader
     const float* tileDepth = tileMem.depth.data();
-    auto filteredFragments = m_earlyZ->filterOccluded(fragments, tileDepth, TILE_WIDTH);
+    auto filteredFragments = m_earlyZ->filterOccluded(fragments, tileDepth, TILE_WIDTH, tileX, tileY);
 
     // Step 3: FragmentShader - shade and write to TileBuffer (per-tile)
     m_fragmentShader.setTileBufferManager(&m_tileBuffer);

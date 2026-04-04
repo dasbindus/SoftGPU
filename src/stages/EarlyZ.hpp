@@ -22,10 +22,13 @@ public:
     bool testFragment(float fragDepth, float depthBufferValue);
 
     // Batch filter: filter out occluded fragments
-    // `width` must match the depth buffer's row stride (typically FRAMEBUFFER_WIDTH)
+    // `width` must match the depth buffer's row stride (typically TILE_WIDTH for tile-local buffer)
+    // `tileX`, `tileY`: tile position in tile grid (used to convert screen coords to tile-local coords)
     std::vector<Fragment> filterOccluded(const std::vector<Fragment>& fragments,
                                           const float* depthBuffer,
-                                          uint32_t width);
+                                          uint32_t width,
+                                          uint32_t tileX,
+                                          uint32_t tileY);
 
     const char* getName() const { return "EarlyZ"; }
 
