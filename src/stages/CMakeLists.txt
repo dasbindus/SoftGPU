@@ -21,6 +21,8 @@ add_library(stages STATIC
     TilingStage.cpp
     TileBuffer.hpp
     TileBuffer.cpp
+    EarlyZ.hpp
+    EarlyZ.cpp
 )
 
 target_link_libraries(stages PUBLIC
