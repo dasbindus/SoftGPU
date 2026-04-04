@@ -157,6 +157,10 @@ void WarpScheduler::executeWarp(Warp& warp) {
         m_interpreter.SetRegister(14, frag.pos_z);  // OUT_Z
         m_interpreter.SetRegister(15, 0.0f);  // KILLED
         
+        // P2-1: Warp divergence tracking
+        bool lane_would_branch[Warp::WARP_SIZE] = {false};
+        bool divergence_detected_this_shader = false;
+        
         // 执行 shader 指令序列
         uint32_t max_instr = 256;
         uint32_t instr_count = 0;
@@ -175,6 +179,13 @@ void WarpScheduler::executeWarp(Warp& warp) {
                 break;
             }
             
+            // P2-1: Check for BRA before execution to detect divergence
+            if (op == softgpu::isa::Opcode::BRA) {
+                uint8_t ra = inst.GetRa();
+                float cond = m_interpreter.GetRegister(ra);
+                lane_would_branch[lane] = (cond != 0.0f);
+            }
+            
             // 使用 Interpreter 执行指令
             m_interpreter.ExecuteInstruction(inst);
             m_interpreter.SetRegister(0, 0.0f);  // R0 = zero
@@ -182,6 +193,18 @@ void WarpScheduler::executeWarp(Warp& warp) {
             pc += 4;
             warp.getStats().instructions_executed++;
             instr_count++;
+        }
+        
+        // P2-1: Detect divergence by comparing branch outcomes across lanes
+        for (uint32_t other_lane = 0; other_lane < warp.getFragmentCount(); ++other_lane) {
+            if (other_lane != lane && !divergence_detected_this_shader) {
+                if (lane_would_branch[lane] != lane_would_branch[other_lane]) {
+                    m_stats.divergenceCount++;
+                    m_stats.divergenceThreads += warp.getFragmentCount();
+                    m_stats.divergenceLostCycles += 1;
+                    divergence_detected_this_shader = true;
+                }
+            }
         }
         
         // 捕获输出
@@ -513,6 +536,13 @@ void WarpScheduler::executeWarpWithTileWrite(Warp& warp, bool enable_tile_write)
             frag.out_a = frag.color_a;
             frag.out_z = frag.pos_z;
         } else {
+            // P2-1: Warp divergence tracking
+            // Pre-compute branch conditions for all lanes before executing BRA
+            // This allows us to detect if different threads take different branches
+            bool lane_would_branch[Warp::WARP_SIZE] = {false};
+            bool divergence_detected_this_shader = false;
+            uint32_t diverging_lane_mask = 0;
+            
             // 设置 fragment 输入到寄存器
             m_interpreter.SetRegister(1, frag.pos_x);
             m_interpreter.SetRegister(2, frag.pos_y);
@@ -548,12 +578,37 @@ void WarpScheduler::executeWarpWithTileWrite(Warp& warp, bool enable_tile_write)
                     break;
                 }
                 
+                // P2-1: Check for BRA before execution to detect divergence
+                // Save the branch condition for this lane BEFORE executing
+                if (op == softgpu::isa::Opcode::BRA) {
+                    uint8_t ra = inst.GetRa();
+                    float cond = m_interpreter.GetRegister(ra);
+                    lane_would_branch[lane] = (cond != 0.0f);
+                }
+                
                 m_interpreter.ExecuteInstruction(inst);
                 m_interpreter.SetRegister(0, 0.0f);  // R0 = zero
                 
                 pc += 4;
                 warp.getStats().instructions_executed++;
                 instr_count++;
+            }
+            
+            // P2-1: After shader execution, detect divergence by checking branch outcomes
+            // Only detect once per warp execution (first BRA that shows divergence)
+            for (uint32_t other_lane = 0; other_lane < warp.getFragmentCount(); ++other_lane) {
+                if (other_lane != lane && !divergence_detected_this_shader) {
+                    if (lane_would_branch[lane] != lane_would_branch[other_lane]) {
+                        // Divergence detected: different threads go different branches
+                        m_stats.divergenceCount++;
+                        m_stats.divergenceThreads += warp.getFragmentCount();
+                        // P2-1: Lost cycles = additional passes needed due to divergence
+                        // In SIMD model, divergence forces sequential execution of both paths
+                        m_stats.divergenceLostCycles += 1;
+                        divergence_detected_this_shader = true;
+                        diverging_lane_mask |= (1u << lane) | (1u << other_lane);
+                    }
+                }
             }
             
             // 捕获输出
@@ -567,7 +622,7 @@ void WarpScheduler::executeWarpWithTileWrite(Warp& warp, bool enable_tile_write)
         
         // P0-1: 委托模式写入 TileBuffer
         if (enable_tile_write && m_tile_buffer_manager != nullptr && !frag.killed) {
-            uint32_t tile_idx = frag.tile_x * NUM_TILES_X + frag.tile_y;
+            uint32_t tile_idx = frag.tile_y * NUM_TILES_X + frag.tile_x;  // row-major: tileY * NUM_TILES_X + tileX
             uint32_t local_x = static_cast<uint32_t>(frag.pos_x) - frag.tile_x * TILE_WIDTH;
             uint32_t local_y = static_cast<uint32_t>(frag.pos_y) - frag.tile_y * TILE_HEIGHT;
             

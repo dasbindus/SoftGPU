@@ -24,11 +24,16 @@ bool EarlyZ::testFragment(float fragDepth, float depthBufferValue) {
 
 std::vector<Fragment> EarlyZ::filterOccluded(const std::vector<Fragment>& fragments,
                                               const float* depthBuffer,
-                                              uint32_t width) {
+                                              uint32_t width,
+                                              uint32_t tileX,
+                                              uint32_t tileY) {
     std::vector<Fragment> passed;
 
     for (const auto& frag : fragments) {
-        uint32_t idx = frag.y * width + frag.x;
+        // Convert absolute screen coordinates to tile-local coordinates
+        uint32_t localX = frag.x - tileX * TILE_WIDTH;
+        uint32_t localY = frag.y - tileY * TILE_HEIGHT;
+        uint32_t idx = localY * width + localX;
         float depthBufferValue = depthBuffer[idx];
 
         if (testFragment(frag.z, depthBufferValue)) {

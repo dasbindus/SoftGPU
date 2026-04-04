@@ -74,7 +74,7 @@ void TilingStage::execute() {
 
     m_counters.invocation_count = static_cast<uint64_t>(m_inputTriangles.size());
     m_counters.extra_count0 = trianglesBinned;    // triangles_binned
-    m_counters.extra_count1 = m_tilesAffected;    // tiles_affected
+    m_counters.extra_count1 = m_tilesAffected;   // tiles_affected
 
     auto end = std::chrono::high_resolution_clock::now();
     m_counters.elapsed_ms =
@@ -93,38 +93,29 @@ const TileBin& TilingStage::getTileBin(uint32_t tileIndex) const {
 void TilingStage::computeBbox(const Triangle& tri,
                                int32_t& minTileX, int32_t& maxTileX,
                                int32_t& minTileY, int32_t& maxTileY) const {
-    // Use already-computed NDC coordinates (from PrimitiveAssembly perspective divide)
-    // NDC: x,y,z in [-1, 1] range after perspective divide
-    float minX = std::min({tri.v[0].ndcX, tri.v[1].ndcX, tri.v[2].ndcX});
-    float maxX = std::max({tri.v[0].ndcX, tri.v[1].ndcX, tri.v[2].ndcX});
-    float minY = std::min({tri.v[0].ndcY, tri.v[1].ndcY, tri.v[2].ndcY});
-    float maxY = std::max({tri.v[0].ndcY, tri.v[1].ndcY, tri.v[2].ndcY});
+    // Convert each vertex NDC → screen individually (same as Rasterizer),
+    // then compute bbox from the resulting screen coordinates.
+    // This correctly handles the NDC Y-axis flip relative to screen Y.
+    float sx[3], sy[3];
+    for (int i = 0; i < 3; ++i) {
+        sx[i] = (tri.v[i].ndcX + 1.0f) * 0.5f * static_cast<float>(FRAMEBUFFER_WIDTH);
+        sy[i] = (1.0f - tri.v[i].ndcY) * 0.5f * static_cast<float>(FRAMEBUFFER_HEIGHT);
+    }
 
-    // Clamp to [-1, 1] range (triangle may extend beyond viewport in NDC)
-    minX = std::max(-1.0f, minX);
-    maxX = std::min(1.0f, maxX);
-    minY = std::max(-1.0f, minY);
-    maxY = std::min(1.0f, maxY);
+    float screenMinX = std::min({sx[0], sx[1], sx[2]});
+    float screenMaxX = std::max({sx[0], sx[1], sx[2]});
+    float screenMinY = std::min({sy[0], sy[1], sy[2]});
+    float screenMaxY = std::max({sy[0], sy[1], sy[2]});
 
-    // Handle degenerate triangle
-    if (minX > maxX || minY > maxY) {
+    // Handle degenerate triangle (zero-area in screen space)
+    if (screenMinX > screenMaxX || screenMinY > screenMaxY) {
         minTileX = 0; maxTileX = -1;  // Invalid bbox
         minTileY = 0; maxTileY = -1;
         return;
     }
 
-    // NDC to screen coordinates
-    // Y-axis: NDC Y=-1 (bottom) -> screenY=0, NDC Y=+1 (top) -> screenY=H
-    // When Y is NOT inverted: screenY = (ndcY + 1) * 0.5 * H
-    // But we use: screenY = (1 - ndcY) * 0.5 * H (Y inverted)
-    // So: NDC maxY (top) -> screenMinY (top, small), NDC minY (bottom) -> screenMaxY (bottom, large)
-    float screenMinX = (minX + 1.0f) * 0.5f * static_cast<float>(FRAMEBUFFER_WIDTH);
-    float screenMaxX = (maxX + 1.0f) * 0.5f * static_cast<float>(FRAMEBUFFER_WIDTH);
-    float screenMinY = (1.0f - maxY) * 0.5f * static_cast<float>(FRAMEBUFFER_HEIGHT);  // NDC maxY -> screen top
-    float screenMaxY = (1.0f - minY) * 0.5f * static_cast<float>(FRAMEBUFFER_HEIGHT);  // NDC minY -> screen bottom
-
-    // NDC to tile grid
-    // Use ceil-1 for max to handle floating-point precision at tile boundaries
+    // Screen to tile grid
+    // Use floor for min, ceil-1 for max to handle floating-point precision
     minTileX = static_cast<int32_t>(std::floor(screenMinX / static_cast<float>(TILE_WIDTH)));
     maxTileX = static_cast<int32_t>(std::ceil(screenMaxX / static_cast<float>(TILE_WIDTH))) - 1;
     minTileY = static_cast<int32_t>(std::floor(screenMinY / static_cast<float>(TILE_HEIGHT)));
