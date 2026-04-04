@@ -26,9 +26,9 @@ gtest_discover_tests(math_test)
 add_executable(test_isa test_isa.cpp)
 
 if(GTest_FOUND)
-    target_link_libraries(test_isa PRIVATE core GTest::gtest GTest::gtest_main)
+    target_link_libraries(test_isa PRIVATE core isa GTest::gtest GTest::gtest_main)
 else()
-    target_link_libraries(test_isa PRIVATE core gtest gtest_main)
+    target_link_libraries(test_isa PRIVATE core isa gtest gtest_main)
 endif()
 
 if(APPLE)

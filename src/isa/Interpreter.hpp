@@ -4,6 +4,7 @@
 #include "Instruction.hpp"
 #include "RegisterFile.hpp"
 #include <cstdint>
+#include <cmath>
 #include <vector>
 #include <string>
 #include <functional>

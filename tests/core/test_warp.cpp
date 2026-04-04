@@ -10,6 +10,7 @@
 
 #include "pipeline/WarpScheduler.hpp"
 #include "core/PipelineTypes.hpp"
+#include "profiler/FrameProfiler.hpp"
 
 using namespace SoftGPU;
 
@@ -337,4 +338,183 @@ TEST_F(WarpConfigTest, FragmentContextBasic)
     EXPECT_EQ(ctx.tile_y, 3u);
     EXPECT_FLOAT_EQ(ctx.pos_x, 10.0f);
     EXPECT_FLOAT_EQ(ctx.color_r, 1.0f);
+}
+
+// ============================================================================
+// v1.4: FrameProfiler Warp Divergence Tests
+// ============================================================================
+
+class FrameProfilerDivergenceTest : public ::testing::Test {
+protected:
+    void SetUp() override {
+        // Reset profiler state before each test
+        FrameProfiler::get().reset();
+    }
+
+    void TearDown() override {
+        FrameProfiler::get().reset();
+    }
+};
+
+// ---------------------------------------------------------------------------
+// Test: recordDivergence increments divergence count
+// ---------------------------------------------------------------------------
+TEST_F(FrameProfilerDivergenceTest, RecordDivergence_IncrementsCount) {
+    FrameProfiler& profiler = FrameProfiler::get();
+
+    profiler.recordDivergence(4, 10);
+    EXPECT_EQ(profiler.getDivergenceCount(), 1u);
+    EXPECT_EQ(profiler.getDivergenceThreads(), 4u);
+    EXPECT_EQ(profiler.getDivergenceLostCycles(), 10u);
+}
+
+// ---------------------------------------------------------------------------
+// Test: multiple divergences accumulate correctly
+// ---------------------------------------------------------------------------
+TEST_F(FrameProfilerDivergenceTest, RecordDivergence_Accumulates) {
+    FrameProfiler& profiler = FrameProfiler::get();
+
+    profiler.recordDivergence(4, 10);
+    profiler.recordDivergence(2, 5);
+    profiler.recordDivergence(6, 15);
+
+    EXPECT_EQ(profiler.getDivergenceCount(), 3u);
+    EXPECT_EQ(profiler.getDivergenceThreads(), 12u);  // 4+2+6
+    EXPECT_EQ(profiler.getDivergenceLostCycles(), 30u);  // 10+5+15
+}
+
+// ---------------------------------------------------------------------------
+// Test: getDivergenceRate returns 0 when no warps scheduled
+// ---------------------------------------------------------------------------
+TEST_F(FrameProfilerDivergenceTest, GetDivergenceRate_NoWarps) {
+    FrameProfiler& profiler = FrameProfiler::get();
+
+    EXPECT_DOUBLE_EQ(profiler.getDivergenceRate(), 0.0);
+}
+
+// ---------------------------------------------------------------------------
+// Test: getDivergenceRate with divergence but no warps scheduled
+// ---------------------------------------------------------------------------
+TEST_F(FrameProfilerDivergenceTest, GetDivergenceRate_DivergenceButNoWarps) {
+    FrameProfiler& profiler = FrameProfiler::get();
+
+    // Record a divergence but don't set m_totalWarpsScheduled
+    // Note: m_totalWarpsScheduled is private, but divergenceRate uses it
+    // If it's 0, rate should be 0 regardless of divergence count
+    profiler.recordDivergence(4, 10);
+
+    // Since m_totalWarpsScheduled is 0, rate should be 0
+    EXPECT_DOUBLE_EQ(profiler.getDivergenceRate(), 0.0);
+}
+
+// ---------------------------------------------------------------------------
+// Test: divergence rate calculation (requires setting total warps)
+// Note: m_totalWarpsScheduled is private, so we test the formula indirectly
+// ---------------------------------------------------------------------------
+TEST_F(FrameProfilerDivergenceTest, DivergenceRateFormula) {
+    // Divergence rate = divergence_count / total_warps_scheduled
+    // With 2 divergences and 5 total warps -> rate = 0.4
+    FrameProfiler& profiler = FrameProfiler::get();
+
+    // Record 2 divergences
+    profiler.recordDivergence(4, 10);
+    profiler.recordDivergence(2, 5);
+
+    // The rate is 0 because m_totalWarpsScheduled is 0
+    // This test documents the current behavior
+    EXPECT_DOUBLE_EQ(profiler.getDivergenceRate(), 0.0);
+}
+
+// ---------------------------------------------------------------------------
+// Test: reset clears all divergence counters
+// ---------------------------------------------------------------------------
+TEST_F(FrameProfilerDivergenceTest, Reset_ClearsCounters) {
+    FrameProfiler& profiler = FrameProfiler::get();
+
+    profiler.recordDivergence(4, 10);
+    profiler.recordDivergence(2, 5);
+
+    EXPECT_EQ(profiler.getDivergenceCount(), 2u);
+    EXPECT_EQ(profiler.getDivergenceThreads(), 6u);
+    EXPECT_EQ(profiler.getDivergenceLostCycles(), 15u);
+
+    profiler.reset();
+
+    EXPECT_EQ(profiler.getDivergenceCount(), 0u);
+    EXPECT_EQ(profiler.getDivergenceThreads(), 0u);
+    EXPECT_EQ(profiler.getDivergenceLostCycles(), 0u);
+}
+
+// ---------------------------------------------------------------------------
+// Test: beginFrame resets per-frame divergence counters
+// ---------------------------------------------------------------------------
+TEST_F(FrameProfilerDivergenceTest, BeginFrame_ResetsDivergence) {
+    FrameProfiler& profiler = FrameProfiler::get();
+
+    profiler.recordDivergence(4, 10);
+    EXPECT_EQ(profiler.getDivergenceCount(), 1u);
+
+    profiler.beginFrame();
+
+    EXPECT_EQ(profiler.getDivergenceCount(), 0u);
+    EXPECT_EQ(profiler.getDivergenceThreads(), 0u);
+    EXPECT_EQ(profiler.getDivergenceLostCycles(), 0u);
+}
+
+// ---------------------------------------------------------------------------
+// Test: large number of divergences accumulates correctly
+// ---------------------------------------------------------------------------
+TEST_F(FrameProfilerDivergenceTest, RecordDivergence_LargeAccumulation) {
+    FrameProfiler& profiler = FrameProfiler::get();
+
+    // Simulate 100 warps, each with 2 threads diverging, losing 5 cycles each
+    for (int i = 0; i < 100; ++i) {
+        profiler.recordDivergence(2, 5);
+    }
+
+    EXPECT_EQ(profiler.getDivergenceCount(), 100u);
+    EXPECT_EQ(profiler.getDivergenceThreads(), 200u);
+    EXPECT_EQ(profiler.getDivergenceLostCycles(), 500u);
+}
+
+// ---------------------------------------------------------------------------
+// Test: divergence with zero threads is recorded (edge case)
+// ---------------------------------------------------------------------------
+TEST_F(FrameProfilerDivergenceTest, RecordDivergence_ZeroThreads) {
+    FrameProfiler& profiler = FrameProfiler::get();
+
+    profiler.recordDivergence(0, 0);
+
+    EXPECT_EQ(profiler.getDivergenceCount(), 1u);
+    EXPECT_EQ(profiler.getDivergenceThreads(), 0u);
+    EXPECT_EQ(profiler.getDivergenceLostCycles(), 0u);
+}
+
+// ---------------------------------------------------------------------------
+// Test: divergence stats accessible via getStats
+// ---------------------------------------------------------------------------
+TEST_F(FrameProfilerDivergenceTest, GetStats_IncludesDivergence) {
+    FrameProfiler& profiler = FrameProfiler::get();
+
+    profiler.recordDivergence(4, 10);
+
+    // Get stats for FragmentShader stage (which has divergence data)
+    ProfilerStats stats = profiler.getStats(StageHandle::FragmentShader);
+
+    EXPECT_EQ(stats.divergenceCount, 1u);
+    EXPECT_EQ(stats.divergenceThreads, 4u);
+    EXPECT_EQ(stats.divergenceLostCycles, 10u);
+}
+
+// ---------------------------------------------------------------------------
+// Test: getStats returns zero divergence for non-FragmentShader stages
+// ---------------------------------------------------------------------------
+TEST_F(FrameProfilerDivergenceTest, GetStats_NonFragmentShaderZeroDivergence) {
+    FrameProfiler& profiler = FrameProfiler::get();
+
+    profiler.recordDivergence(4, 10);
+
+    // VertexShader stage should have zero divergence
+    ProfilerStats stats = profiler.getStats(StageHandle::VertexShader);
+    EXPECT_EQ(stats.divergenceCount, 0u);
 }

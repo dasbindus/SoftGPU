@@ -5,8 +5,10 @@
 
 #include <gtest/gtest.h>
 #include <fstream>
+#include <algorithm>
 #include "pipeline/RenderPipeline.hpp"
 #include "core/RenderCommand.hpp"
+#include "stages/EarlyZ.hpp"
 
 namespace {
 
@@ -325,6 +327,168 @@ TEST(IntegrationTest, PPM_Header_Correct) {
     std::string maxval;
     std::getline(f, maxval);
     EXPECT_EQ(maxval, "255");
+}
+
+// ============================================================================
+// v1.4: EarlyZ Unit Tests
+// ============================================================================
+
+class EarlyZTest : public ::testing::Test {
+protected:
+    void SetUp() override {}
+    void TearDown() override { m_earlyz.resetStats(); }
+
+    EarlyZ m_earlyz;
+};
+
+// ---------------------------------------------------------------------------
+// Test: EarlyZ::testFragment passes closer fragments
+// ---------------------------------------------------------------------------
+TEST_F(EarlyZTest, TestFragment_PassesCloser) {
+    // Fragment at depth 0.3 should pass against depth buffer value 0.5
+    EXPECT_TRUE(m_earlyz.testFragment(0.3f, 0.5f));
+    EXPECT_EQ(m_earlyz.getPassedCount(), 1u);
+    EXPECT_EQ(m_earlyz.getRejectedCount(), 0u);
+}
+
+// ---------------------------------------------------------------------------
+// Test: EarlyZ::testFragment rejects farther fragments
+// ---------------------------------------------------------------------------
+TEST_F(EarlyZTest, TestFragment_RejectsOccluded) {
+    // Fragment at depth 0.7 should be rejected against depth buffer value 0.5
+    EXPECT_FALSE(m_earlyz.testFragment(0.7f, 0.5f));
+    EXPECT_EQ(m_earlyz.getRejectedCount(), 1u);
+    EXPECT_EQ(m_earlyz.getPassedCount(), 0u);
+}
+
+// ---------------------------------------------------------------------------
+// Test: EarlyZ::testFragment handles equal depth (not passing)
+// ---------------------------------------------------------------------------
+TEST_F(EarlyZTest, TestFragment_RejectsEqual) {
+    // Fragment at same depth should be rejected (not strictly closer)
+    EXPECT_FALSE(m_earlyz.testFragment(0.5f, 0.5f));
+    EXPECT_EQ(m_earlyz.getRejectedCount(), 1u);
+}
+
+// ---------------------------------------------------------------------------
+// Test: EarlyZ::filterOccluded - all fragments pass when depth buffer is cleared
+// ---------------------------------------------------------------------------
+TEST_F(EarlyZTest, FilterOccluded_AllPassOnClearDepth) {
+    // All fragments with depth < CLEAR_DEPTH (1.0) should pass on cleared depth buffer
+    std::vector<Fragment> fragments = {
+        {100, 100, 0.3f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f},
+        {200, 200, 0.5f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f},
+        {300, 300, 0.1f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f},
+    };
+
+    // Cleared depth buffer has all 1.0f values
+    std::vector<float> depthBuffer(FRAMEBUFFER_WIDTH * FRAMEBUFFER_HEIGHT, CLEAR_DEPTH);
+
+    std::vector<Fragment> passed = m_earlyz.filterOccluded(
+        fragments, depthBuffer.data(), FRAMEBUFFER_WIDTH, 0, 0);
+
+    EXPECT_EQ(passed.size(), 3u);
+}
+
+// ---------------------------------------------------------------------------
+// Test: EarlyZ::filterOccluded - correctly filters occluded fragments
+// ---------------------------------------------------------------------------
+TEST_F(EarlyZTest, FilterOccluded_FiltersOccluded) {
+    // Two fragments at same XY, one closer than the other
+    std::vector<Fragment> fragments = {
+        {160, 240, 0.3f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f},  // closer
+        {160, 240, 0.7f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f},  // farther (occluded)
+    };
+
+    // Depth buffer at (160, 240) = 0.5
+    std::vector<float> depthBuffer(FRAMEBUFFER_WIDTH * FRAMEBUFFER_HEIGHT, CLEAR_DEPTH);
+    size_t idx = 240 * FRAMEBUFFER_WIDTH + 160;
+    depthBuffer[idx] = 0.5f;
+
+    std::vector<Fragment> passed = m_earlyz.filterOccluded(
+        fragments, depthBuffer.data(), FRAMEBUFFER_WIDTH, 0, 0);
+
+    // Only the closer fragment (depth 0.3 < 0.5) should pass
+    EXPECT_EQ(passed.size(), 1u);
+    EXPECT_FLOAT_EQ(passed[0].z, 0.3f);
+}
+
+// ---------------------------------------------------------------------------
+// Test: EarlyZ::filterOccluded - tile-local coordinate indexing
+// ---------------------------------------------------------------------------
+TEST_F(EarlyZTest, FilterOccluded_TileLocalIndexing) {
+    // Tile (1, 0): absolute coords (32..63, 0..31) map to local (0..31, 0..31)
+    // Fragment at screen (48, 16) should map to tile-local (16, 16) for idx calculation
+    // With width=32 (TILE_WIDTH), idx = 16 * 32 + 16 = 528
+    std::vector<Fragment> fragments = {
+        {48, 16, 0.2f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f},  // at screen (48, 16)
+    };
+
+    // Depth buffer with width = TILE_WIDTH = 32 (tile-local buffer)
+    std::vector<float> tileDepthBuffer(TILE_WIDTH * TILE_HEIGHT, CLEAR_DEPTH);
+    size_t localIdx = 16 * TILE_WIDTH + 16;  // = 528
+    tileDepthBuffer[localIdx] = 0.5f;  // depth buffer has 0.5 at this local position
+
+    std::vector<Fragment> passed = m_earlyz.filterOccluded(
+        fragments, tileDepthBuffer.data(), TILE_WIDTH, 1, 0);
+
+    // Fragment at depth 0.2 < 0.5 should pass
+    EXPECT_EQ(passed.size(), 1u);
+    EXPECT_FLOAT_EQ(passed[0].z, 0.2f);
+}
+
+// ---------------------------------------------------------------------------
+// Test: EarlyZ::filterOccluded - multiple tiles
+// ---------------------------------------------------------------------------
+TEST_F(EarlyZTest, FilterOccluded_MultipleTiles) {
+    // Two tile-local depth buffers
+    std::vector<float> tile0Depth(TILE_WIDTH * TILE_HEIGHT, CLEAR_DEPTH);
+    std::vector<float> tile1Depth(TILE_WIDTH * TILE_HEIGHT, CLEAR_DEPTH);
+
+    // Tile (0,0): local (16,16) = idx 528, depth = 0.5
+    // Fragment at (16, 16) with depth 0.2 < 0.5 -> PASSES
+    tile0Depth[16 * TILE_WIDTH + 16] = 0.5f;
+
+    // Tile (1,1): local (16,16) = idx 528, depth = 0.1
+    // Fragment at (48, 48) with depth 0.3 > 0.1 -> REJECTED
+    tile1Depth[16 * TILE_WIDTH + 16] = 0.1f;
+
+    // Test tile (0,0): fragment depth 0.2 < buffer 0.5 -> passes
+    std::vector<Fragment> passed0 = m_earlyz.filterOccluded(
+        {{16, 16, 0.2f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f}},
+        tile0Depth.data(), TILE_WIDTH, 0, 0);
+    EXPECT_EQ(passed0.size(), 1u);  // 0.2 < 0.5, passes
+
+    // Test tile (1,1): fragment depth 0.3 > buffer 0.1 -> rejected
+    std::vector<Fragment> passed1 = m_earlyz.filterOccluded(
+        {{48, 48, 0.3f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f}},
+        tile1Depth.data(), TILE_WIDTH, 1, 1);
+    EXPECT_EQ(passed1.size(), 0u);  // 0.3 > 0.1, rejected
+}
+
+// ---------------------------------------------------------------------------
+// Test: EarlyZ::resetStats clears counters
+// ---------------------------------------------------------------------------
+TEST_F(EarlyZTest, ResetStats) {
+    m_earlyz.testFragment(0.3f, 0.5f);
+    m_earlyz.testFragment(0.7f, 0.5f);
+    EXPECT_EQ(m_earlyz.getPassedCount(), 1u);
+    EXPECT_EQ(m_earlyz.getRejectedCount(), 1u);
+
+    m_earlyz.resetStats();
+    EXPECT_EQ(m_earlyz.getPassedCount(), 0u);
+    EXPECT_EQ(m_earlyz.getRejectedCount(), 0u);
+}
+
+// ---------------------------------------------------------------------------
+// Test: EarlyZ passes stats increment correctly
+// ---------------------------------------------------------------------------
+TEST_F(EarlyZTest, StatsIncrement) {
+    for (int i = 0; i < 5; ++i) m_earlyz.testFragment(0.3f, 0.5f);
+    for (int i = 0; i < 3; ++i) m_earlyz.testFragment(0.7f, 0.5f);
+
+    EXPECT_EQ(m_earlyz.getPassedCount(), 5u);
+    EXPECT_EQ(m_earlyz.getRejectedCount(), 3u);
 }
 
 }  // anonymous namespace

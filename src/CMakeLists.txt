@@ -2,6 +2,7 @@
 # src - SoftGPU 源码子目录
 # ============================================
 add_subdirectory(core)
+add_subdirectory(isa)
 add_subdirectory(platform)
 add_subdirectory(renderer)
 add_subdirectory(stages)
