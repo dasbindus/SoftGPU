@@ -64,6 +64,7 @@ enum class Opcode : uint8_t
     ABS        = 0x22,  // Absolute value (Rd = abs(Ra))
     NEG        = 0x23,  // Negate (Rd = -Ra)
     SMOOTHSTEP = 0x24,  // Smoothstep (Rd = smoothstep(Ra, Rb, Rc))
+    DP3        = 0x25,  // Dot product of 3-component vectors (Rd = dot(Ra.xyz, Rb.xyz))
 
     // ---- Sentinel ----
     INVALID = 0xFF

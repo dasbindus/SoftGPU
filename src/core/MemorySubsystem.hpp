@@ -21,9 +21,10 @@ constexpr double NS_PER_SEC = 1e9;
 
 // Cache 配置
 constexpr uint32_t CACHE_LINE_SIZE = 64;   // bytes（模拟 L2 cache line）
-constexpr uint32_t L2_CACHE_SETS   = 256;  // 简化：256 sets
+constexpr uint32_t L2_CACHE_SETS   = 512;  // P0-4: 256→512, 128KB→256KB
 constexpr uint32_t L2_CACHE_WAYS   = 8;    // 8-way set associative
-constexpr size_t   L2_CACHE_SIZE   = CACHE_LINE_SIZE * L2_CACHE_SETS * L2_CACHE_WAYS; // 128 KB
+constexpr size_t   L2_CACHE_SIZE   = CACHE_LINE_SIZE * L2_CACHE_SETS * L2_CACHE_WAYS; // 256 KB
+constexpr uint32_t CACHE_TILE_SIZE_BYTES = 65536; // P0-4: tile 大小 64KB，用于 tile-aware 替换
 
 // ============================================================================
 // MemoryAccessType - 访问类型
@@ -59,7 +60,8 @@ struct CacheLine {
     uint64_t tag = 0;
     bool valid = false;
     bool dirty = false;
-    uint32_t lastUsed = 0;  // 简化 LRU
+    uint32_t lastUsed = 0;   // 简化 LRU tick
+    uint32_t lastTile = 0;   // P0-4: 最近访问该 line 的 tile index（用于 tile-aware 替换）
 };
 
 // ============================================================================
@@ -84,8 +86,13 @@ private:
     uint32_t m_currentTick = 0;
     std::array<CacheLine, L2_CACHE_SETS * L2_CACHE_WAYS> m_lines;
 
+    // P0-4: tile-aware 替换策略
+    uint32_t m_tileAwareWindow = 32;  // 最近的 32 个 tile 命中最优先
+    uint32_t m_currentTileIdx = 0;    // 当前正在服务的 tile index（由 access() 调用方维护）
+
     uint32_t getSetIndex(uint64_t address) const;
     uint64_t getTag(uint64_t address) const;
+    uint32_t getTileIndex(uint64_t address) const;  // P0-4: 从 address 推导 tile index
 };
 
 // ============================================================================

@@ -69,6 +69,7 @@ L2CacheSim::L2CacheSim() {
 bool L2CacheSim::access(uint64_t address, bool isWrite) {
     uint32_t setIdx = getSetIndex(address);
     uint64_t tag = getTag(address);
+    uint32_t currentTile = getTileIndex(address);
 
     // 在 set 内查找匹配的 line
     for (uint32_t way = 0; way < L2_CACHE_WAYS; ++way) {
@@ -79,6 +80,7 @@ bool L2CacheSim::access(uint64_t address, bool isWrite) {
             // HIT
             m_hits++;
             line.lastUsed = m_currentTick++;
+            line.lastTile = currentTile;  // P0-4: 记录命中的 tile
             if (isWrite) {
                 line.dirty = true;
             }
@@ -86,19 +88,42 @@ bool L2CacheSim::access(uint64_t address, bool isWrite) {
         }
     }
 
-    // MISS：选择 LRU 行替换
-    uint32_t lruWay = 0;
-    uint32_t lruAge = UINT32_MAX;
+    // MISS：选择 victim 行替换（tile-aware LRU）
+    // 策略：
+    //   1. 优先选择 invalid line（无 eviction 开销）
+    //   2. 否则优先淘汰 lastTile != currentTile 的 line（保留当前 tile 的局部性）
+    //   3. 同 tile 内按 LRU 年龄最老淘汰
+
+    uint32_t victimWay = 0;
+    bool foundInvalid = false;
+    int32_t bestScore = -1;  // 越大越好：score = (lastTile != currentTile ? 1 : 0) * INF + age
+    uint32_t bestAge = 0;
+
     for (uint32_t way = 0; way < L2_CACHE_WAYS; ++way) {
         uint32_t lineIdx = setIdx * L2_CACHE_WAYS + way;
-        uint32_t age = m_currentTick - m_lines[lineIdx].lastUsed;
-        if (age < lruAge) {
-            lruAge = age;
-            lruWay = way;
+        CacheLine& line = m_lines[lineIdx];
+
+        if (!line.valid) {
+            // 找到 invalid line，立即选中
+            victimWay = way;
+            foundInvalid = true;
+            break;
+        }
+
+        uint32_t age = m_currentTick - line.lastUsed;
+        bool differentTile = (line.lastTile != currentTile);
+
+        // Score: 不同 tile 权重最高，其次是 LRU 年龄
+        int32_t score = differentTile ? (100000 + age) : age;
+
+        if (score > bestScore) {
+            bestScore = score;
+            bestAge = age;
+            victimWay = way;
         }
     }
 
-    uint32_t victimIdx = setIdx * L2_CACHE_WAYS + lruWay;
+    uint32_t victimIdx = setIdx * L2_CACHE_WAYS + victimWay;
     CacheLine& victim = m_lines[victimIdx];
 
     // Write-back 简化：如果 victim dirty，不模拟写回带宽
@@ -106,6 +131,7 @@ bool L2CacheSim::access(uint64_t address, bool isWrite) {
     victim.valid = true;
     victim.dirty = isWrite;
     victim.lastUsed = m_currentTick++;
+    victim.lastTile = currentTile;  // P0-4: 记录新 line 的 tile
     m_misses++;
 
     return false;
@@ -126,6 +152,7 @@ void L2CacheSim::resetStats() {
         line.dirty = false;
         line.tag = 0;
         line.lastUsed = 0;
+        line.lastTile = 0;  // P0-4
     }
 }
 
@@ -135,6 +162,10 @@ uint32_t L2CacheSim::getSetIndex(uint64_t address) const {
 
 uint64_t L2CacheSim::getTag(uint64_t address) const {
     return address / (CACHE_LINE_SIZE * L2_CACHE_SETS);
+}
+
+uint32_t L2CacheSim::getTileIndex(uint64_t address) const {
+    return static_cast<uint32_t>(address / CACHE_TILE_SIZE_BYTES);
 }
 
 // ============================================================================
