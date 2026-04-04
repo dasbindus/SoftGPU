@@ -160,31 +160,17 @@ void TileWriteBack::storeAllTilesFromBuffer(const TileBufferManager& manager, Me
         size_t colorOffset = getTileColorOffset(tileIndex);
         size_t depthOffset = getTileDepthOffset(tileIndex);
 
-        // P0-3: Check bandwidth before each tile store
-        // Color store: TILE_SIZE * 4 floats
+        // P0-3: Check bandwidth atomically for entire tile (color + depth)
         size_t colorBytes = TILE_SIZE * 4 * sizeof(float);
-        if (memory) {
-            if (!memory->getBucket().tryConsume(colorBytes)) {
-                // Bandwidth exhausted, skip this tile's color store (simulate throttle)
-                // In cycle-accurate mode this would stall; in functional sim we skip
-            } else {
-                std::memcpy(m_gmemColor.data() + colorOffset, tile.color.data(), colorBytes);
-                memory->addAccess(colorBytes, MemoryAccessType::StoreTile);
-            }
-        } else {
-            std::memcpy(m_gmemColor.data() + colorOffset, tile.color.data(), colorBytes);
-        }
-
-        // Depth store: TILE_SIZE * 1 float
         size_t depthBytes = TILE_SIZE * sizeof(float);
-        if (memory) {
-            if (!memory->getBucket().tryConsume(depthBytes)) {
-                // Bandwidth exhausted, skip this tile's depth store
-            } else {
-                std::memcpy(m_gmemDepth.data() + depthOffset, tile.depth.data(), depthBytes);
-                memory->addAccess(depthBytes, MemoryAccessType::StoreTile);
-            }
+        size_t totalBytes = colorBytes + depthBytes;
+
+        if (memory && !memory->getBucket().tryConsume(totalBytes)) {
+            // Skip entire tile (both color and depth) - bandwidth exhausted
         } else {
+            // Atomic: both color and depth
+            if (memory) memory->recordWrite(totalBytes);
+            std::memcpy(m_gmemColor.data() + colorOffset, tile.color.data(), colorBytes);
             std::memcpy(m_gmemDepth.data() + depthOffset, tile.depth.data(), depthBytes);
         }
     }

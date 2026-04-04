@@ -44,9 +44,9 @@ gtest_discover_tests(test_isa)
 add_executable(test_memory test_memory.cpp)
 
 if(GTest_FOUND)
-    target_link_libraries(test_memory PRIVATE core GTest::gtest GTest::gtest_main)
+    target_link_libraries(test_memory PRIVATE core stages GTest::gtest GTest::gtest_main)
 else()
-    target_link_libraries(test_memory PRIVATE core gtest gtest_main)
+    target_link_libraries(test_memory PRIVATE core stages gtest gtest_main)
 endif()
 
 if(APPLE)

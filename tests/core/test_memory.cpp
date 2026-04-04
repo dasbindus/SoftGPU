@@ -9,6 +9,8 @@
 #include <cstring>
 
 #include "core/MemorySubsystem.hpp"
+#include "stages/TileBuffer.hpp"
+#include "stages/TileWriteBack.hpp"
 
 using namespace SoftGPU;
 
@@ -72,6 +74,34 @@ TEST_F(TokenBucketTest, TryConsumeBehavior)
 }
 
 // ---------------------------------------------------------------------------
+// Test: Tokens are capped at maxTokens (wall-time replenishment upper bound)
+// ---------------------------------------------------------------------------
+TEST_F(TokenBucketTest, TokensCappedAtMaxTokens) {
+    TokenBucket bucket;
+    bucket.init(100.0, 1.0);  // 100 GB/s
+
+    // Consume half the bucket
+    bucket.tryConsume(50ULL * 1024 * 1024 * 1024);  // 50 GB
+
+    // Trigger refill via consecutive calls (simulates elapsed time)
+    bucket.tryConsume(0);  // trigger refill
+
+    // tokens must not exceed maxTokens and must be non-negative
+    EXPECT_LE(bucket.tokens, bucket.maxTokens);
+    EXPECT_GE(bucket.tokens, 0.0);
+}
+
+// ---------------------------------------------------------------------------
+// Test: Capacity multiplier doubles maxTokens
+// ---------------------------------------------------------------------------
+TEST_F(TokenBucketTest, CapacityMultiplierWorks) {
+    TokenBucket bucket1, bucket2;
+    bucket1.init(100.0, 1.0);
+    bucket2.init(100.0, 2.0);
+    EXPECT_EQ(bucket2.maxTokens, bucket1.maxTokens * 2.0);
+}
+
+// ---------------------------------------------------------------------------
 // P0-3 Placeholder: storeAllTilesFromBuffer checks addAccess return
 // ---------------------------------------------------------------------------
 // TODO: When TileWriteBack::storeAllTilesFromBuffer is implemented,
@@ -116,6 +146,40 @@ TEST_F(TokenBucketTest, TryConsumeBehavior)
 //     EXPECT_GE(bucket.tokens, tokensAfterConsume);
 // }
 // ---------------------------------------------------------------------------
+
+// ============================================================================
+// TileWriteBack Tests
+// ============================================================================
+
+class TileWriteBackTest : public ::testing::Test {
+protected:
+    void SetUp() override {}
+    void TearDown() override {}
+};
+
+// ---------------------------------------------------------------------------
+// Test: storeAllTilesFromBuffer with nullptr memory (PHASE1 compat path)
+// ---------------------------------------------------------------------------
+TEST_F(TileWriteBackTest, StoreAllTilesNoMemorySubsystem) {
+    TileBufferManager manager;
+    TileWriteBack twb;
+    // Should not crash — PHASE1 compatible path accepts nullptr
+    twb.storeAllTilesFromBuffer(manager, nullptr);
+    SUCCEED();
+}
+
+// ---------------------------------------------------------------------------
+// Test: storeAllTilesFromBuffer with low-bandwidth configuration
+// Note: Full test requires mock time or near-zero bandwidth to trigger skip.
+// ---------------------------------------------------------------------------
+TEST_F(TileWriteBackTest, StoreAllTilesSkipsCopyOnBandwidthLimit) {
+    TileBufferManager manager;
+    TileWriteBack twb;
+    // Placeholder: when bandwidth model is enforced, passing a very low
+    // configured bandwidth should cause storeAllTilesFromBuffer to skip memcpy.
+    // Currently this documents the expected behavior.
+    SUCCEED() << "Bandwidth-enforced skip requires pipeline time model";
+}
 
 // ============================================================================
 // P0-4: L2 Cache Configuration Tests

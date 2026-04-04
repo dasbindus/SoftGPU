@@ -114,6 +114,18 @@ TEST_F(DIVLatencyTest, DIVSmallValues)
 }
 
 // ---------------------------------------------------------------------------
+// TODO(P0-2): When pipeline supports stall, supplement the following tests:
+//  1. DIV issued then target register read immediately → old value returned
+//  2. DIV completed after N cycles → correct result returned
+//  3. Back-to-back DIVs → FIFO completion order verified
+// ---------------------------------------------------------------------------
+/** @Test */
+TEST_F(DIVLatencyTest, DIVPendingQueueFIFO) {
+    GTEST_SKIP() << "Pending queue FIFO tested structurally; "
+                    "cycle-accurate stall test requires pipeline model";
+}
+
+// ---------------------------------------------------------------------------
 // P0-2 Placeholder: DIV Cycle Counting Test
 // ---------------------------------------------------------------------------
 // TODO: When pipeline model is complete, implement cycle counting test:
