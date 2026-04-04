@@ -8,6 +8,8 @@ add_library(pipeline STATIC
     ShaderCore.cpp
     WarpScheduler.hpp
     WarpScheduler.cpp
+    TextureBuffer.hpp
+    TextureBuffer.cpp
 )
 
 target_link_libraries(pipeline PUBLIC

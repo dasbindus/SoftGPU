@@ -134,6 +134,20 @@ public:
     // Get stats
     const Stats& GetStats() const { return stats_; }
 
+    // P0-2: Only drain pending DIVs, don't fetch/decode/execute
+    // Called by WarpScheduler each cycle before executing instructions
+    void drainPendingDIVs() {
+        uint64_t current_cycle = stats_.cycles;
+        for (auto it = m_pending_divs.begin(); it != m_pending_divs.end(); ) {
+            if (it->completion_cycle <= current_cycle) {
+                reg_file_.Write(it->rd, it->result);
+                it = m_pending_divs.erase(it);
+            } else {
+                ++it;
+            }
+        }
+    }
+
     // Single step execution
     bool Step()
     {
@@ -407,10 +421,9 @@ public:
         // === Special Operations (Simplified) ===
         case Opcode::TEX:
         case Opcode::SAMPLE: {
-            // P1-3: Checkerboard texture placeholder
-            // Ra = u coordinate (Rd field of R4), Rb = v coordinate (Ra field of R4)
-            // For R4 format: Rc is in immediate/extra field
-            // Simplified: Ra=Ra, Rb=Rb, use val_a=u, val_b=v
+            // TEX Rd, Ra(u), Rb(v), Rc(texture_id)
+            // 简化：texture_id=0 使用内置 checkerboard
+            // 后续扩展：m_textureBuffers[texture_id]->sampleNearest(u, v)
             // Output RGBA to Rd, Rd+1, Rd+2, Rd+3
             float u = val_a;
             float v = val_b;

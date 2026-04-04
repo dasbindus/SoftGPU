@@ -9,6 +9,7 @@
 #include "core/PipelineTypes.hpp"
 #include "stages/TileBuffer.hpp"
 #include "isa/ISA.hpp"
+#include "pipeline/TextureBuffer.hpp"
 #include <memory>
 #include <vector>
 #include <array>
@@ -209,6 +210,9 @@ private:
     ShaderFunction m_currentShader;
     Stats m_stats;
     bool m_verbose = false;
+    
+    // P1-3: 纹理缓冲区（最多 4 个纹理）
+    std::array<std::unique_ptr<TextureBuffer>, 4> m_textures;
     
     // Fragment 执行核心
     void executeFragmentInternal(FragmentContext& ctx, const ShaderFunction& shader);

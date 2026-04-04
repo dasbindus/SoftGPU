@@ -295,6 +295,9 @@ private:
     // P0-1: TileBuffer 委托写入
     TileBufferManager* m_tile_buffer_manager = nullptr;
     
+    // P0-2: Per-scheduler interpreter for DIV pending tracking
+    softgpu::isa::Interpreter m_interpreter;
+    
     // 内部方法
     void initializeWarps();
     void executeWarp(Warp& warp);
