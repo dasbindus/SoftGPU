@@ -6,17 +6,11 @@
 
 #pragma once
 
+#include "core/PipelineTypes.hpp"
 #include <cstdint>
 #include <vector>
 
 namespace SoftGPU {
-
-struct Fragment {
-    float depth;
-    uint32_t x, y;
-    uint32_t shader_id;
-    uint32_t pc;
-};
 
 class EarlyZ {
 public:
@@ -28,8 +22,10 @@ public:
     bool testFragment(float fragDepth, float depthBufferValue);
 
     // Batch filter: filter out occluded fragments
+    // `width` must match the depth buffer's row stride (typically FRAMEBUFFER_WIDTH)
     std::vector<Fragment> filterOccluded(const std::vector<Fragment>& fragments,
-                                          const float* depthBuffer);
+                                          const float* depthBuffer,
+                                          uint32_t width);
 
     const char* getName() const { return "EarlyZ"; }
 

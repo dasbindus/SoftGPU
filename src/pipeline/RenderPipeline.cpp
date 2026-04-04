@@ -20,6 +20,7 @@ RenderPipeline::RenderPipeline()
       m_tilingStage(),
       m_rasterizer(),
       m_fragmentShader(),
+      m_earlyZ(std::make_unique<EarlyZ>()),
       m_framebuffer(),
       m_tileBuffer(),
       m_memory(),
@@ -313,10 +314,14 @@ void RenderPipeline::executeTile(uint32_t tileIndex, uint32_t tileX, uint32_t ti
     m_rasterizer.executePerTile();
     const auto& fragments = m_rasterizer.getOutput();
 
+    // Step 2.5: EarlyZ - filter occluded fragments before FragmentShader
+    const float* tileDepth = tileMem.depth.data();
+    auto filteredFragments = m_earlyZ->filterOccluded(fragments, tileDepth, TILE_WIDTH);
+
     // Step 3: FragmentShader - shade and write to TileBuffer (per-tile)
     m_fragmentShader.setTileBufferManager(&m_tileBuffer);
     m_fragmentShader.setTileIndex(tileIndex);
-    m_fragmentShader.setInputAndExecuteTile(fragments, tileX, tileY);
+    m_fragmentShader.setInputAndExecuteTile(filteredFragments, tileX, tileY);
 
     // Step 4: Store tile to GMEM (per-tile write-back for tiles with geometry)
     // Tiles without triangles skip store; they'll be handled by storeAllTilesFromBuffer

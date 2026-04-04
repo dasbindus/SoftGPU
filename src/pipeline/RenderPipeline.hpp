@@ -13,6 +13,7 @@
 #include "stages/Rasterizer.hpp"
 #include "stages/FragmentShader.hpp"
 #include "stages/Framebuffer.hpp"
+#include "stages/EarlyZ.hpp"
 #include "stages/TileBuffer.hpp"
 #include "stages/TileWriteBack.hpp"
 #include "core/MemorySubsystem.hpp"
@@ -99,6 +100,7 @@ private:
     PrimitiveAssembly  m_primitiveAssembly;
     TilingStage        m_tilingStage;
     Rasterizer         m_rasterizer;
+    std::unique_ptr<EarlyZ> m_earlyZ;
     FragmentShader     m_fragmentShader;
     Framebuffer        m_framebuffer;      // PHASE1 兼容，仍用于直接输出
     TileBufferManager  m_tileBuffer;       // PHASE2 LMEM

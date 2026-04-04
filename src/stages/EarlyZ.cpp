@@ -23,18 +23,15 @@ bool EarlyZ::testFragment(float fragDepth, float depthBufferValue) {
 }
 
 std::vector<Fragment> EarlyZ::filterOccluded(const std::vector<Fragment>& fragments,
-                                              const float* depthBuffer) {
+                                              const float* depthBuffer,
+                                              uint32_t width) {
     std::vector<Fragment> passed;
 
-    // Assumes width = 1920 for depth buffer indexing
-    // TODO: make width configurable if needed
-    constexpr uint32_t WIDTH = 1920;
-
     for (const auto& frag : fragments) {
-        uint32_t idx = frag.y * WIDTH + frag.x;
+        uint32_t idx = frag.y * width + frag.x;
         float depthBufferValue = depthBuffer[idx];
 
-        if (testFragment(frag.depth, depthBufferValue)) {
+        if (testFragment(frag.z, depthBufferValue)) {
             passed.push_back(frag);
         }
     }
