@@ -1,7 +1,7 @@
 // ============================================================================
 // SoftGPU - Rasterizer.hpp
 // 光栅化器
-// PHASE2: Added setInputPerTile() for per-tile triangle list
+// PHASE2: Per-tile triangle list via setTrianglesForTile()
 // ============================================================================
 
 #pragma once
@@ -17,7 +17,9 @@ namespace SoftGPU {
 // 职责：DDA 光栅化，输出 fragment 列表
 // PHASE2: 支持两种模式：
 //   - 全量模式（PHASE1 兼容）：setInput() + execute()
-//   - Per-tile 模式：setInputPerTile() + executePerTile()
+//   - Per-tile 模式：setTrianglesForTile() + executePerTile()
+//     setTrianglesForTile() 将指定 tile 的三角形列表绑定到光栅化器，
+//     executePerTile() 仅光栅化覆盖该 tile 区域的 fragment。
 // ============================================================================
 class Rasterizer : public IStage {
 public:
@@ -35,9 +37,9 @@ public:
     // ========================================================================
     // PHASE2 Per-tile 接口
     // ========================================================================
-    // 设置 per-tile 输入三角形（来自 TilingStage）
-    void setInputPerTile(const std::vector<Triangle>& triangles,
-                         uint32_t tileX, uint32_t tileY);
+    // 设置指定 tile 的三角形列表（来自 TilingStage）
+    void setTrianglesForTile(const std::vector<Triangle>& triangles,
+                             uint32_t tileX, uint32_t tileY);
 
     // 执行 per-tile 光栅化（输出到 m_outputFragments）
     void executePerTile();

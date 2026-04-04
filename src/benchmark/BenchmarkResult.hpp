@@ -55,6 +55,26 @@ struct BenchmarkResult {
     uint64_t fragmentsProcessed;    // 处理的片段数
     uint64_t pixelsWritten;         // 写入的像素数
 
+    // ========== P2-2: Warp Scheduling & TEX 指标 ==========
+    // Warp scheduler efficiency = active warps / total warps per cycle
+    double warpSchedulingEfficiency;  // 0.0 ~ 1.0
+    uint64_t totalWarpsScheduled;      // 总调度 warp 数
+    uint32_t warpDivergenceCount;      // 分歧发生次数
+    double warpDivergenceRate;         // 分歧率 (divergent/total)
+
+    // ========== P2-2: EarlyZ 指标 ==========
+    uint64_t earlyZTests;        // EarlyZ 深度测试次数
+    uint64_t earlyZPassed;      // EarlyZ 通过次数
+    double earlyZPassRate;      // EarlyZ 通过率 (0.0 ~ 1.0)
+    uint64_t earlyZRejected;    // EarlyZ 拒绝的 fragment 数
+
+    // ========== P2-2: TEX 指标 ==========
+    uint64_t texOperations;     // TEX 操作总次数
+    double texHitRate;          // TEX cache 命中率 (0.0 ~ 1.0)
+    uint64_t texCacheHits;      // TEX cache 命中次数
+    uint64_t texCacheMisses;    // TEX cache 缺失次数
+    double texAvgLatencyNs;     // TEX 平均延迟 (ns)
+
     // 默认构造函数
     BenchmarkResult();
 

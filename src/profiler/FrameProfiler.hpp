@@ -108,6 +108,21 @@ public:
     // Access the singleton
     static FrameProfiler* instance();
 
+    // ========================================================================
+    // P2-1: Warp Divergence Statistics
+    // Called by FragmentShader / WarpScheduler when a warp divergence occurs.
+    // A divergence happens when threads in the same warp take different paths.
+    // ========================================================================
+    void recordDivergence(uint32_t threadsInDivergence, uint64_t lostCycles);
+
+    // Get warp divergence statistics aggregated since last reset
+    uint32_t getDivergenceCount() const   { return m_divergenceCount; }
+    uint32_t getDivergenceThreads() const { return m_divergenceThreads; }
+    uint64_t getDivergenceLostCycles() const { return m_divergenceLostCycles; }
+
+    // Get divergence rate (divergent warps / total warps) for FragmentShader
+    double getDivergenceRate() const;
+
     // Inject MemorySubsystem reference for bandwidth metrics (optional)
     void setMemoryBandwidthUtilization(double bw) { m_bandwidthUtil = bw; }
     void setRasterizerEfficiency(double eff) { m_rasterizerEfficiency = eff; }
@@ -133,6 +148,12 @@ private:
     double m_rasterizerEfficiency = 0.0; // 0.0 ~ 1.0
     double m_coreUtilization = 0.0;      // 0.0 ~ 1.0 (core utilization %)
     double m_fsRatio = 0.0;             // fragment shader time / total frame time
+
+    // P2-1: Warp divergence accumulation (reset on each frame via reset())
+    uint32_t m_divergenceCount = 0;
+    uint32_t m_divergenceThreads = 0;
+    uint64_t m_divergenceLostCycles = 0;
+    uint64_t m_totalWarpsScheduled = 0;  // used to compute divergence rate
 };
 
 }  // namespace SoftGPU

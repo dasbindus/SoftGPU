@@ -40,6 +40,22 @@ BenchmarkResult::BenchmarkResult()
     , tileWriteBackTimeMs(0.0)
     , fragmentsProcessed(0)
     , pixelsWritten(0)
+    // P2-2: warp scheduling & TEX
+    , warpSchedulingEfficiency(0.0)
+    , totalWarpsScheduled(0)
+    , warpDivergenceCount(0)
+    , warpDivergenceRate(0.0)
+    // P2-2: EarlyZ
+    , earlyZTests(0)
+    , earlyZPassed(0)
+    , earlyZPassRate(0.0)
+    , earlyZRejected(0)
+    // P2-2: TEX
+    , texOperations(0)
+    , texHitRate(0.0)
+    , texCacheHits(0)
+    , texCacheMisses(0)
+    , texAvgLatencyNs(0.0)
 {
     // 获取当前时间戳
     std::time_t now = std::time(nullptr);
@@ -87,6 +103,27 @@ void BenchmarkResult::print() const {
     std::cout << "\n--- Pixel Processing ---\n";
     std::cout << "  Fragments Processed: " << fragmentsProcessed << "\n";
     std::cout << "  Pixels Written: " << pixelsWritten << "\n";
+    std::cout << "\n--- P2-2: Warp Scheduling ---\n";
+    std::cout << "  Scheduling Efficiency: " << std::fixed << std::setprecision(2)
+              << (warpSchedulingEfficiency * 100.0) << "%\n";
+    std::cout << "  Total Warps Scheduled: " << totalWarpsScheduled << "\n";
+    std::cout << "  Divergence Count: " << warpDivergenceCount << "\n";
+    std::cout << "  Divergence Rate: " << std::fixed << std::setprecision(2)
+              << (warpDivergenceRate * 100.0) << "%\n";
+    std::cout << "\n--- P2-2: EarlyZ ---\n";
+    std::cout << "  Tests: " << earlyZTests
+              << "  Passed: " << earlyZPassed
+              << "  Rejected: " << earlyZRejected << "\n";
+    std::cout << "  Pass Rate: " << std::fixed << std::setprecision(2)
+              << (earlyZPassRate * 100.0) << "%\n";
+    std::cout << "\n--- P2-2: TEX ---\n";
+    std::cout << "  Operations: " << texOperations << "\n";
+    std::cout << "  Cache Hit Rate: " << std::fixed << std::setprecision(2)
+              << (texHitRate * 100.0) << "%\n";
+    std::cout << "  Cache Hits: " << texCacheHits
+              << "  Misses: " << texCacheMisses << "\n";
+    std::cout << "  Avg Latency: " << std::fixed << std::setprecision(1)
+              << texAvgLatencyNs << " ns\n";
     std::cout << "========================================\n";
 }
 
@@ -116,19 +153,43 @@ std::string BenchmarkResult::toCSV() const {
        << fragmentShaderTimeMs << ","
        << tileWriteBackTimeMs << ","
        << fragmentsProcessed << ","
-       << pixelsWritten;
+       << pixelsWritten << ","
+       // P2-2: warp scheduling
+       << warpSchedulingEfficiency << ","
+       << totalWarpsScheduled << ","
+       << warpDivergenceCount << ","
+       << warpDivergenceRate << ","
+       // P2-2: EarlyZ
+       << earlyZTests << ","
+       << earlyZPassed << ","
+       << earlyZPassRate << ","
+       << earlyZRejected << ","
+       // P2-2: TEX
+       << texOperations << ","
+       << texHitRate << ","
+       << texCacheHits << ","
+       << texCacheMisses << ","
+       << texAvgLatencyNs;
 
     return ss.str();
 }
 
 std::string BenchmarkResult::getCSVHeader() {
+    // P2-2: Added 14 new columns for warp scheduling / EarlyZ / TEX metrics
     return "scene_name,timestamp,run_index,triangle_count,vertex_count,"
            "frame_time_ms,fps,cycle_count,"
            "bandwidth_utilization,total_read_bytes,total_write_bytes,consumed_bandwidth_gbps,"
            "L2_hit_rate,L2_hits,L2_misses,"
            "vertex_shader_time_ms,tiling_time_ms,rasterizer_time_ms,"
            "fragment_shader_time_ms,tile_writeback_time_ms,"
-           "fragments_processed,pixels_written";
+           "fragments_processed,pixels_written,"
+           // P2-2: warp scheduling
+           "warp_scheduling_efficiency,total_warps_scheduled,"
+           "warp_divergence_count,warp_divergence_rate,"
+           // P2-2: EarlyZ
+           "earlyz_tests,earlyz_passed,earlyz_pass_rate,earlyz_rejected,"
+           // P2-2: TEX
+           "tex_operations,tex_hit_rate,tex_cache_hits,tex_cache_misses,tex_avg_latency_ns";
 }
 
 // ============================================================================
@@ -332,6 +393,22 @@ bool BenchmarkSet::loadFromCSV(const std::string& filepath) {
         std::getline(ss, val, ','); r.tileWriteBackTimeMs = std::stod(val);
         std::getline(ss, val, ','); r.fragmentsProcessed = std::stoull(val);
         std::getline(ss, val, ','); r.pixelsWritten = std::stoull(val);
+        // P2-2: warp scheduling
+        std::getline(ss, val, ','); r.warpSchedulingEfficiency = std::stod(val);
+        std::getline(ss, val, ','); r.totalWarpsScheduled = std::stoull(val);
+        std::getline(ss, val, ','); r.warpDivergenceCount = std::stoul(val);
+        std::getline(ss, val, ','); r.warpDivergenceRate = std::stod(val);
+        // P2-2: EarlyZ
+        std::getline(ss, val, ','); r.earlyZTests = std::stoull(val);
+        std::getline(ss, val, ','); r.earlyZPassed = std::stoull(val);
+        std::getline(ss, val, ','); r.earlyZPassRate = std::stod(val);
+        std::getline(ss, val, ','); r.earlyZRejected = std::stoull(val);
+        // P2-2: TEX
+        std::getline(ss, val, ','); r.texOperations = std::stoull(val);
+        std::getline(ss, val, ','); r.texHitRate = std::stod(val);
+        std::getline(ss, val, ','); r.texCacheHits = std::stoull(val);
+        std::getline(ss, val, ','); r.texCacheMisses = std::stoull(val);
+        std::getline(ss, val, ','); r.texAvgLatencyNs = std::stod(val);
 
         results.push_back(r);
     }

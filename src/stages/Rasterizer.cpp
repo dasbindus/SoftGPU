@@ -1,7 +1,7 @@
 // ============================================================================
 // SoftGPU - Rasterizer.cpp
 // 光栅化器
-// PHASE2: Added per-tile rasterization support
+// PHASE2: Added per-tile rasterization via setTrianglesForTile() + executePerTile()
 // ============================================================================
 
 #include "Rasterizer.hpp"
@@ -34,8 +34,8 @@ void Rasterizer::setInputFromConnect(const std::vector<Triangle>& triangles) {
     m_perTileMode = false;
 }
 
-void Rasterizer::setInputPerTile(const std::vector<Triangle>& triangles,
-                                  uint32_t tileX, uint32_t tileY) {
+void Rasterizer::setTrianglesForTile(const std::vector<Triangle>& triangles,
+                                      uint32_t tileX, uint32_t tileY) {
     m_inputTrianglesPerTile = triangles;
     m_tileX = tileX;
     m_tileY = tileY;

@@ -142,6 +142,11 @@ void FrameProfiler::beginFrame() {
     m_frameStart = std::chrono::high_resolution_clock::now();
     m_collector.reset();
     m_frameActive = true;
+    // P2-1: reset per-frame divergence counters
+    m_divergenceCount = 0;
+    m_divergenceThreads = 0;
+    m_divergenceLostCycles = 0;
+    m_totalWarpsScheduled = 0;
 }
 
 void FrameProfiler::endFrame() {
@@ -194,6 +199,13 @@ ProfilerStats FrameProfiler::getStats(StageHandle stage) const {
     stats.percent = m_aggregator.getStagePercent(stage);
     // Rough cycles estimate: assume 1 GHz = 1 cycle per ns
     stats.cycles = static_cast<uint64_t>(stats.ms * 1e6);
+
+    // P2-1: warp divergence — only meaningful for FragmentShader stage
+    if (stage == StageHandle::FragmentShader) {
+        stats.divergenceCount = m_divergenceCount;
+        stats.divergenceThreads = m_divergenceThreads;
+        stats.divergenceLostCycles = m_divergenceLostCycles;
+    }
     return stats;
 }
 
@@ -265,6 +277,22 @@ void FrameProfiler::reset() {
     m_rasterizerEfficiency = 0.0;
     m_coreUtilization = 0.0;
     m_fsRatio = 0.0;
+    // P2-1: reset divergence counters
+    m_divergenceCount = 0;
+    m_divergenceThreads = 0;
+    m_divergenceLostCycles = 0;
+    m_totalWarpsScheduled = 0;
+}
+
+void FrameProfiler::recordDivergence(uint32_t threadsInDivergence, uint64_t lostCycles) {
+    m_divergenceCount += 1;
+    m_divergenceThreads += threadsInDivergence;
+    m_divergenceLostCycles += lostCycles;
+}
+
+double FrameProfiler::getDivergenceRate() const {
+    if (m_totalWarpsScheduled == 0) return 0.0;
+    return static_cast<double>(m_divergenceCount) / static_cast<double>(m_totalWarpsScheduled);
 }
 
 // ============================================================================
