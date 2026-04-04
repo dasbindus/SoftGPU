@@ -55,3 +55,21 @@ endif()
 
 include(GoogleTest)
 gtest_discover_tests(test_memory)
+
+# ---------------------------------------------------------------------------
+# P0-1: WarpScheduler Tests
+# ---------------------------------------------------------------------------
+add_executable(test_warp test_warp.cpp)
+
+if(GTest_FOUND)
+    target_link_libraries(test_warp PRIVATE core pipeline GTest::gtest GTest::gtest_main)
+else()
+    target_link_libraries(test_warp PRIVATE core pipeline gtest gtest_main)
+endif()
+
+if(APPLE)
+    target_link_libraries(test_warp PRIVATE c++)
+endif()
+
+include(GoogleTest)
+gtest_discover_tests(test_warp)
