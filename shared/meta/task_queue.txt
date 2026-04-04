@@ -6,10 +6,12 @@ PHASE1
 # 当前待处理任务（v1.4）
 
 # P0 — 必须完成（回归修复）
-[P0-1] FragmentShader WarpScheduler 真正集成 — executeWarpBatch() 实现，test_warp.cpp
-[P0-2] DIV 指令 Newton-Raphson 实现 — ExecutionUnits.hpp + Interpreter.cpp
-[P0-3] TokenBucket 带宽限制生效 — MemorySubsystem.cpp + TileWriteBack.cpp
-[P0-4] L2 Cache 增大到 256KB — MemorySubsystem.hpp 配置 + tile-aware 替换
+# 注意：P0-1 test_warp 框架已由小钻风建立(19/19 PASS)
+#       剩余工作：WarpScheduler cycle-accurate 调度 + FragmentShader 端到端验证
+
+[P0-2] DIV 周期精度修复 — SFU.addInput() 返回 pending ticket，Interpreter 等待 stall直到完成
+[P0-3] TokenBucket 带宽限制生效 — storeAllTilesFromBuffer 检查 tryConsume 返回值；refill() 改为墙上时间线性补充
+[P0-4] L2 Cache 256KB + tile-aware 替换 — MemorySubsystem.hpp 改 cache_size；TileAwareReplacement 策略实现
 
 # P1 — 高优先级（新功能 + 验证）
 [P1-1] ISA 扩展 8 条指令 — SHL/SHR/NOT/FLOOR/CEIL/ABS/NEG/DP3 + test_isa.cpp
