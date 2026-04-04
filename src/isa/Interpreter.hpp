@@ -406,7 +406,26 @@ public:
         
         // === Special Operations (Simplified) ===
         case Opcode::TEX:
-        case Opcode::SAMPLE:
+        case Opcode::SAMPLE: {
+            // P1-3: Checkerboard texture placeholder
+            // Ra = u coordinate (Rd field of R4), Rb = v coordinate (Ra field of R4)
+            // For R4 format: Rc is in immediate/extra field
+            // Simplified: Ra=Ra, Rb=Rb, use val_a=u, val_b=v
+            // Output RGBA to Rd, Rd+1, Rd+2, Rd+3
+            float u = val_a;
+            float v = val_b;
+            int cx = static_cast<int>(std::floor(u * 8.0f));
+            int cy = static_cast<int>(std::floor(v * 8.0f));
+            bool is_white = ((cx + cy) % 2) == 0;
+            float color = is_white ? 1.0f : 0.0f; // Grayscale checkerboard
+            reg_file_.Write(rd, color);     // R
+            reg_file_.Write(rd + 1, color);  // G
+            reg_file_.Write(rd + 2, color);  // B
+            reg_file_.Write(rd + 3, 1.0f);  // A = 1.0 (fully opaque)
+            pc_.addr += 4;
+            break;
+        }
+        
         case Opcode::LDC:
         case Opcode::BAR:
             // Stub implementations for v1.0
