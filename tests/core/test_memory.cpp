@@ -194,7 +194,7 @@ protected:
 // ---------------------------------------------------------------------------
 // Test: L2 Cache size configuration (256KB target for P0-4)
 // ---------------------------------------------------------------------------
-// Note: Current implementation is 128KB. P0-4 requires 256KB.
+// Note: P0-4 implemented - L2 Cache is now 256KB (L2_CACHE_SETS=512).
 // This test verifies the cache configuration.
 // ---------------------------------------------------------------------------
 TEST_F(L2CacheConfigTest, CacheSizeConfiguration)
@@ -203,7 +203,7 @@ TEST_F(L2CacheConfigTest, CacheSizeConfiguration)
     EXPECT_EQ(CACHE_LINE_SIZE, 64U); // 64 bytes per line
 
     // Verify number of sets
-    EXPECT_EQ(L2_CACHE_SETS, 256U);
+    EXPECT_EQ(L2_CACHE_SETS, 512U);
 
     // Verify associativity
     EXPECT_EQ(L2_CACHE_WAYS, 8U); // 8-way set associative
@@ -214,15 +214,11 @@ TEST_F(L2CacheConfigTest, CacheSizeConfiguration)
     // P0-4 requirement: 256 KB = 256 * 1024 bytes
     const size_t targetSize = 256 * 1024; // 256 KB
 
-    // Current implementation is 128KB
-    const size_t currentSize = 128 * 1024; // 128 KB
+    const size_t currentSize = 256 * 1024; // 256 KB
 
     // This test documents the requirement
-    // TODO: Update L2_CACHE_SETS to 512 when implementing P0-4 (256KB)
-    EXPECT_EQ(expectedSize, currentSize); // Current: 128KB
-
-    // When P0-4 is implemented, change to:
-    // EXPECT_EQ(expectedSize, targetSize); // Target: 256KB
+    // P0-4 implemented: L2_CACHE_SETS = 512, 256KB
+    EXPECT_EQ(expectedSize, targetSize); // Target: 256KB
 }
 
 // ---------------------------------------------------------------------------
