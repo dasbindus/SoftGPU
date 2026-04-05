@@ -1,0 +1,5 @@
+if(EXISTS "/root/.openclaw/workspace/SoftGPU/build_quick/tests/stages/test_PrimitiveAssembly[1]_tests.cmake")
+  include("/root/.openclaw/workspace/SoftGPU/build_quick/tests/stages/test_PrimitiveAssembly[1]_tests.cmake")
+else()
+  add_test(test_PrimitiveAssembly_NOT_BUILT test_PrimitiveAssembly_NOT_BUILT)
+endif()

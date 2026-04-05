@@ -1,0 +1,2 @@
+/usr/bin/ar qc libcore.a CMakeFiles/core.dir/MemorySubsystem.cpp.o
+/usr/bin/ranlib libcore.a

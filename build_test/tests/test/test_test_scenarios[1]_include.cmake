@@ -1,0 +1,5 @@
+if(EXISTS "/root/.openclaw/workspace/SoftGPU/build_test/tests/test/test_test_scenarios[1]_tests.cmake")
+  include("/root/.openclaw/workspace/SoftGPU/build_test/tests/test/test_test_scenarios[1]_tests.cmake")
+else()
+  add_test(test_test_scenarios_NOT_BUILT test_test_scenarios_NOT_BUILT)
+endif()

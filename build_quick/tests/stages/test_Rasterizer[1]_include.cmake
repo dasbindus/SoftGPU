@@ -1,0 +1,5 @@
+if(EXISTS "/root/.openclaw/workspace/SoftGPU/build_quick/tests/stages/test_Rasterizer[1]_tests.cmake")
+  include("/root/.openclaw/workspace/SoftGPU/build_quick/tests/stages/test_Rasterizer[1]_tests.cmake")
+else()
+  add_test(test_Rasterizer_NOT_BUILT test_Rasterizer_NOT_BUILT)
+endif()

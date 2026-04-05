@@ -1,0 +1,5 @@
+if(EXISTS "/root/.openclaw/workspace/SoftGPU/build_check/tests/core/test_warp[1]_tests.cmake")
+  include("/root/.openclaw/workspace/SoftGPU/build_check/tests/core/test_warp[1]_tests.cmake")
+else()
+  add_test(test_warp_NOT_BUILT test_warp_NOT_BUILT)
+endif()

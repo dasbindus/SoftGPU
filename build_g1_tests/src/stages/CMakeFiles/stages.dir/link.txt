@@ -1,0 +1,2 @@
+/usr/bin/ar qc libstages.a CMakeFiles/stages.dir/CommandProcessor.cpp.o CMakeFiles/stages.dir/VertexShader.cpp.o CMakeFiles/stages.dir/PrimitiveAssembly.cpp.o CMakeFiles/stages.dir/Rasterizer.cpp.o CMakeFiles/stages.dir/FragmentShader.cpp.o CMakeFiles/stages.dir/Framebuffer.cpp.o CMakeFiles/stages.dir/TileWriteBack.cpp.o CMakeFiles/stages.dir/TilingStage.cpp.o CMakeFiles/stages.dir/TileBuffer.cpp.o
+/usr/bin/ranlib libstages.a

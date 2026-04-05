@@ -1,0 +1,1 @@
+/usr/bin/c++ -g CMakeFiles/test_memory.dir/test_memory.cpp.o -o ../../bin/test_memory  ../../src/core/libcore.a /usr/lib64/libgtest_main.so.1.12.1 /usr/lib64/libgtest.so.1.12.1 -lpthread 

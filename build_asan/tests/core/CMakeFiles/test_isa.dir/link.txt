@@ -1,0 +1,1 @@
+/usr/bin/c++ -fsanitize=address,undefined -fno-omit-frame-pointer -g -fsanitize=address CMakeFiles/test_isa.dir/test_isa.cpp.o -o ../../bin/test_isa  ../../src/core/libcore.a /usr/lib64/libgtest_main.so.1.12.1 /usr/lib64/libgtest.so.1.12.1 -lpthread 

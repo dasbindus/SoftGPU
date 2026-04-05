@@ -1,0 +1,2 @@
+/usr/bin/ar qc libprofiler.a CMakeFiles/profiler.dir/FrameProfiler.cpp.o CMakeFiles/profiler.dir/BottleneckDetector.cpp.o CMakeFiles/profiler.dir/ProfilerUI.cpp.o
+/usr/bin/ranlib libprofiler.a

@@ -1,0 +1,7 @@
+add_test([=[VertexShaderTest.IdentityMVP_Passthrough]=]  /root/.openclaw/workspace/SoftGPU/build_p0/bin/test_VertexShader [==[--gtest_filter=VertexShaderTest.IdentityMVP_Passthrough]==] --gtest_also_run_disabled_tests)
+set_tests_properties([=[VertexShaderTest.IdentityMVP_Passthrough]=]  PROPERTIES WORKING_DIRECTORY /root/.openclaw/workspace/SoftGPU/build_p0/tests/stages SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==])
+add_test([=[VertexShaderTest.TranslationModelMatrix]=]  /root/.openclaw/workspace/SoftGPU/build_p0/bin/test_VertexShader [==[--gtest_filter=VertexShaderTest.TranslationModelMatrix]==] --gtest_also_run_disabled_tests)
+set_tests_properties([=[VertexShaderTest.TranslationModelMatrix]=]  PROPERTIES WORKING_DIRECTORY /root/.openclaw/workspace/SoftGPU/build_p0/tests/stages SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==])
+add_test([=[VertexShaderTest.Counters]=]  /root/.openclaw/workspace/SoftGPU/build_p0/bin/test_VertexShader [==[--gtest_filter=VertexShaderTest.Counters]==] --gtest_also_run_disabled_tests)
+set_tests_properties([=[VertexShaderTest.Counters]=]  PROPERTIES WORKING_DIRECTORY /root/.openclaw/workspace/SoftGPU/build_p0/tests/stages SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==])
+set(  test_VertexShader_TESTS VertexShaderTest.IdentityMVP_Passthrough VertexShaderTest.TranslationModelMatrix VertexShaderTest.Counters)

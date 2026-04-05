@@ -35,7 +35,7 @@ jobs:
         run: cmake -B build -DCMAKE_BUILD_TYPE=${{ env.CMAKE_BUILD_TYPE }} -DCMAKE_CXX_COMPILER=g++
 
       - name: Build
-        run: cmake --build build -j$(nproc) --config Release
+        run: cmake --build build -j4 --config Release
 
       - name: Run test_test_scenarios
         run: ./build/bin/test_test_scenarios
@@ -75,7 +75,7 @@ jobs:
         run: cmake -B build -DCMAKE_BUILD_TYPE=${{ env.CMAKE_BUILD_TYPE }}
 
       - name: Build
-        run: cmake --build build -j$(nproc) --config Release
+        run: cmake --build build -j4 --config Release
 
       - name: Run test_test_scenarios
         run: ./build/bin/test_test_scenarios
@@ -114,7 +114,7 @@ jobs:
         run: cmake -B build -DCMAKE_BUILD_TYPE=${{ env.CMAKE_BUILD_TYPE }}
 
       - name: Build
-        run: cmake --build build -j$(nproc) --config Release
+        run: cmake --build build -j4 --config Release
 
       - name: Run headless Triangle-1Tri
         run: |
