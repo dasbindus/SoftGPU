@@ -52,6 +52,10 @@ namespace ShaderRegs {
 // ============================================================================
 
 ShaderCore::ShaderCore() {
+    // 设置纹理缓冲区到 interpreter
+    for (int i = 0; i < 4; i++) {
+        m_interpreter.setTextureBuffer(i, m_textures[i].get());
+    }
     reset();
 }
 

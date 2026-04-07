@@ -8,6 +8,7 @@
 #include <vector>
 #include <string>
 #include <functional>
+#include "../pipeline/TextureBuffer.hpp"
 
 namespace softgpu {
 namespace isa {
@@ -98,6 +99,9 @@ private:
     };
     std::vector<PendingDiv> m_pending_divs;
 
+    // P1-3: Texture buffers (最多 4 个纹理)
+    SoftGPU::TextureBuffer* m_textureBuffers[4] = {nullptr, nullptr, nullptr, nullptr};
+
 public:
     Interpreter() : memory_(1024 * 1024) {}
     
@@ -134,6 +138,13 @@ public:
     
     // Get stats
     const Stats& GetStats() const { return stats_; }
+
+    // P1-3: Set texture buffer for TEX/SAMPLE instructions
+    void setTextureBuffer(int index, SoftGPU::TextureBuffer* tex) {
+        if (index >= 0 && index < 4) {
+            m_textureBuffers[index] = tex;
+        }
+    }
 
     // P0-2: Only drain pending DIVs, don't fetch/decode/execute
     // Called by WarpScheduler each cycle before executing instructions
@@ -423,19 +434,31 @@ public:
         case Opcode::TEX:
         case Opcode::SAMPLE: {
             // TEX Rd, Ra(u), Rb(v), Rc(texture_id)
-            // 简化：texture_id=0 使用内置 checkerboard
-            // 后续扩展：m_textureBuffers[texture_id]->sampleNearest(u, v)
-            // Output RGBA to Rd, Rd+1, Rd+2, Rd+3
+            // 真实纹理采样：如果纹理缓冲区存在且有效
+            // 否则 fallback 到 checkerboard
             float u = val_a;
             float v = val_b;
-            int cx = static_cast<int>(std::floor(u * 8.0f));
-            int cy = static_cast<int>(std::floor(v * 8.0f));
-            bool is_white = ((cx + cy) % 2) == 0;
-            float color = is_white ? 1.0f : 0.0f; // Grayscale checkerboard
-            reg_file_.Write(rd, color);     // R
-            reg_file_.Write(rd + 1, color);  // G
-            reg_file_.Write(rd + 2, color);  // B
-            reg_file_.Write(rd + 3, 1.0f);  // A = 1.0 (fully opaque)
+            float val_c = reg_file_.Read(inst.GetRc());
+            int tex_id = static_cast<int>(val_c);
+
+            // 真实纹理采样
+            if (tex_id >= 0 && tex_id < 4 && m_textureBuffers[tex_id] != nullptr) {
+                auto color = m_textureBuffers[tex_id]->sampleNearest(u, v);
+                reg_file_.Write(rd, color.r);
+                reg_file_.Write(rd + 1, color.g);
+                reg_file_.Write(rd + 2, color.b);
+                reg_file_.Write(rd + 3, color.a);
+            } else {
+                // Fallback: checkerboard
+                int cx = static_cast<int>(std::floor(u * 8.0f));
+                int cy = static_cast<int>(std::floor(v * 8.0f));
+                bool is_white = ((cx + cy) % 2) == 0;
+                float color = is_white ? 1.0f : 0.0f;
+                reg_file_.Write(rd, color);
+                reg_file_.Write(rd + 1, color);
+                reg_file_.Write(rd + 2, color);
+                reg_file_.Write(rd + 3, 1.0f);
+            }
             pc_.addr += 4;
             break;
         }
