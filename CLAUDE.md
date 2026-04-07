@@ -105,6 +105,15 @@ The E2E tests compare rendering output against golden reference PPM files in `te
 - `scene005_multi_triangle.ppm` - Multiple triangles
 - `scene006_warp_scheduling.ppm` - Warp scheduling demonstration
 
+## Code Evidence Requirement
+
+**禁止臆想**：分析代码时必须给出具体的代码文件路径和行号作为依据。不得基于假设或推测做出结论。
+
+- ❌ 错误：`EarlyZ 未集成到管线中`
+- ✅ 正确：`EarlyZ 已集成 (RenderPipeline.cpp:319)，m_earlyZ->filterOccluded() 在 FragmentShader 前调用`
+
+如对某功能是否实现存在疑问，必须通过搜索代码或运行测试来验证，不能凭空假设。
+
 ## Verification Requirements
 
 Before every commit, verify:
