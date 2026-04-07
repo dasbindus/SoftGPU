@@ -36,6 +36,7 @@ extern "C" int gladLoadGLLoader(GLADloadproc load);
 #include "platform/Window.hpp"
 #include "renderer/ImGuiRenderer.hpp"
 #include "pipeline/RenderPipeline.hpp"
+#include "pipeline/ShaderCore.hpp"
 #include "core/PipelineTypes.hpp"
 #include "test/TestScene.hpp"
 
@@ -67,6 +68,7 @@ struct CmdArgs {
     const char* output_filename = nullptr;  // 自定义输出文件名
     const char* scene_name = "Triangle-1Tri";  // 默认场景
     const char* texture_file = nullptr;  // PNG 纹理文件路径
+    bool use_texture_shader = false;  // 使用纹理采样 shader
 };
 
 void printHelp(const char* program) {
@@ -78,6 +80,7 @@ void printHelp(const char* program) {
     printf("  --no-tbr                Disable TBR (Tile-Based Rendering) mode\n");
     printf("  --scene <name>          Scene to render in headless mode (default: Triangle-1Tri)\n");
     printf("  --texture <path>        Load PNG texture from file (for texture sampling scenes)\n");
+    printf("  --texture-shader        Use texture sampling shader (TEX instruction)\n");
     printf("  --help, -h              Show this help message\n");
     printf("\nExamples:\n");
     printf("  %s                           # GUI mode\n", program);
@@ -109,6 +112,8 @@ CmdArgs parseArgs(int argc, char* argv[]) {
             args.scene_name = argv[++i];
         } else if (strcmp(argv[i], "--texture") == 0 && i + 1 < argc) {
             args.texture_file = argv[++i];
+        } else if (strcmp(argv[i], "--texture-shader") == 0) {
+            args.use_texture_shader = true;
         }
     }
     return args;
@@ -151,6 +156,9 @@ int runHeadless(const CmdArgs& args) {
         bool loaded = pipeline.getFragmentShader().getShaderCore().setTextureFromPNG(0, args.texture_file);
         if (loaded) {
             printf("[INFO] Loaded texture from: %s\n", args.texture_file);
+            // 自动启用纹理采样 shader
+            pipeline.getFragmentShader().setShaderFunction(ShaderCore::getTextureSamplingShader());
+            printf("[INFO] Enabled texture sampling shader\n");
         } else {
             printf("[WARNING] Failed to load texture from: %s\n", args.texture_file);
         }

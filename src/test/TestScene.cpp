@@ -178,6 +178,66 @@ private:
 };
 
 // ============================================================================
+// Triangle-1Tri-Textured Scene: 单纹理三角形
+// UV 坐标编码在 color 通道中 (r=u, g=v)，供纹理采样 shader 使用
+// ============================================================================
+class Triangle1TriTexturedScene : public TestScene {
+public:
+    Triangle1TriTexturedScene() : TestScene("Triangle-1Tri-Textured", "Single textured triangle") {
+        // 顶点格式: x, y, z, w, r(u), g(v), b, a
+        // UV 映射: bottom-left=(0,0), bottom-right=(1,0), top=(0.5,1)
+        m_vertices = {
+             0.0f,  0.5f, 0.0f, 1.0f,   0.5f, 1.0f, 0.0f, 1.0f,  // top: u=0.5, v=1.0
+            -0.5f, -0.5f, 0.0f, 1.0f,   0.0f, 0.0f, 0.0f, 1.0f,  // bottom-left: u=0, v=0
+             0.5f, -0.5f, 0.0f, 1.0f,   1.0f, 0.0f, 0.0f, 1.0f   // bottom-right: u=1, v=0
+        };
+    }
+
+    uint32_t getTriangleCount() const override { return 1; }
+
+    const std::string& getDescription() const override { return m_description; }
+
+    void buildRenderCommand(RenderCommand& outCommand) override {
+        outCommand.vertexBufferData = m_vertices.data();
+        outCommand.vertexBufferSize = m_vertices.size();
+        outCommand.indexBufferData = nullptr;
+        outCommand.indexBufferSize = 0;
+        outCommand.drawParams.vertexCount = 3;
+        outCommand.drawParams.firstVertex = 0;
+        outCommand.drawParams.indexed = false;
+
+        // 单位矩阵
+        outCommand.viewMatrix = std::array<float, 16>{
+            1.0f, 0.0f, 0.0f, 0.0f,
+            0.0f, 1.0f, 0.0f, 0.0f,
+            0.0f, 0.0f, 1.0f, 0.0f,
+            0.0f, 0.0f, 0.0f, 1.0f
+        };
+
+        outCommand.projectionMatrix = std::array<float, 16>{
+            1.0f, 0.0f, 0.0f, 0.0f,
+            0.0f, 1.0f, 0.0f, 0.0f,
+            0.0f, 0.0f, 1.0f, 0.0f,
+            0.0f, 0.0f, 0.0f, 1.0f
+        };
+
+        outCommand.modelMatrix = std::array<float, 16>{
+            1.0f, 0.0f, 0.0f, 0.0f,
+            0.0f, 1.0f, 0.0f, 0.0f,
+            0.0f, 0.0f, 1.0f, 0.0f,
+            0.0f, 0.0f, 0.0f, 1.0f
+        };
+
+        outCommand.clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
+    }
+
+    const std::vector<float>& getVertexData() const override { return m_vertices; }
+
+private:
+    std::vector<float> m_vertices;
+};
+
+// ============================================================================
 // Triangle-Cube Scene: 立方体 (12 triangles)
 // ============================================================================
 class TriangleCubeScene : public TestScene {
@@ -622,6 +682,10 @@ std::shared_ptr<TestScene> createTriangle1TriScene() {
     return std::make_shared<Triangle1TriScene>();
 }
 
+std::shared_ptr<TestScene> createTriangle1TriTexturedScene() {
+    return std::make_shared<Triangle1TriTexturedScene>();
+}
+
 std::shared_ptr<TestScene> createTriangleCubeScene() {
     return std::make_shared<TriangleCubeScene>();
 }
@@ -673,6 +737,7 @@ std::vector<std::shared_ptr<TestScene>> TestSceneRegistry::getAllScenes() const 
 
 void TestSceneRegistry::registerBuiltinScenes() {
     registerScene(createTriangle1TriScene());
+    registerScene(createTriangle1TriTexturedScene());
     registerScene(createTriangleCubeScene());
     registerScene(createTriangleCubes100Scene());
     registerScene(createTriangleSponzaStyleScene());

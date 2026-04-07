@@ -17,7 +17,7 @@
 - **内存子系统** - Token bucket 带宽模型 + L2 缓存模拟（256KB）
 - **Warp 调度器** - 批处理，8 线程 warps
 - **性能分析器** - 实时各级阶段耗时与瓶颈检测
-- **177 个测试** - 78 个 E2E + 99 个单元/集成测试，CI 覆盖率门禁
+- **189 个测试** - 90 个 E2E + 99 个单元/集成测试，CI 覆盖率门禁
 - **ImGui 可视化** - 架构图与利用率着色
 
 ---
@@ -88,7 +88,7 @@ ctest --output-on-failure
 ./bin/test_e2e --gtest_filter=*TriangleCubes100*
 
 # 直接运行各测试可执行文件
-./bin/test_e2e              # 77 个 E2E 测试，含 golden reference
+./bin/test_e2e              # 90 个 E2E 测试，含 golden reference
 ./bin/test_Integration       # 6 个集成测试
 ./bin/test_test_scenarios   # 18 个 TestScene 单元测试
 
@@ -167,6 +167,7 @@ FrameProfiler + BottleneckDetector 提供完整的性能分析能力：
 | 场景 | 三角形数 | 描述 |
 |------|----------|------|
 | Triangle-1Tri | 1 | 单个三角形 |
+| Triangle-1Tri-Textured | 1 | 单个纹理三角形（PNG） |
 | Triangle-Cube | 12 | 立方体，6 面 |
 | Triangle-Cubes-100 | 1200 | 100 个立方体，压力测试 |
 | Triangle-SponzaStyle | 变化 | Sponza 风格建筑 |
@@ -233,7 +234,7 @@ TileWriteBack      ▓▓▓▓▓▓▓░░░ 80%  [部分实现]
 | **PrimitiveAssembly** | ⚠️ | 三角形装配、**AABB 视锥剔除** | **背面剔除**、**完整裁剪** |
 | **TilingStage** | ⚠️ | 三角形 binning (300 tiles) | **深度排序** |
 | **Rasterizer** | ⚠️ | 边缘函数 DDA、viewport 裁剪 | **MSAA 多样品采样** |
-| **FragmentShader** | ⚠️ | ISA 解释器、36 指令、Warp 调度、TEX/SAMPLE 简化版 | **真实 bilinear 纹理采样** |
+| **FragmentShader** | ⚠️ | ISA 解释器、36 指令、Warp 调度、PNG 纹理采样（NEAREST） | **Bilinear/mipmap 滤波** |
 | **EarlyZ** | ✅ | 管线已集成，FragmentShader 前过滤 | 无 |
 | **Framebuffer** | ⚠️ | Z-buffer、颜色缓冲 | **Stencil**、**Blend/Alpha** |
 | **TileWriteBack** | ⚠️ | GMEM ↔ LMEM 同步 | **压缩回写** |
@@ -264,7 +265,8 @@ TileWriteBack      ▓▓▓▓▓▓▓░░░ 80%  [部分实现]
 
 #### FragmentShader (90%)
 - ✅ 已实现: ISA 解释器、36 指令、4 种着色器类型、Warp 调度
-- ⚠️ 部分实现: **TEX/SAMPLE 简化版** - 棋盘格纹理 (Interpreter.cpp L423-L441)，无真实 bilinear/mipmap/滤波
+- ✅ 已实现: PNG 纹理加载（NEAREST 采样），可通过 `--texture` 参数使用 (ShaderCore.cpp, TextureBuffer.cpp)
+- ⚠️ 待实现: **Bilinear/mipmap 滤波**
 
 #### EarlyZ (100% ✅)
 - ✅ 已实现: EarlyZ::filterOccluded() 已集成到管线中（FragmentShader 前）
@@ -282,7 +284,7 @@ TileWriteBack      ▓▓▓▓▓▓▓░░░ 80%  [部分实现]
 
 | 版本 | 主题 | 目标 |
 |------|------|------|
-| **v1.4** ✅ | FragmentShader 增强 + Early-Z + TEX/SAMPLE | Early-Z 深度预测试、纹理采样骨架、CI 分级覆盖率、78 E2E (2026-04-05) |
+| **v1.4** ✅ | FragmentShader 增强 + Early-Z + TEX/SAMPLE | Early-Z 深度预测试、纹理采样、PNG 加载、CI 分级覆盖率、90 E2E (2026-04-07) |
 | **v1.5** | 前端管线并行化 | CommandProcessor 预取/解码、VertexShader SIMD/流水线 |
 | **v1.6** | 几何处理优化 | PrimitiveAssembly 并行剔除、TilingStage 原子化 |
 | **v1.7** | 内存与带宽优化 | L2 Cache 优化、TileWriteBack 压缩、带宽分配器 |
@@ -300,7 +302,7 @@ TileWriteBack      ▓▓▓▓▓▓▓░░░ 80%  [部分实现]
 
 ## 发布历史
 
-- **v1.4** - Early-Z 深度预测试、TEX/SAMPLE 纹理采样骨架、DP3 指令、DIV stall 周期精度、TokenBucket 带宽限制、L2 Cache 256KB + tile-aware、CI 分级覆盖率门禁、177 tests (2026-04-05)
+- **v1.4** - Early-Z 深度预测试、PNG 纹理加载（NEAREST）、DP3 指令、DIV stall 周期精度、TokenBucket 带宽限制、L2 Cache 256KB + tile-aware、CI 分级覆盖率门禁、189 tests (2026-04-07)
 - **v1.3.1** - CI 改进、中文 README、微架构路线图 (2026-03-30)
 - **v1.3** - Fragment Shader ISA 执行，4 种 ISA 着色器，55 个 E2E 测试 (2026-03-30)
 - **v1.2** - 仅文档更新 (2026-03-30)

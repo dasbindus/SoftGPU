@@ -24,6 +24,9 @@ internal/
 # Contains SOUL.md, AGENTS.md, MEMORY.md with agent context
 agents/
 
+# Claude Code local configuration (machine-specific)
+.claude/
+
 # Shared team interface - excluded from git
 # Contains design docs, reviews, meta (internal team collaboration)
 shared/
