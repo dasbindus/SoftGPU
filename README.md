@@ -193,7 +193,7 @@ FrameProfiler + BottleneckDetector 提供完整的性能分析能力：
 
 ## 路线图 (v1.3+)
 
-**当前版本: v1.4** - FragmentShader 增强 + Early-Z + TEX/SAMPLE + CI 覆盖率门禁
+**当前版本: v1.4.1** - PNG 纹理加载增强
 
 ### 管线微架构改造状态
 
@@ -284,7 +284,7 @@ TileWriteBack      ▓▓▓▓▓▓▓░░░ 80%  [部分实现]
 
 | 版本 | 主题 | 目标 |
 |------|------|------|
-| **v1.4** ✅ | FragmentShader 增强 + Early-Z + TEX/SAMPLE | Early-Z 深度预测试、纹理采样、PNG 加载、CI 分级覆盖率、90 E2E (2026-04-07) |
+| **v1.4.1** ✅ | PNG 纹理加载增强 | 自动启用 shader、新增 Triangle-1Tri-Textured 场景、scene014 E2E (2026-04-07) |
 | **v1.5** | 前端管线并行化 | CommandProcessor 预取/解码、VertexShader SIMD/流水线 |
 | **v1.6** | 几何处理优化 | PrimitiveAssembly 并行剔除、TilingStage 原子化 |
 | **v1.7** | 内存与带宽优化 | L2 Cache 优化、TileWriteBack 压缩、带宽分配器 |
@@ -302,6 +302,7 @@ TileWriteBack      ▓▓▓▓▓▓▓░░░ 80%  [部分实现]
 
 ## 发布历史
 
+- **v1.4.1** - PNG 纹理加载增强：自动启用纹理采样 shader、新增 Triangle-1Tri-Textured 场景、E2E golden 对比测试 scene014 (2026-04-07)
 - **v1.4** - Early-Z 深度预测试、PNG 纹理加载（NEAREST）、DP3 指令、DIV stall 周期精度、TokenBucket 带宽限制、L2 Cache 256KB + tile-aware、CI 分级覆盖率门禁、189 tests (2026-04-07)
 - **v1.3.1** - CI 改进、中文 README、微架构路线图 (2026-03-30)
 - **v1.3** - Fragment Shader ISA 执行，4 种 ISA 着色器，55 个 E2E 测试 (2026-03-30)

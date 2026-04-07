@@ -1,3 +1,24 @@
+# v1.4.1 (2026-04-07)
+
+## 改进
+
+- feat: PNG 纹理加载增强 - 使用 `--texture` 参数时自动启用纹理采样 shader
+- feat: 新增 Triangle-1Tri-Textured 场景 - 支持 UV 坐标的纹理三角形
+- feat: 新增 scene_014 E2E 测试 - PNG 纹理 golden reference 对比测试
+
+## 文档
+
+- docs: 清理过时文档 - 移除 phase-acceptance、releases、agent 相关文档
+- docs: 更新 README - 测试数量 78→90 E2E，177→189 total
+- docs: 添加 .claude/ 到 .gitignore
+
+## 测试
+
+- test_e2e: 90 tests PASSED
+- 新增: scene014_textured_triangle.cpp
+
+---
+
 # v1.3.2 (2026-04-03)
 
 ## Bug 修复
