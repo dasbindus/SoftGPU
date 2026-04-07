@@ -20,6 +20,7 @@ add_executable(test_e2e
     scene_009_triangle_cubes100.cpp
     scene_010_triangle_sponzastyle.cpp
     scene_011_pbr_material.cpp
+    scene_012_depth_complexity.cpp
 )
 target_link_libraries(test_e2e PRIVATE stages pipeline core test ${GTEST_LIBS})
 

@@ -491,6 +491,107 @@ TEST_F(EarlyZTest, StatsIncrement) {
     EXPECT_EQ(m_earlyz.getRejectedCount(), 3u);
 }
 
+// ---------------------------------------------------------------------------
+// Test: EarlyZ::filterOccluded - empty fragment list
+// ---------------------------------------------------------------------------
+TEST_F(EarlyZTest, FilterOccluded_EmptyFragmentList) {
+    std::vector<Fragment> fragments;  // empty
+
+    std::vector<float> depthBuffer(TILE_WIDTH * TILE_HEIGHT, CLEAR_DEPTH);
+    std::vector<Fragment> passed = m_earlyz.filterOccluded(
+        fragments, depthBuffer.data(), TILE_WIDTH, 0, 0);
+
+    EXPECT_EQ(passed.size(), 0u);
+}
+
+// ---------------------------------------------------------------------------
+// Test: EarlyZ::filterOccluded - tile boundary coordinates
+// ---------------------------------------------------------------------------
+TEST_F(EarlyZTest, FilterOccluded_TileBoundaryCoords) {
+    // Tile (0, 0): local (0, 0) = idx 0, (31, 31) = idx 1023
+    std::vector<Fragment> fragments = {
+        {0, 0, 0.2f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f},   // bottom-left corner
+        {31, 31, 0.3f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f}, // top-right corner
+        {31, 0, 0.4f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f},  // bottom-right corner
+        {0, 31, 0.5f, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f},  // top-left corner
+    };
+
+    std::vector<float> tileDepthBuffer(TILE_WIDTH * TILE_HEIGHT, CLEAR_DEPTH);
+    // Set some depths at boundaries
+    tileDepthBuffer[0] = 0.5f;                // (0,0) has 0.5
+    tileDepthBuffer[1023] = 0.1f;             // (31,31) has 0.1
+
+    std::vector<Fragment> passed = m_earlyz.filterOccluded(
+        fragments, tileDepthBuffer.data(), TILE_WIDTH, 0, 0);
+
+    // (0,0): 0.2 < 0.5 -> PASS
+    // (31,31): 0.3 > 0.1 -> REJECT
+    // (31,0): 0.4 < CLEAR_DEPTH -> PASS
+    // (0,31): 0.5 < CLEAR_DEPTH -> PASS
+    EXPECT_EQ(passed.size(), 3u);
+}
+
+// ---------------------------------------------------------------------------
+// Test: EarlyZ::filterOccluded - multiple fragments same XY different depths
+// ---------------------------------------------------------------------------
+TEST_F(EarlyZTest, FilterOccluded_SameXYDifferentDepths) {
+    // Multiple fragments at same screen position with different depths
+    std::vector<Fragment> fragments = {
+        {100, 200, 0.8f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f},  // farthest
+        {100, 200, 0.2f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f},  // closest
+        {100, 200, 0.5f, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f},  // middle
+    };
+
+    std::vector<float> depthBuffer(TILE_WIDTH * TILE_HEIGHT, CLEAR_DEPTH);
+    size_t idx = 200 * TILE_WIDTH + 100;
+    depthBuffer[idx] = 0.3f;  // current depth buffer value
+
+    std::vector<Fragment> passed = m_earlyz.filterOccluded(
+        fragments, depthBuffer.data(), TILE_WIDTH, 0, 0);
+
+    // Only 0.2 < 0.3 passes
+    EXPECT_EQ(passed.size(), 1u);
+    EXPECT_FLOAT_EQ(passed[0].z, 0.2f);
+}
+
+// ---------------------------------------------------------------------------
+// Test: EarlyZ::testFragment - boundary depths
+// ---------------------------------------------------------------------------
+TEST_F(EarlyZTest, TestFragment_BoundaryDepths) {
+    // Very small difference - should still be rejected if not strictly closer
+    EXPECT_FALSE(m_earlyz.testFragment(0.500001f, 0.5f));  // barely farther
+
+    // Very close values
+    EXPECT_TRUE(m_earlyz.testFragment(0.499999f, 0.5f));  // barely closer
+
+    // Zero depth
+    EXPECT_TRUE(m_earlyz.testFragment(0.0f, 0.5f));  // closest possible
+
+    // Far plane depth
+    EXPECT_FALSE(m_earlyz.testFragment(1.0f, 0.5f));  // farthest possible
+}
+
+// ---------------------------------------------------------------------------
+// Test: EarlyZ::filterOccluded - all fragments occluded
+// ---------------------------------------------------------------------------
+TEST_F(EarlyZTest, FilterOccluded_AllOccluded) {
+    std::vector<Fragment> fragments = {
+        {50, 50, 0.9f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f},
+        {51, 51, 0.95f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f},
+        {52, 52, 0.99f, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f},
+    };
+
+    std::vector<float> depthBuffer(TILE_WIDTH * TILE_HEIGHT, CLEAR_DEPTH);
+    depthBuffer[50 * TILE_WIDTH + 50] = 0.5f;
+    depthBuffer[51 * TILE_WIDTH + 51] = 0.6f;
+    depthBuffer[52 * TILE_WIDTH + 52] = 0.7f;
+
+    std::vector<Fragment> passed = m_earlyz.filterOccluded(
+        fragments, depthBuffer.data(), TILE_WIDTH, 0, 0);
+
+    EXPECT_EQ(passed.size(), 0u);
+}
+
 }  // anonymous namespace
 
 int main(int argc, char** argv) {

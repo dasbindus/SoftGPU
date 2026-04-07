@@ -38,3 +38,13 @@ add_executable(test_Integration test_Integration.cpp)
 target_link_libraries(test_Integration PRIVATE stages pipeline core ${GTEST_LIBS} ${APPLE_CXX_LIBS})
 include(GoogleTest)
 gtest_discover_tests(test_Integration)
+
+add_executable(test_TileBuffer test_TileBuffer.cpp)
+target_link_libraries(test_TileBuffer PRIVATE stages core ${GTEST_LIBS} ${APPLE_CXX_LIBS})
+include(GoogleTest)
+gtest_discover_tests(test_TileBuffer)
+
+add_executable(test_FragmentShader test_FragmentShader.cpp)
+target_link_libraries(test_FragmentShader PRIVATE stages pipeline core ${GTEST_LIBS} ${APPLE_CXX_LIBS})
+include(GoogleTest)
+gtest_discover_tests(test_FragmentShader)
