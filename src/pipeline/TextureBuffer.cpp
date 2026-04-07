@@ -4,6 +4,8 @@
 // ============================================================================
 
 #include "pipeline/TextureBuffer.hpp"
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
 
 namespace SoftGPU {
 
@@ -52,6 +54,17 @@ float4 TextureBuffer::sampleNearest(float u, float v) const {
         static_cast<float>(b) / 255.0f,
         static_cast<float>(a) / 255.0f
     );
+}
+
+bool TextureBuffer::loadFromPNG(const std::string& filename) {
+    int width, height, channels;
+    stbi_uc* data = stbi_load(filename.c_str(), &width, &height, &channels, 4);
+    if (!data) {
+        return false;
+    }
+    setData(static_cast<uint32_t>(width), static_cast<uint32_t>(height), data);
+    stbi_image_free(data);
+    return true;
 }
 
 } // namespace SoftGPU

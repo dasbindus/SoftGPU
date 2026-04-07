@@ -26,4 +26,5 @@ target_link_libraries(pipeline PUBLIC Threads::Threads)
 target_include_directories(pipeline PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/extern/stb
 )

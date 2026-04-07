@@ -321,6 +321,20 @@ void ShaderCore::createBuiltinTestTexture() {
     }
 }
 
+bool ShaderCore::setTextureFromPNG(int slot, const std::string& filename) {
+    if (slot < 0 || slot >= 4) {
+        return false;
+    }
+    if (!m_textures[slot]) {
+        m_textures[slot] = std::make_unique<TextureBuffer>();
+    }
+    bool success = m_textures[slot]->loadFromPNG(filename);
+    if (success) {
+        m_interpreter.setTextureBuffer(slot, m_textures[slot].get());
+    }
+    return success;
+}
+
 // ============================================================================
 // PHASE 7: Texture Sampling ISA Shader
 // 使用 TEX/SAMPLE 指令进行纹理采样

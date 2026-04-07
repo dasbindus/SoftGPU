@@ -66,6 +66,7 @@ struct CmdArgs {
     const char* output_dir = ".";
     const char* output_filename = nullptr;  // 自定义输出文件名
     const char* scene_name = "Triangle-1Tri";  // 默认场景
+    const char* texture_file = nullptr;  // PNG 纹理文件路径
 };
 
 void printHelp(const char* program) {
@@ -76,6 +77,7 @@ void printHelp(const char* program) {
     printf("  --output-filename <name> Custom output filename (default: frame_0000.ppm)\n");
     printf("  --no-tbr                Disable TBR (Tile-Based Rendering) mode\n");
     printf("  --scene <name>          Scene to render in headless mode (default: Triangle-1Tri)\n");
+    printf("  --texture <path>        Load PNG texture from file (for texture sampling scenes)\n");
     printf("  --help, -h              Show this help message\n");
     printf("\nExamples:\n");
     printf("  %s                           # GUI mode\n", program);
@@ -105,6 +107,8 @@ CmdArgs parseArgs(int argc, char* argv[]) {
             args.use_tbr = false;
         } else if (strcmp(argv[i], "--scene") == 0 && i + 1 < argc) {
             args.scene_name = argv[++i];
+        } else if (strcmp(argv[i], "--texture") == 0 && i + 1 < argc) {
+            args.texture_file = argv[++i];
         }
     }
     return args;
@@ -140,6 +144,16 @@ int runHeadless(const CmdArgs& args) {
     if (!args.use_tbr) {
         pipeline.setTBREnabled(false);
         printf("[INFO] TBR mode disabled\n");
+    }
+
+    // 可选：加载PNG纹理
+    if (args.texture_file) {
+        bool loaded = pipeline.getFragmentShader().getShaderCore().setTextureFromPNG(0, args.texture_file);
+        if (loaded) {
+            printf("[INFO] Loaded texture from: %s\n", args.texture_file);
+        } else {
+            printf("[WARNING] Failed to load texture from: %s\n", args.texture_file);
+        }
     }
 
     // 创建渲染命令

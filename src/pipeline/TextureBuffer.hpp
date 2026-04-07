@@ -11,6 +11,7 @@
 #include <vector>
 #include <cmath>
 #include <algorithm>
+#include <string>
 
 namespace SoftGPU {
 
@@ -41,6 +42,9 @@ public:
     uint32_t width() const { return m_width; }
     uint32_t height() const { return m_height; }
     bool valid() const { return m_width > 0 && m_height > 0 && !m_texels.empty(); }
+
+    // 从 PNG 文件加载纹理数据
+    bool loadFromPNG(const std::string& filename);
     
 private:
     uint32_t m_width = 0;
