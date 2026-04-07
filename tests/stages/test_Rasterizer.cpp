@@ -3,6 +3,7 @@
 // ============================================================================
 
 #include <gtest/gtest.h>
+#include <cmath>
 #include "stages/Rasterizer.hpp"
 #include "core/PipelineTypes.hpp"
 
