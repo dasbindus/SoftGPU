@@ -535,15 +535,16 @@ TEST_F(EarlyZTest, FilterOccluded_TileBoundaryCoords) {
 // Test: EarlyZ::filterOccluded - multiple fragments same XY different depths
 // ---------------------------------------------------------------------------
 TEST_F(EarlyZTest, FilterOccluded_SameXYDifferentDepths) {
-    // Multiple fragments at same screen position with different depths
+    // Multiple fragments at same tile-local position with different depths
+    // Use coordinates within tile range (0-31 for 32x32 tile)
     std::vector<Fragment> fragments = {
-        {100, 200, 0.8f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f},  // farthest
-        {100, 200, 0.2f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f},  // closest
-        {100, 200, 0.5f, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f},  // middle
+        {10, 15, 0.8f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f},  // farthest
+        {10, 15, 0.2f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f},  // closest
+        {10, 15, 0.5f, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f},  // middle
     };
 
     std::vector<float> depthBuffer(TILE_WIDTH * TILE_HEIGHT, CLEAR_DEPTH);
-    size_t idx = 200 * TILE_WIDTH + 100;
+    size_t idx = 15 * TILE_WIDTH + 10;  // local (10, 15)
     depthBuffer[idx] = 0.3f;  // current depth buffer value
 
     std::vector<Fragment> passed = m_earlyz.filterOccluded(
@@ -575,16 +576,17 @@ TEST_F(EarlyZTest, TestFragment_BoundaryDepths) {
 // Test: EarlyZ::filterOccluded - all fragments occluded
 // ---------------------------------------------------------------------------
 TEST_F(EarlyZTest, FilterOccluded_AllOccluded) {
+    // Use coordinates within tile range (0-31 for 32x32 tile)
     std::vector<Fragment> fragments = {
-        {50, 50, 0.9f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f},
-        {51, 51, 0.95f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f},
-        {52, 52, 0.99f, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f},
+        {5, 5, 0.9f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f},
+        {10, 10, 0.95f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f},
+        {15, 15, 0.99f, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f},
     };
 
     std::vector<float> depthBuffer(TILE_WIDTH * TILE_HEIGHT, CLEAR_DEPTH);
-    depthBuffer[50 * TILE_WIDTH + 50] = 0.5f;
-    depthBuffer[51 * TILE_WIDTH + 51] = 0.6f;
-    depthBuffer[52 * TILE_WIDTH + 52] = 0.7f;
+    depthBuffer[5 * TILE_WIDTH + 5] = 0.5f;
+    depthBuffer[10 * TILE_WIDTH + 10] = 0.6f;
+    depthBuffer[15 * TILE_WIDTH + 15] = 0.7f;
 
     std::vector<Fragment> passed = m_earlyz.filterOccluded(
         fragments, depthBuffer.data(), TILE_WIDTH, 0, 0);

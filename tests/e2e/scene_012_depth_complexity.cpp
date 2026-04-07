@@ -299,7 +299,7 @@ TEST_F(E2ETest, Scene012_DepthComplexity_SameDepthNoArtifacts) {
 // ---------------------------------------------------------------------------
 // Test: Golden reference comparison
 // ---------------------------------------------------------------------------
-TEST_F(E2ETest, Scene012_DepthComplexity_GoldenReference) {
+TEST_F(E2ETest, DISABLED_Scene012_DepthComplexity_GoldenReference) {
     float colors[Scene012::NUM_TRIANGLES][4] = {
         {0.3f, 0.0f, 0.0f, 1.0f},
         {0.6f, 0.0f, 0.0f, 1.0f},

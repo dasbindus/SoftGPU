@@ -199,42 +199,84 @@ FrameProfiler + BottleneckDetector 提供完整的性能分析能力：
 ```
 8 级渲染管线微架构实现进度
 
-CommandProcessor     ░░░░░░░░░░░ 0%  [待改造]
+CommandProcessor     ▓▓▓░░░░░░░ 50%  [部分实现]
        ↓
-VertexShader        ░░░░░░░░░░░ 0%  [待改造]
+VertexShader        ░░░░░░░░░░░  0%  [待改造-功能完整非ISA]
        ↓
-PrimitiveAssembly   ░░░░░░░░░░░ 0%  [待改造]
+PrimitiveAssembly   ▓▓▓▓▓░░░░░ 60%  [部分实现]
        ↓
-TilingStage        ▓▓▓▓░░░░░░ 25%  [部分实现]
+TilingStage        ▓▓▓▓▓▓▓▓░░ 90%  [部分实现]
        ↓
-Rasterizer         ▓▓▓▓░░░░░░ 25%  [部分实现]
+Rasterizer         ▓▓▓▓▓▓░░░░ 70%  [部分实现]
        ↓
-FragmentShader      ██████████ 100%  [已完成]
+FragmentShader      ▓▓▓▓▓▓▓▓░░ 90%  [部分实现]
        ↓
-Framebuffer        ▓▓▓▓░░░░░░ 25%  [部分实现]
+Framebuffer        ▓▓▓▓▓░░░░░ 60%  [部分实现]
        ↓
-TileWriteBack      ▓▓▓▓░░░░░░ 25%  [部分实现]
+TileWriteBack      ▓▓▓▓▓▓▓░░░ 80%  [部分实现]
 
 支持模块:
 ├── ShaderCore       ██████████ 100%  [已完成]
 ├── Interpreter      ██████████ 100%  [已完成]
-├── WarpScheduler   ██████████ 100%  [已完成]
 ├── MemorySubsystem ██████████ 100%  [已完成]
-└── L2Cache        ██████████ 100%  [已完成]
+└── L2Cache         ██████████ 100%  [已完成]
+
+注: WarpScheduler 为死代码，从未实例化
 ```
 
 ### 各阶段详情
 
 | 阶段 | 状态 | 已实现 | 待实现 |
 |------|------|--------|--------|
-| **CommandProcessor** | ❌ | 命令解析 | 预取队列、并行解码 |
-| **VertexShader** | ❌ | MVP 变换 | SIMD 矢量单元、流水线化 |
-| **PrimitiveAssembly** | ❌ | 裁剪/装配 | 视图剔除并行化 |
-| **TilingStage** | ⚠️ | 三角形 binning | 原子操作、输出缓冲 |
-| **Rasterizer** | ⚠️ | DDA 光栅化 | 多样品采样、流水线化 |
-| **FragmentShader** | ✅ | ISA 解释器、Warp 调度、36 指令 | 纹理采样单元 |
-| **Framebuffer** | ⚠️ | Z-buffer、颜色缓冲 | Early-Z、层级缓冲 |
-| **TileWriteBack** | ⚠️ | GMEM ↔ LMEM 同步 | Write Buffer、压缩回写 |
+| **CommandProcessor** | ⚠️ | VB/IB 复制、uniform 设置 | 预取队列、并行解码 |
+| **VertexShader** | ❌ | MVP 变换、功能完整 | **ISA 指令化**、SIMD 矢量单元 |
+| **PrimitiveAssembly** | ⚠️ | 三角形装配、**AABB 视锥剔除** | **背面剔除**、**完整裁剪** |
+| **TilingStage** | ⚠️ | 三角形 binning (300 tiles) | **深度排序** |
+| **Rasterizer** | ⚠️ | 边缘函数 DDA、viewport 裁剪 | **MSAA 多样品采样** |
+| **FragmentShader** | ⚠️ | ISA 解释器、36 指令、Warp 调度、TEX/SAMPLE 简化版 | **真实 bilinear 纹理采样** |
+| **EarlyZ** | ✅ | 管线已集成，FragmentShader 前过滤 | 无 |
+| **Framebuffer** | ⚠️ | Z-buffer、颜色缓冲 | **Stencil**、**Blend/Alpha** |
+| **TileWriteBack** | ⚠️ | GMEM ↔ LMEM 同步 | **压缩回写** |
+
+### 完整差距分析报告
+
+#### CommandProcessor (50%)
+- ✅ 已实现: VB/IB 数据复制、uniform 设置 (CommandProcessor.cpp L19-L52)
+- ❌ 待实现: 预取队列、并行解码
+- ⚠️ 说明: viewport 处理在 Rasterizer 中，CommandProcessor 仅做数据搬运
+
+#### VertexShader (0% ISA)
+- ✅ 已实现: MVP 变换、齐次除法、裁剪
+- ❌ 待实现: **ISA 指令化**（当前是 C++ 函数，非可编程微架构）
+- ⚠️ 说明: 功能完整但微架构不符合 CModel 要求
+
+#### PrimitiveAssembly (60%)
+- ✅ 已实现: 三角形装配、顶点属性插值、**AABB 视锥剔除** (PrimitiveAssembly.cpp L106-L124)
+- ❌ 待实现: **背面剔除**（无面朝向检测）、**完整裁剪**（无 Sutherland-Hodgman/Liang-Barsky）
+
+#### TilingStage (90%)
+- ✅ 已实现: 三角形 binning 到 300 tiles (20×15)
+- ❌ 待实现: **深度排序**（Painter's algorithm 用于透明物体排序）
+
+#### Rasterizer (70%)
+- ✅ 已实现: 边缘函数 DDA、亚像素精度、perspectively correct 插值、viewport 裁剪 (Rasterizer.cpp L124-L129)
+- ❌ 待实现: **MSAA 2×/4×** 多样品抗锯齿
+
+#### FragmentShader (90%)
+- ✅ 已实现: ISA 解释器、36 指令、4 种着色器类型、Warp 调度
+- ⚠️ 部分实现: **TEX/SAMPLE 简化版** - 棋盘格纹理 (Interpreter.cpp L423-L441)，无真实 bilinear/mipmap/滤波
+
+#### EarlyZ (100% ✅)
+- ✅ 已实现: EarlyZ::filterOccluded() 已集成到管线中（FragmentShader 前）
+- ✅ 已验证: test_Integration.cpp 中 16 个 EarlyZ 单元测试全部通过
+
+#### Framebuffer (60%)
+- ✅ 已实现: Z-buffer 深度测试、颜色缓冲写入
+- ❌ 待实现: **Stencil buffer**、**Blend/Alpha 混合**
+
+#### TileWriteBack (80%)
+- ✅ 已实现: GMEM ↔ LMEM 同步、回写逻辑
+- ❌ 待实现: **压缩回写**（DXT/BC 格式）
 
 ### 版本计划
 
