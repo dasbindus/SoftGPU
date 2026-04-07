@@ -1,5 +1,0 @@
-if(EXISTS "/root/.openclaw/workspace/SoftGPU/build_check/tests/core/test_isa[1]_tests.cmake")
-  include("/root/.openclaw/workspace/SoftGPU/build_check/tests/core/test_isa[1]_tests.cmake")
-else()
-  add_test(test_isa_NOT_BUILT test_isa_NOT_BUILT)
-endif()

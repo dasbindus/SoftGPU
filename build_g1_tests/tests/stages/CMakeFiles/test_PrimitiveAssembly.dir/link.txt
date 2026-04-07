@@ -1,1 +1,0 @@
-/usr/bin/c++ -g CMakeFiles/test_PrimitiveAssembly.dir/test_PrimitiveAssembly.cpp.o -o ../../bin/test_PrimitiveAssembly  ../../src/stages/libstages.a ../../src/core/libcore.a /usr/lib64/libgtest_main.so.1.12.1 /usr/lib64/libgtest.so.1.12.1 -lpthread 

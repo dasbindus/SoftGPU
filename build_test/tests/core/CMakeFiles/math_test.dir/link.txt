@@ -1,1 +1,0 @@
-/usr/bin/c++ -O3 -DNDEBUG CMakeFiles/math_test.dir/math_test.cpp.o -o ../../bin/math_test  ../../src/core/libcore.a /usr/lib64/libgtest_main.so.1.12.1 /usr/lib64/libgtest.so.1.12.1 -lpthread 

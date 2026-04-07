@@ -1,5 +1,0 @@
-if(EXISTS "/root/.openclaw/workspace/SoftGPU/build_test2/tests/stages/test_VertexShader[1]_tests.cmake")
-  include("/root/.openclaw/workspace/SoftGPU/build_test2/tests/stages/test_VertexShader[1]_tests.cmake")
-else()
-  add_test(test_VertexShader_NOT_BUILT test_VertexShader_NOT_BUILT)
-endif()

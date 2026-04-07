@@ -1,2 +1,0 @@
-/usr/bin/ar qc libtest.a CMakeFiles/test.dir/TestScene.cpp.o CMakeFiles/test.dir/TestSceneBuilder.cpp.o
-/usr/bin/ranlib libtest.a

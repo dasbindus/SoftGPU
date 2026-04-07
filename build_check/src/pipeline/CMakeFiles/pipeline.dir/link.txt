@@ -1,2 +1,0 @@
-/usr/bin/ar qc libpipeline.a CMakeFiles/pipeline.dir/RenderPipeline.cpp.o CMakeFiles/pipeline.dir/ShaderCore.cpp.o CMakeFiles/pipeline.dir/WarpScheduler.cpp.o CMakeFiles/pipeline.dir/TextureBuffer.cpp.o
-/usr/bin/ranlib libpipeline.a
