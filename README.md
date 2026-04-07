@@ -185,9 +185,13 @@ FrameProfiler + BottleneckDetector 提供完整的性能分析能力：
 
 ### 渲染效果
 
-| Triangle-1Tri | Triangle-Cube | Triangle-Cubes-100 |
+| Triangle-1Tri | Triangle-1Tri-Textured | Triangle-Cube |
 |:---:|:---:|:---:|
-| ![1Tri](images/triangle_1tri.png) | ![Cube](images/triangle_cube.png) | ![Cubes](images/triangle_cubes100.png) |
+| ![1Tri](images/triangle_1tri.png) | ![Textured](images/triangle_1tri_textured.png) | ![Cube](images/triangle_cube.png) |
+
+| Triangle-Cubes-100 |
+|:---:|
+| ![Cubes](images/triangle_cubes100.png) |
 
 ---
 
