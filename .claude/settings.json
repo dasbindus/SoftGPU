@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(./bin/test_e2e --gtest_filter=\"*Scene013*\")"
+    ]
+  }
+}

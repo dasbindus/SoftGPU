@@ -52,6 +52,12 @@ namespace ShaderRegs {
 // ============================================================================
 
 ShaderCore::ShaderCore() {
+    // 创建纹理缓冲区（使用简单的 gradient 纹理用于测试）
+    for (int i = 0; i < 4; i++) {
+        m_textures[i] = std::make_unique<TextureBuffer>();
+    }
+    // 设置内置测试纹理（8x8 渐变纹理）
+    createBuiltinTestTexture();
     // 设置纹理缓冲区到 interpreter
     for (int i = 0; i < 4; i++) {
         m_interpreter.setTextureBuffer(i, m_textures[i].get());
@@ -288,6 +294,75 @@ ShaderFunction ShaderCore::compileShader(const std::string& glsl_source) {
     return getDefaultFragmentShader();
 }
 
+void ShaderCore::createBuiltinTestTexture() {
+    // 创建一个 8x8 的 RGB 渐变测试纹理
+    // 纹理内容：R = 水平渐变, G = 垂直渐变, B = 棋盘格
+    const uint32_t size = 8;
+    std::vector<uint8_t> texData(size * size * 4);
+
+    for (uint32_t y = 0; y < size; y++) {
+        for (uint32_t x = 0; x < size; x++) {
+            uint8_t r = static_cast<uint8_t>((x * 255) / (size - 1));  // 水平渐变: 0->255
+            uint8_t g = static_cast<uint8_t>((y * 255) / (size - 1));  // 垂直渐变: 0->255
+            uint8_t b = static_cast<uint8_t>(((x + y) % 2) * 255);     // 棋盘格
+            uint8_t a = 255;
+
+            size_t idx = (y * size + x) * 4;
+            texData[idx + 0] = r;
+            texData[idx + 1] = g;
+            texData[idx + 2] = b;
+            texData[idx + 3] = a;
+        }
+    }
+
+    // 设置到纹理缓冲区 0
+    if (m_textures[0]) {
+        m_textures[0]->setData(size, size, texData.data());
+    }
+}
+
+// ============================================================================
+// PHASE 7: Texture Sampling ISA Shader
+// 使用 TEX/SAMPLE 指令进行纹理采样
+// 适用于纹理采样场景
+// ============================================================================
+ShaderFunction ShaderCore::getTextureSamplingShader() {
+    ShaderFunction shader;
+
+    using softgpu::isa::Instruction;
+
+    // 寄存器布局：
+    // R1 = FRAG_X (fragment X)
+    // R2 = FRAG_Y (fragment Y)
+    // R3 = FRAG_Z (fragment Z)
+    // R4-R7 = 输入颜色（插值后的顶点颜色，可作为 blend factor）
+    // R8 = TEX_U (纹理 U 坐标)
+    // R9 = TEX_V (纹理 V 坐标)
+    // R10-R13 = 输出颜色
+    // R14 = OUT_Z
+    // R15 = KILLED flag
+    //
+    // TEX 指令格式: TEX Rd, Ra(u), Rb(v), Rc(tex_id)
+    // 输出: Rd=颜色R, Rd+1=颜色G, Rd+2=颜色B, Rd+3=颜色A
+    //
+    // 指令序列：
+    // 0: TEX OUT_R, TEX_U, TEX_V, 0  ; 使用纹理 0 进行采样，输出到 OUT_R..OUT_A
+    // 1: MOV OUT_Z, FRAG_Z            ; 输出 depth
+    // 2: NOP
+
+    shader.code = {
+        // TEX 指令：采样纹理 0，输出 RGBA 到 R10-R13
+        Instruction::MakeR4(Opcode::TEX, ShaderRegs::OUT_R, ShaderRegs::TEX_U, ShaderRegs::TEX_V, 0).raw,
+        // Depth 输出
+        Instruction::MakeU(Opcode::MOV, ShaderRegs::OUT_Z, ShaderRegs::FRAG_Z).raw,
+        // NOP 结束
+        Instruction::MakeNOP().raw
+    };
+    shader.start_addr = 0;
+
+    return shader;
+}
+
 void ShaderCore::setupFragmentInput(FragmentContext& ctx) {
     Interpreter& interp = m_interpreter;
     
@@ -304,8 +379,10 @@ void ShaderCore::setupFragmentInput(FragmentContext& ctx) {
     interp.SetRegister(ShaderRegs::COLOR_G, ctx.color_g);
     interp.SetRegister(ShaderRegs::COLOR_B, ctx.color_b);
     interp.SetRegister(ShaderRegs::COLOR_A, ctx.color_a);
-    interp.SetRegister(ShaderRegs::TEX_U, ctx.u);
-    interp.SetRegister(ShaderRegs::TEX_V, ctx.v);
+    // Use color channels as UV coordinates for texture sampling
+    // (rasterizer interpolates vertex colors into ctx.color_r/g)
+    interp.SetRegister(ShaderRegs::TEX_U, ctx.color_r);
+    interp.SetRegister(ShaderRegs::TEX_V, ctx.color_g);
     
     // 初始化输出寄存器
     interp.SetRegister(ShaderRegs::OUT_R, 0.0f);

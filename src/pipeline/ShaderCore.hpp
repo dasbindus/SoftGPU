@@ -174,7 +174,14 @@ public:
     // 用于 Scene005/006 多三角形场景
     // ----------------------------------------------------------------
     static ShaderFunction getMultiTriangleShader();
-    
+
+    // ----------------------------------------------------------------
+    // PHASE 7: Texture Sampling ISA Shader
+    // 使用 TEX 指令进行 2D 纹理采样
+    // TEX Rd, Ra(u), Rb(v), Rc(tex_id) - 输出 RGBA 到 Rd..Rd+3
+    // ----------------------------------------------------------------
+    static ShaderFunction getTextureSamplingShader();
+
     // ========================================================================
     // 状态查询
     // ========================================================================
@@ -213,7 +220,10 @@ private:
     
     // P1-3: 纹理缓冲区（最多 4 个纹理）
     std::array<std::unique_ptr<TextureBuffer>, 4> m_textures;
-    
+
+    // 创建内置测试纹理
+    void createBuiltinTestTexture();
+
     // Fragment 执行核心
     void executeFragmentInternal(FragmentContext& ctx, const ShaderFunction& shader);
     

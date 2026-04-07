@@ -71,6 +71,7 @@ public:
     const TilingStage&       getTilingStage()      const { return m_tilingStage; }
     const Rasterizer&        getRasterizer()        const { return m_rasterizer; }
     const FragmentShader&    getFragmentShader()    const { return m_fragmentShader; }
+    FragmentShader&          getFragmentShader()          { return m_fragmentShader; }
     const TileWriteBack&     getTileWriteBack()     const { return m_tileWriteBack; }
     const MemorySubsystem&   getMemorySubsystem()   const { return m_memory; }
     MemorySubsystem&         getMemorySubsystem()         { return m_memory; }

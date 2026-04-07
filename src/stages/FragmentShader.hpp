@@ -61,6 +61,15 @@ public:
     // 是否为 PHASE2 TileBuffer 模式
     bool isTileBufferMode() const { return m_tileBuffer != nullptr; }
 
+    // 设置自定义 ISA shader 函数
+    void setShaderFunction(const ShaderFunction& shader) {
+        m_currentShader = shader;
+        m_shaderCore.loadShader(shader);
+    }
+
+    // 获取 ShaderCore 引用（用于设置纹理等）
+    ShaderCore& getShaderCore() { return m_shaderCore; }
+
 private:
     // Pointer to previous stage's output (set by connectStages)
     const std::vector<Fragment>* m_inputFragmentsPtr = nullptr;
