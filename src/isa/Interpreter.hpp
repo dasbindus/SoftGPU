@@ -158,6 +158,7 @@ public:
 
     // P0-2: Only drain pending DIVs, don't fetch/decode/execute
     // Called by WarpScheduler each cycle before executing instructions
+    // Also advances stats_.cycles by 1 to simulate one cycle passing
     void drainPendingDIVs() {
         uint64_t current_cycle = stats_.cycles;
         for (auto it = m_pending_divs.begin(); it != m_pending_divs.end(); ) {
@@ -168,6 +169,7 @@ public:
                 ++it;
             }
         }
+        stats_.cycles++;  // Advance one cycle
     }
 
     // ========================================================================
@@ -211,15 +213,7 @@ public:
     bool Step()
     {
         // P0-2: Complete any pending DIV operations whose latency has elapsed
-        uint64_t current_cycle = stats_.cycles;
-        for (auto it = m_pending_divs.begin(); it != m_pending_divs.end(); ) {
-            if (it->completion_cycle <= current_cycle) {
-                reg_file_.Write(it->rd, it->result);
-                it = m_pending_divs.erase(it);
-            } else {
-                ++it;
-            }
-        }
+        drainPendingDIVs();
         
         // Fetch
         uint32_t instruction_word = 0; // Would fetch from I-cache in real impl
@@ -232,13 +226,10 @@ public:
             return false; // Stop on invalid instruction
         }
         
-        // Execute
+        // Execute (ExecuteInstruction advances cycles internally)
         ExecuteInstruction(inst);
         
-        // Advance cycle count
-        stats_.cycles++;
-        
-        return (op != Opcode::RET); // Continue until RET
+        return (op != Opcode::RET && op != Opcode::VS_HALT); // Continue until RET or VS_HALT
     }
 
     // Run program until HALT or max cycles
@@ -621,7 +612,7 @@ public:
         case Opcode::VS_HALT:
             // HALT: Stop execution
             pc_.addr += 4;
-            return;  // Exit ExecuteInstruction (caller will see running_ is still true but we just return)
+            return;  // Exit early to avoid double-incrementing cycles (drainPendingDIVs already advanced)
 
         case Opcode::VS_JUMP: {
             // JUMP: PC += offset * 4
@@ -727,13 +718,17 @@ public:
 
         // --- VS R4-type: MAT_MUL ---
         case Opcode::VS_MAT_MUL: {
-            // VS_MAT_MUL: 4×4 matrix multiply, 4-cycle latency
-            // Column-major storage: M[j].f[i] accesses column j, row i
-            // Rd = Rm × Rv (vector form) or Rd = Ra × Rb (matrix form)
-            // R4-type: Rd, Ra(matrixA), Rb(matrixB), Rc(ignored)
-            // For vector form: Rd is destination, Ra is matrix, Rb is vector
-            // Matrix occupies 4 consecutive registers (16 floats total)
-            // Vector occupies Rd+1, Rd+2, Rd+3
+            // VS_MAT_MUL: 4×4 matrix multiply
+            // Column-major storage: M[j].f[i] = R[ra + j*4 + i]
+            // Matrix-vector multiply: r = M * v
+            // r[i] = Σⱼ M[i][j] * v[j] = Σⱼ M[j*4+i] * v[j] -- WAIT, wrong!
+            // In column-major: M[j*4+i] = element at row i, column j
+            // For r[i] = Σⱼ M[i][j] * v[j], we need M[i*4+j]
+            // But col-major storage gives us M[j*4+i], so r[i] = Σⱼ M[j*4+i] * v[j]
+            // This is actually r = M^T * v (not M * v)!
+            // 
+            // Fix: r[i] = M[i*4 + 0]*v[0] + M[i*4 + 1]*v[1] + M[i*4 + 2]*v[2] + M[i*4 + 3]*v[3]
+            // Since col-major: M[i*4+j] = element at row i, column j
 
             // Read 4×4 matrix from Ra (16 floats, column-major)
             float m[16];
@@ -749,10 +744,12 @@ public:
                 v[i] = reg_file_.Read(rb + i);
             }
 
-            // Compute result: r[i] = sum_j m[j*4+i] * v[j]
+            // Compute result: r[i] = Σⱼ M[i*4+j] * v[j]
+            // (col-major: M[j*4+i] = row i, col j; so M[i*4+j] = row j, col i = element at col j, row i = M^T)
+            // Correct formula: r[i] = m[i*4 + 0]*v[0] + m[i*4 + 1]*v[1] + m[i*4 + 2]*v[2] + m[i*4 + 3]*v[3]
             float result[4];
             for (int i = 0; i < 4; ++i) {
-                result[i] = m[i] * v[0] + m[4 + i] * v[1] + m[8 + i] * v[2] + m[12 + i] * v[3];
+                result[i] = m[i * 4 + 0] * v[0] + m[i * 4 + 1] * v[1] + m[i * 4 + 2] * v[2] + m[i * 4 + 3] * v[3];
             }
 
             // Write result to Rd..Rd+3

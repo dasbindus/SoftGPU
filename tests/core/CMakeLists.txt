@@ -73,3 +73,22 @@ endif()
 
 include(GoogleTest)
 gtest_discover_tests(test_warp)
+
+# ---------------------------------------------------------------------------
+# P1: VS ISA Phase 1 Tests (NOP, HALT, JUMP, ADD, SUB, MUL, DIV,
+#                           DOT3, NORMALIZE, MAT_MUL, VLOAD, VOUTPUT)
+# ---------------------------------------------------------------------------
+add_executable(test_vsisa_phase1 test_vsisa_phase1.cpp)
+
+if(GTest_FOUND)
+    target_link_libraries(test_vsisa_phase1 PRIVATE core isa pipeline GTest::gtest GTest::gtest_main)
+else()
+    target_link_libraries(test_vsisa_phase1 PRIVATE core isa pipeline gtest gtest_main)
+endif()
+
+if(APPLE)
+    target_link_libraries(test_vsisa_phase1 PRIVATE c++)
+endif()
+
+include(GoogleTest)
+gtest_discover_tests(test_vsisa_phase1)
