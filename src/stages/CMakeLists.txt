@@ -7,6 +7,8 @@ add_library(stages STATIC
     CommandProcessor.cpp
     VertexShader.hpp
     VertexShader.cpp
+    VSOutputAssembler.hpp
+    VSOutputAssembler.cpp
     PrimitiveAssembly.hpp
     PrimitiveAssembly.cpp
     Rasterizer.hpp
