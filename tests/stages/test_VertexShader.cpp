@@ -242,11 +242,8 @@ TEST_F(VertexShaderTest, ISA_IdentityVert_Passthrough) {
 
 // ---------------------------------------------------------------------------
 // ISA Path Tests: mvp.vert — VLOAD → MAT_MUL (MVP via precomputed P*V*M)
-// NOTE: Chained MAT_MUL (M→V→P) is not yet fully supported in this integration.
-// The interpreter's SetUniforms stores M/V/P at overlapping register ranges,
-// causing register corruption in chained operations. A proper fix requires
-// non-overlapping matrix storage (e.g., M=R8-R23, V=R40-R55, P=R56-R71).
-// The identity.vert test demonstrates the ISA pipeline integration is correct.
+// Register layout (66c38f8): M=R8-R23, V=R24-R39, P=R40-R55
+// Chained MAT_MUL (M→V→P) now fully supported with non-overlapping ranges.
 // ---------------------------------------------------------------------------
 
 TEST_F(VertexShaderTest, ISA_MVPVert_CPPPath) {
@@ -273,6 +270,38 @@ TEST_F(VertexShaderTest, ISA_MVPVert_CPPPath) {
     EXPECT_NEAR(output[0].y, 0.0f, 1e-5f);
     EXPECT_NEAR(output[0].z, 0.0f, 1e-5f);
     EXPECT_NEAR(output[0].w, 1.0f, 1e-5f);
+}
+
+// Chained MVP test: M→V→P via separate MAT_MUL steps
+// Uses M=translation(1,0,0), V=identity, P=identity => vertex moves +1 in x
+TEST_F(VertexShaderTest, ISA_ChainedMVP_CPPPath) {
+    VertexShader vs;
+
+    std::vector<float> vb = {
+        0.0f, 0.0f, 0.0f, 1.0f,  1.0f, 0.0f, 0.0f, 1.0f,  // position (0,0,0) + color
+    };
+    std::vector<uint32_t> ib;
+
+    // M = translation(1,0,0), V=identity, P=identity
+    // Expected: (0,0,0) → M → (1,0,0) → V → (1,0,0) → P → (1,0,0,1)
+    Uniforms uniforms;
+    uniforms.modelMatrix = {1,0,0,0, 0,1,0,0, 0,0,1,0, 1,0,0,1};  // T(1,0,0)
+    uniforms.viewMatrix = {1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1};     // I
+    uniforms.projectionMatrix = {1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1}; // I
+
+    vs.setInput(vb, ib, uniforms);
+    vs.setVertexCount(1);
+    vs.SetExecutionMode(VSExecutionMode::CPP);
+    vs.execute();
+
+    const auto& output = vs.getOutput();
+    ASSERT_EQ(output.size(), 1u);
+    // After M=translation(1,0,0): (0,0,0) → (1,0,0)
+    // V and P are identity, so final = (1,0,0,1)
+    EXPECT_NEAR(output[0].x, 1.0f, 1e-4f);
+    EXPECT_NEAR(output[0].y, 0.0f, 1e-4f);
+    EXPECT_NEAR(output[0].z, 0.0f, 1e-4f);
+    EXPECT_NEAR(output[0].w, 1.0f, 1e-4f);
 }
 
 // ---------------------------------------------------------------------------
