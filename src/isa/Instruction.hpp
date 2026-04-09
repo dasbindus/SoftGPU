@@ -76,6 +76,21 @@ struct Instruction
         return static_cast<int16_t>(uimm);
     }
 
+    // --- Signed 15-bit jump offset (for VS_JUMP) ---
+    // VS_JUMP encoding: bits[24:20] (5 bits) + bits[9:0] (10 bits) = 15-bit signed offset
+    // offset is in 4-byte units (PC += offset * 4)
+    int16_t GetSignedJumpOffset() const
+    {
+        uint16_t upper = static_cast<uint16_t>((raw >> 20) & 0x1F);  // bits[24:20]
+        uint16_t lower = static_cast<uint16_t>(raw & 0x3FF);          // bits[9:0]
+        uint16_t offset15 = (upper << 10) | lower;                     // combine into 15 bits
+        // Sign extend 15-bit to 16-bit
+        if (offset15 & 0x4000) {  // bit 14 is sign bit
+            return static_cast<int16_t>(offset15 | 0x8000);
+        }
+        return static_cast<int16_t>(offset15);
+    }
+
     // --- Factory methods for each instruction type ---
 
     // NOP: no operands
@@ -221,7 +236,15 @@ namespace PatternVS {
 inline Instruction vs_nop() { return Instruction::MakeJ(Opcode::VS_NOP, 0); }
 inline Instruction vs_halt() { return Instruction::MakeJ(Opcode::VS_HALT, 0); }
 inline Instruction vs_jump(int16_t offset) {
-    return Instruction::MakeJ(Opcode::VS_JUMP, static_cast<uint32_t>(offset));
+    // VS_JUMP encoding: opcode(7) | offset_hi(5) | rd(5) | ra(5) | offset_lo(10)
+    // offset is 15-bit signed, split into bits[24:20] (upper 5) and bits[9:0] (lower 10)
+    uint16_t off = static_cast<uint16_t>(offset & 0x7FFF);  // 15-bit
+    uint8_t upper = static_cast<uint8_t>((off >> 10) & 0x1F);
+    uint16_t lower = off & 0x3FF;
+    uint32_t encoding = (static_cast<uint32_t>(Opcode::VS_JUMP) << 25)
+                       | (static_cast<uint32_t>(upper) << 20)
+                       | lower;
+    return Instruction(encoding);
 }
 
 // VS R-type: ADD, SUB, MUL, DIV, DOT3, DOT4, CROSS, LENGTH, CMP, MIN, MAX, AND, OR, XOR, SHL, SHR, POW

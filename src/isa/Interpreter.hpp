@@ -511,7 +511,7 @@ public:
         case Opcode::SHL: {
             // SHL: Rd = Ra << Rb (shift left by float bits converted to int)
             uint32_t ia = *reinterpret_cast<uint32_t*>(&val_a);
-            int shift = static_cast<int>(val_b);
+            int shift = static_cast<int>(val_b) & 31;  // clamp to [0,31]
             float result;
             *reinterpret_cast<uint32_t*>(&result) = ia << shift;
             reg_file_.Write(rd, result);
@@ -522,7 +522,7 @@ public:
         case Opcode::SHR: {
             // SHR: Rd = Ra >> Rb (shift right by float bits converted to int)
             uint32_t ia = *reinterpret_cast<uint32_t*>(&val_a);
-            int shift = static_cast<int>(val_b);
+            int shift = static_cast<int>(val_b) & 31;  // clamp to [0,31]
             float result;
             *reinterpret_cast<uint32_t*>(&result) = ia >> shift;
             reg_file_.Write(rd, result);
@@ -615,8 +615,8 @@ public:
             return;  // Exit early to avoid double-incrementing cycles (drainPendingDIVs already advanced)
 
         case Opcode::VS_JUMP: {
-            // JUMP: PC += offset * 4
-            int16_t offset = inst.GetSignedImm();
+            // JUMP: PC += offset * 4 (15-bit signed offset in bits[24:10])
+            int16_t offset = inst.GetSignedJumpOffset();
             pc_.addr += static_cast<uint32_t>(offset * 4);
             break;
         }
@@ -624,7 +624,10 @@ public:
         case Opcode::VS_VOUTPUT: {
             // VOUTPUT Rd, #offset: Write clip coords to VOUTPUTBUF
             // Rd must be 4-aligned (x,y,z,w)
-            // offset field is ignored; we use m_vertex_count as base index
+            // Note: offset field in instruction encoding is intentionally ignored.
+            // Design decision: vertex index is determined by m_vertex_count (sequential),
+            // not by the offset field. The offset parameter in vs_voutput() encoding
+            // is reserved for future scatter/gather modes or explicit vertex indexing.
             (void)inst;  // offset not used (vertex index from counter)
             float x = reg_file_.Read(rd);
             float y = reg_file_.Read(rd + 1);
@@ -688,6 +691,7 @@ public:
         case Opcode::VS_NORMALIZE: {
             // VS_NORMALIZE: 5-cycle (DOT3 + RSQ + MUL×3)
             // Reads Ra.xyz (Ra must be 4-aligned), writes Rd.xyz
+            // W component of Rd is intentionally left unchanged (no write to Rd+3)
             float x = reg_file_.Read(ra);
             float y = reg_file_.Read(ra + 1);
             float z = reg_file_.Read(ra + 2);
@@ -718,17 +722,10 @@ public:
 
         // --- VS R4-type: MAT_MUL ---
         case Opcode::VS_MAT_MUL: {
-            // VS_MAT_MUL: 4×4 matrix multiply
-            // Column-major storage: M[j].f[i] = R[ra + j*4 + i]
+            // VS_MAT_MUL: 4×4 matrix multiply (column-major storage)
             // Matrix-vector multiply: r = M * v
-            // r[i] = Σⱼ M[i][j] * v[j] = Σⱼ M[j*4+i] * v[j] -- WAIT, wrong!
-            // In column-major: M[j*4+i] = element at row i, column j
-            // For r[i] = Σⱼ M[i][j] * v[j], we need M[i*4+j]
-            // But col-major storage gives us M[j*4+i], so r[i] = Σⱼ M[j*4+i] * v[j]
-            // This is actually r = M^T * v (not M * v)!
-            // 
-            // Fix: r[i] = M[i*4 + 0]*v[0] + M[i*4 + 1]*v[1] + M[i*4 + 2]*v[2] + M[i*4 + 3]*v[3]
-            // Since col-major: M[i*4+j] = element at row i, column j
+            // In column-major storage: m[i*4+j] accesses row i, column j
+            // r[i] = Σⱼ m[i*4+j] * v[j]
 
             // Read 4×4 matrix from Ra (16 floats, column-major)
             float m[16];
@@ -744,9 +741,7 @@ public:
                 v[i] = reg_file_.Read(rb + i);
             }
 
-            // Compute result: r[i] = Σⱼ M[i*4+j] * v[j]
-            // (col-major: M[j*4+i] = row i, col j; so M[i*4+j] = row j, col i = element at col j, row i = M^T)
-            // Correct formula: r[i] = m[i*4 + 0]*v[0] + m[i*4 + 1]*v[1] + m[i*4 + 2]*v[2] + m[i*4 + 3]*v[3]
+            // Compute result: r[i] = Σⱼ m[i*4+j] * v[j]
             float result[4];
             for (int i = 0; i < 4; ++i) {
                 result[i] = m[i * 4 + 0] * v[0] + m[i * 4 + 1] * v[1] + m[i * 4 + 2] * v[2] + m[i * 4 + 3] * v[3];
@@ -814,8 +809,8 @@ public:
 
         // --- VS R-type: CMP, MIN, MAX, SETP ---
         case Opcode::VS_CMP:
-            // VS_CMP: Rd = (Ra >= 0) ? Rb : 0
-            reg_file_.Write(rd, (val_a >= 0.0f) ? val_b : 0.0f);
+            // VS_CMP: Rd = (Ra >= Rb) ? Rb : 0
+            reg_file_.Write(rd, (val_a >= val_b) ? val_b : 0.0f);
             pc_.addr += 4;
             break;
 
@@ -857,6 +852,7 @@ public:
         case Opcode::VS_CROSS: {
             // VS_CROSS: cross(Ra.xyz, Rb.xyz), result writes xyz to Rd
             // Ra and Rb must be 4-aligned
+            // W component of Rd is intentionally left unchanged (no write to Rd+3)
             float ax = reg_file_.Read(ra);
             float ay = reg_file_.Read(ra + 1);
             float az = reg_file_.Read(ra + 2);
@@ -895,13 +891,17 @@ public:
         }
 
         case Opcode::VS_MAT_TRANSPOSE: {
-            // VS_MAT_TRANSPOSE: 4×4 matrix transpose
+            // VS_MAT_TRANSPOSE: 4×4 matrix transpose (column-major)
             // Rd[j*4+i] = Ra[i*4+j] (swap row/col)
+            // Use temp buffer to avoid in-place overwrite issues
+            float tmp[16];
             for (int i = 0; i < 4; ++i) {
                 for (int j = 0; j < 4; ++j) {
-                    float val = reg_file_.Read(ra + i * 4 + j);
-                    reg_file_.Write(rd + j * 4 + i, val);
+                    tmp[j * 4 + i] = reg_file_.Read(ra + i * 4 + j);
                 }
+            }
+            for (int i = 0; i < 16; ++i) {
+                reg_file_.Write(rd + i, tmp[i]);
             }
             pc_.addr += 4;
             break;
@@ -1009,7 +1009,7 @@ public:
 
         case Opcode::VS_SHL: {
             uint32_t ia = *reinterpret_cast<uint32_t*>(&val_a);
-            int shift = static_cast<int>(val_b);
+            int shift = static_cast<int>(val_b) & 31;  // clamp to [0,31]
             float result;
             *reinterpret_cast<uint32_t*>(&result) = ia << shift;
             reg_file_.Write(rd, result);
@@ -1019,7 +1019,7 @@ public:
 
         case Opcode::VS_SHR: {
             uint32_t ia = *reinterpret_cast<uint32_t*>(&val_a);
-            int shift = static_cast<int>(val_b);
+            int shift = static_cast<int>(val_b) & 31;  // clamp to [0,31]
             float result;
             *reinterpret_cast<uint32_t*>(&result) = ia >> shift;
             reg_file_.Write(rd, result);
@@ -1039,23 +1039,23 @@ public:
 
         // --- VS U-type: CVT_* ---
         case Opcode::VS_CVT_F32_S32: {
-            // Float to signed int: read float BITS as int32, then back to float
-            int32_t i = *reinterpret_cast<int32_t*>(&val_a);
+            // Float to signed int: convert float value to int32 bits, then back to float
+            int32_t i = static_cast<int32_t>(val_a);
             reg_file_.Write(rd, *reinterpret_cast<float*>(&i));
             pc_.addr += 4;
             break;
         }
 
         case Opcode::VS_CVT_F32_U32: {
-            // Float to unsigned int: read float BITS as uint32, then back to float
-            uint32_t u = *reinterpret_cast<uint32_t*>(&val_a);
+            // Float to unsigned int: convert float value to uint32 bits, then back to float
+            uint32_t u = static_cast<uint32_t>(val_a);
             reg_file_.Write(rd, *reinterpret_cast<float*>(&u));
             pc_.addr += 4;
             break;
         }
 
         case Opcode::VS_CVT_S32_F32: {
-            // Signed int to float: read int BITS as float bits, then convert to float value
+            // Signed int to float: read int bits as float bits, then convert to float value
             int32_t i = *reinterpret_cast<int32_t*>(&val_a);
             reg_file_.Write(rd, static_cast<float>(i));
             pc_.addr += 4;
