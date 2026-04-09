@@ -15,6 +15,8 @@ namespace SoftGPU {
 
 VertexShader::VertexShader() {
     resetCounters();
+    // Default ATTR table: 0=pos(0), 1=normal(16), 2=color(16), 3=uv(24)
+    m_attrTable = {0, 16, 16, 24};
 }
 
 void VertexShader::setInput(const std::vector<float>& vb,
@@ -29,9 +31,57 @@ void VertexShader::setVertexCount(size_t count) {
     m_vertexCount = count;
 }
 
-void VertexShader::execute() {
-    auto start = std::chrono::high_resolution_clock::now();
+void VertexShader::SetProgram(const uint32_t* program, size_t word_count) {
+    if (program && word_count > 0) {
+        m_vsProgram.assign(program, program + word_count);
+    } else {
+        m_vsProgram.clear();
+    }
+}
 
+void VertexShader::SetAttrLayout(const std::vector<size_t>& layout) {
+    m_attrTable = layout;
+    m_interpreter.SetAttrTable(layout);
+}
+
+void VertexShader::loadUniformsToRegisters(softgpu::isa::Interpreter& interp) {
+    // M_MAT → R8..R15 (column-major 4×4)
+    for (int i = 0; i < 16; ++i) {
+        interp.SetRegister(8 + i, m_uniforms.modelMatrix[i]);
+    }
+    // V_MAT → R16..R23
+    for (int i = 0; i < 16; ++i) {
+        interp.SetRegister(16 + i, m_uniforms.viewMatrix[i]);
+    }
+    // P_MAT → R24..R31
+    for (int i = 0; i < 16; ++i) {
+        interp.SetRegister(24 + i, m_uniforms.projectionMatrix[i]);
+    }
+    // Viewport → R32, R33
+    interp.SetRegister(32, m_uniforms.viewportWidth);
+    interp.SetRegister(33, m_uniforms.viewportHeight);
+}
+
+void VertexShader::execute() {
+    switch (m_execMode) {
+    case VSExecutionMode::ISA:
+        executeISA();
+        break;
+    case VSExecutionMode::CPP:
+        executeCPPRef();
+        break;
+    case VSExecutionMode::Auto:
+        if (HasProgram()) {
+            executeISA();
+        } else {
+            executeCPPRef();
+        }
+        break;
+    }
+}
+
+void VertexShader::executeISA() {
+    auto start = std::chrono::high_resolution_clock::now();
     m_counters.invocation_count += m_vertexCount;
 
 #if defined(__x86_64__)
@@ -41,12 +91,60 @@ void VertexShader::execute() {
     m_outputVertices.clear();
     m_outputVertices.reserve(m_vertexCount);
 
-    const size_t stride = VERTEX_STRIDE;  // 8 floats per vertex
+    if (m_vsProgram.empty()) {
+        // No program — fallback to C++
+        executeCPPRef();
+    } else {
+        // Set ATTR table and uniforms in interpreter (populates internal caches)
+        m_interpreter.SetAttrTable(m_attrTable);
+        m_interpreter.SetUniforms(
+            m_uniforms.modelMatrix.data(),
+            m_uniforms.viewMatrix.data(),
+            m_uniforms.projectionMatrix.data()
+        );
+        m_interpreter.SetViewport(m_uniforms.viewportWidth, m_uniforms.viewportHeight);
 
-    for (size_t i = 0; i < m_vertexCount; ++i) {
-        const float* rawVertex = m_vertexBuffer.data() + i * stride;
-        Vertex transformed = transformVertex(rawVertex);
-        m_outputVertices.push_back(transformed);
+        const size_t stride = VERTEX_STRIDE; // 8 floats per vertex
+
+        for (size_t i = 0; i < m_vertexCount; ++i) {
+            // Per-vertex VBO data pointer
+            const float* vertex_data = m_vertexBuffer.data() + i * stride;
+            size_t vertex_floats = stride; // floats per vertex
+
+            // Reset interpreter per-vertex
+            m_interpreter.Reset();
+            m_interpreter.ResetVS();
+
+            // Set VBO for this vertex (VLOAD reads from here)
+            m_interpreter.SetVBO(vertex_data, vertex_floats);
+
+            // NOTE: Uniforms are loaded in RunVertexProgram after Reset()
+            // Run VS program until HALT
+            m_interpreter.RunVertexProgram(m_vsProgram.data(), 1);
+
+            // Collect output
+            Vertex v;
+            v.x = m_interpreter.GetVOutputFloat(0, 0);
+            v.y = m_interpreter.GetVOutputFloat(0, 1);
+            v.z = m_interpreter.GetVOutputFloat(0, 2);
+            v.w = m_interpreter.GetVOutputFloat(0, 3);
+
+            // Attributes from VATTR buffer
+            v.r = m_interpreter.GetVAttrFloat(0, 0);
+            v.g = m_interpreter.GetVAttrFloat(0, 1);
+            v.b = m_interpreter.GetVAttrFloat(0, 2);
+            v.a = m_interpreter.GetVAttrFloat(0, 3);
+
+            // NDC (computed after perspective divide in PrimitiveAssembly)
+            v.ndcX = 0.0f;
+            v.ndcY = 0.0f;
+            v.ndcZ = 0.0f;
+
+            // Near-plane culling check
+            v.culled = (v.w <= 0.0f);
+
+            m_outputVertices.push_back(v);
+        }
     }
 
 #if defined(__x86_64__)
@@ -56,6 +154,20 @@ void VertexShader::execute() {
     auto end = std::chrono::high_resolution_clock::now();
     m_counters.elapsed_ms =
         std::chrono::duration<double, std::milli>(end - start).count();
+}
+
+void VertexShader::executeCPPRef() {
+    m_counters.invocation_count += m_vertexCount;
+    m_outputVertices.clear();
+    m_outputVertices.reserve(m_vertexCount);
+
+    const size_t stride = VERTEX_STRIDE; // 8 floats per vertex
+
+    for (size_t i = 0; i < m_vertexCount; ++i) {
+        const float* rawVertex = m_vertexBuffer.data() + i * stride;
+        Vertex transformed = transformVertex(rawVertex);
+        m_outputVertices.push_back(transformed);
+    }
 }
 
 void VertexShader::resetCounters() {
