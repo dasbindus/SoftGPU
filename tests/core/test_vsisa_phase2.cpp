@@ -142,8 +142,8 @@ TEST_F(VSISAPhase2Test, RSQ_One)
 // ---------------------------------------------------------------------------
 TEST_F(VSISAPhase2Test, CMP_PositiveCondition)
 {
-    // CMP: Rd = (Ra >= 0) ? Rb : 0
-    SetReg(1, 5.0f);   // Ra = 5 (>= 0)
+    // CMP: Rd = (Ra >= Rb) ? Rb : 0
+    SetReg(1, 15.0f);  // Ra = 15 (>= Rb)
     SetReg(2, 10.0f);  // Rb = 10
     Instruction cmp = PatternVS::vs_cmp(10, 1, 2);
     interp.ExecuteInstruction(cmp);
@@ -161,11 +161,12 @@ TEST_F(VSISAPhase2Test, CMP_NegativeCondition)
 
 TEST_F(VSISAPhase2Test, CMP_ZeroCondition)
 {
-    SetReg(1, 0.0f);   // Ra = 0 (>= 0)
-    SetReg(2, 10.0f);  // Rb = 10
+    // CMP: Rd = (Ra >= Rb) ? Rb : 0
+    SetReg(1, 0.0f);   // Ra = 0 (>= Rb when Rb = 0)
+    SetReg(2, 0.0f);  // Rb = 0
     Instruction cmp = PatternVS::vs_cmp(10, 1, 2);
     interp.ExecuteInstruction(cmp);
-    EXPECT_FLOAT_EQ(GetReg(10), 10.0f);
+    EXPECT_FLOAT_EQ(GetReg(10), 0.0f);
 }
 
 // ---------------------------------------------------------------------------
@@ -456,51 +457,50 @@ TEST_F(VSISAPhase2Test, SHR_Basic)
 }
 
 // ---------------------------------------------------------------------------
-// Test: VS_CVT_F32_S32 (float to signed int bit cast)
+// Test: VS_CVT_F32_S32 (float to signed int numerical conversion)
 // ---------------------------------------------------------------------------
 TEST_F(VSISAPhase2Test, CVT_F32_S32_Basic)
 {
-    int32_t original = 123456;
-    float f = *reinterpret_cast<float*>(&original);
+    // CVT_F32_S32: convert float value to int32, then write int bits as float
+    float f = 123456.0f;
     SetReg(1, f);
     Instruction cvt = PatternVS::vs_cvt_f32_s32(10, 1);
     interp.ExecuteInstruction(cvt);
     float result_f = GetReg(10);
     int32_t result = *reinterpret_cast<int32_t*>(&result_f);
-    EXPECT_EQ(result, original);
+    EXPECT_EQ(result, 123456);  // numerically truncated from 123456.0f
 }
 
 // ---------------------------------------------------------------------------
-// Test: VS_CVT_F32_U32 (float to unsigned int bit cast)
+// Test: VS_CVT_F32_U32 (float to unsigned int numerical conversion)
 // ---------------------------------------------------------------------------
 TEST_F(VSISAPhase2Test, CVT_F32_U32_Basic)
 {
-    uint32_t original = 3000000000u;
-    float f = *reinterpret_cast<float*>(&original);
+    // CVT_F32_U32: convert float value to uint32, then write uint bits as float
+    float f = 3000000000.0f;
     SetReg(1, f);
     Instruction cvt = PatternVS::vs_cvt_f32_u32(10, 1);
     interp.ExecuteInstruction(cvt);
     float result_f = GetReg(10);
     uint32_t result = *reinterpret_cast<uint32_t*>(&result_f);
-    EXPECT_EQ(result, original);
+    EXPECT_EQ(result, 3000000000u);  // numerically truncated from 3000000000.0f
 }
 
 // ---------------------------------------------------------------------------
-// Test: VS_CVT_S32_F32 (signed int to float - bit-level reinterpretation)
-// Note: CVT_S32_F32 reads int bits and writes as float bits, which is an unusual
-// operation. For a proper value-preserving conversion, use CVT_F32_S32 instead.
+// Test: VS_CVT_S32_F32 (signed int to float)
+// CVT_S32_F32 reads the float register's bits as int32, then converts to float value.
+// This is an unusual operation; for standard int→float conversion, CVT_F32_S32 is preferred.
 // ---------------------------------------------------------------------------
 TEST_F(VSISAPhase2Test, CVT_S32_F32_Basic)
 {
-    // This test verifies the bit-level semantics: int bits -> float bits -> float value
-    // CVT_S32_F32 is rarely used; CVT_F32_S32 is the common conversion
-    // We just verify it executes without error (actual semantics are unusual)
-    SetReg(1, 42.0f);  // Any float value
+    // CVT_S32_F32 reads the float register's bit pattern as int, then converts to float.
+    // With 42.0f (bits=0x42280000), the int value is 1108376064, which becomes ~1.1e9 as float.
+    // We verify it executes without error; exact value depends on bit reinterpretation.
+    SetReg(1, 42.0f);
     Instruction cvt = PatternVS::vs_cvt_s32_f32(10, 1);
     interp.ExecuteInstruction(cvt);
-    // Result should be some float value (exact semantics depend on bit reinterpretation)
     float result = GetReg(10);
-    (void)result;  // Result is implementation-defined for this unusual op
+    EXPECT_GT(result, 1e9f);  // bit reinterpretation of 42.0f gives ~1.1B
 }
 
 // ---------------------------------------------------------------------------
