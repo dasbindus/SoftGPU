@@ -39,42 +39,6 @@ include(GoogleTest)
 gtest_discover_tests(test_isa)
 
 # ---------------------------------------------------------------------------
-# VS ISA Phase 1: End-to-End Integration Tests
-# ---------------------------------------------------------------------------
-add_executable(test_vsisa_phase1 test_vsisa_phase1.cpp)
-
-if(GTest_FOUND)
-    target_link_libraries(test_vsisa_phase1 PRIVATE core isa stages GTest::gtest GTest::gtest_main)
-else()
-    target_link_libraries(test_vsisa_phase1 PRIVATE core isa stages gtest gtest_main)
-endif()
-
-if(APPLE)
-    target_link_libraries(test_vsisa_phase1 PRIVATE c++)
-endif()
-
-include(GoogleTest)
-gtest_discover_tests(test_vsisa_phase1)
-
-# ---------------------------------------------------------------------------
-# VS ISA Phase 2: 20 New Instructions
-# ---------------------------------------------------------------------------
-add_executable(test_vsisa_phase2 test_vsisa_phase2.cpp)
-
-if(GTest_FOUND)
-    target_link_libraries(test_vsisa_phase2 PRIVATE core isa stages GTest::gtest GTest::gtest_main)
-else()
-    target_link_libraries(test_vsisa_phase2 PRIVATE core isa stages gtest gtest_main)
-endif()
-
-if(APPLE)
-    target_link_libraries(test_vsisa_phase2 PRIVATE c++)
-endif()
-
-include(GoogleTest)
-gtest_discover_tests(test_vsisa_phase2)
-
-# ---------------------------------------------------------------------------
 # P0-3/4: Memory Tests (TokenBucket, L2 Cache)
 # ---------------------------------------------------------------------------
 add_executable(test_memory test_memory.cpp)

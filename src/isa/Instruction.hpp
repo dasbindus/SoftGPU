@@ -67,6 +67,15 @@ struct Instruction
         return static_cast<int16_t>(uimm);
     }
 
+    // --- Signed 16-bit immediate (for VS_MOV_IMM) ---
+    // Reads raw lower 16 bits directly, sign-extends to 32-bit
+    int16_t GetSignedImm16() const
+    {
+        uint16_t uimm = raw & 0xFFFF;
+        // Sign extend 16-bit to 16-bit (already 16-bit, just cast)
+        return static_cast<int16_t>(uimm);
+    }
+
     // --- Factory methods for each instruction type ---
 
     // NOP: no operands
@@ -133,6 +142,16 @@ struct Instruction
         return Instruction(encoding);
     }
 
+    // VS MOV_IMM type: opcode + rd + 16-bit signed immediate at bits [15:0]
+    // Used for VS_MOV_IMM which carries a full 16-bit immediate
+    static Instruction MakeMovImm(Opcode op, uint8_t rd, int16_t imm)
+    {
+        uint32_t encoding = (static_cast<uint32_t>(op) << 25)
+                           | (static_cast<uint32_t>(rd & 0x1F) << 20)
+                           | (static_cast<uint32_t>(static_cast<uint16_t>(imm)));
+        return Instruction(encoding);
+    }
+
     // --- Utility ---
     
     // Disassemble to string (for debugging)
@@ -192,6 +211,86 @@ inline Instruction jmp(uint32_t target) { return Instruction::MakeJ(Opcode::JMP,
 inline Instruction call(uint32_t target) { return Instruction::MakeJ(Opcode::CALL, target); }
 
 } // namespace Pattern
+
+// ============================================================================
+// VS (Vertex Shader) instruction patterns
+// ============================================================================
+namespace PatternVS {
+
+// VS J-type: NOP, HALT, JUMP, VOUTPUT
+inline Instruction vs_nop() { return Instruction::MakeJ(Opcode::VS_NOP, 0); }
+inline Instruction vs_halt() { return Instruction::MakeJ(Opcode::VS_HALT, 0); }
+inline Instruction vs_jump(int16_t offset) {
+    return Instruction::MakeJ(Opcode::VS_JUMP, static_cast<uint32_t>(offset));
+}
+
+// VS R-type: ADD, SUB, MUL, DIV, DOT3, DOT4, CROSS, LENGTH, CMP, MIN, MAX, AND, OR, XOR, SHL, SHR, POW
+inline Instruction vs_add(uint8_t rd, uint8_t ra, uint8_t rb) { return Instruction::MakeR(Opcode::VS_ADD, rd, ra, rb); }
+inline Instruction vs_sub(uint8_t rd, uint8_t ra, uint8_t rb) { return Instruction::MakeR(Opcode::VS_SUB, rd, ra, rb); }
+inline Instruction vs_mul(uint8_t rd, uint8_t ra, uint8_t rb) { return Instruction::MakeR(Opcode::VS_MUL, rd, ra, rb); }
+inline Instruction vs_div(uint8_t rd, uint8_t ra, uint8_t rb) { return Instruction::MakeR(Opcode::VS_DIV, rd, ra, rb); }
+inline Instruction vs_dot3(uint8_t rd, uint8_t ra, uint8_t rb) { return Instruction::MakeR(Opcode::VS_DOT3, rd, ra, rb); }
+inline Instruction vs_dot4(uint8_t rd, uint8_t ra, uint8_t rb) { return Instruction::MakeR(Opcode::VS_DOT4, rd, ra, rb); }
+inline Instruction vs_cross(uint8_t rd, uint8_t ra, uint8_t rb) { return Instruction::MakeR(Opcode::VS_CROSS, rd, ra, rb); }
+inline Instruction vs_length(uint8_t rd, uint8_t ra) { return Instruction::MakeR(Opcode::VS_LENGTH, rd, ra, 0); }
+inline Instruction vs_cmp(uint8_t rd, uint8_t ra, uint8_t rb) { return Instruction::MakeR(Opcode::VS_CMP, rd, ra, rb); }
+inline Instruction vs_min(uint8_t rd, uint8_t ra, uint8_t rb) { return Instruction::MakeR(Opcode::VS_MIN, rd, ra, rb); }
+inline Instruction vs_max(uint8_t rd, uint8_t ra, uint8_t rb) { return Instruction::MakeR(Opcode::VS_MAX, rd, ra, rb); }
+inline Instruction vs_and(uint8_t rd, uint8_t ra, uint8_t rb) { return Instruction::MakeR(Opcode::VS_AND, rd, ra, rb); }
+inline Instruction vs_or(uint8_t rd, uint8_t ra, uint8_t rb) { return Instruction::MakeR(Opcode::VS_OR, rd, ra, rb); }
+inline Instruction vs_xor(uint8_t rd, uint8_t ra, uint8_t rb) { return Instruction::MakeR(Opcode::VS_XOR, rd, ra, rb); }
+inline Instruction vs_shl(uint8_t rd, uint8_t ra, uint8_t rb) { return Instruction::MakeR(Opcode::VS_SHL, rd, ra, rb); }
+inline Instruction vs_shr(uint8_t rd, uint8_t ra, uint8_t rb) { return Instruction::MakeR(Opcode::VS_SHR, rd, ra, rb); }
+inline Instruction vs_pow(uint8_t rd, uint8_t ra, uint8_t rb) { return Instruction::MakeR(Opcode::VS_POW, rd, ra, rb); }
+
+// VS R4-type: MAD, MAT_MUL, MAT_ADD, MAT_TRANSPOSE
+inline Instruction vs_mad(uint8_t rd, uint8_t ra, uint8_t rb, uint8_t rc) { return Instruction::MakeR4(Opcode::VS_MAD, rd, ra, rb, rc); }
+inline Instruction vs_mat_mul(uint8_t rd, uint8_t ra, uint8_t rb) { return Instruction::MakeR4(Opcode::VS_MAT_MUL, rd, ra, rb, 0); }
+inline Instruction vs_mat_add(uint8_t rd, uint8_t ra, uint8_t rb) { return Instruction::MakeR4(Opcode::VS_MAT_ADD, rd, ra, rb, 0); }
+inline Instruction vs_mat_transpose(uint8_t rd, uint8_t ra) { return Instruction::MakeR4(Opcode::VS_MAT_TRANSPOSE, rd, ra, 0, 0); }
+
+// VS U-type: SQRT, RSQ, SIN, COS, EXPD2, LOGD2, NOT, MOV, MOV_IMM, CVT_*
+inline Instruction vs_sqrt(uint8_t rd, uint8_t ra) { return Instruction::MakeU(Opcode::VS_SQRT, rd, ra); }
+inline Instruction vs_rsq(uint8_t rd, uint8_t ra) { return Instruction::MakeU(Opcode::VS_RSQ, rd, ra); }
+inline Instruction vs_sin(uint8_t rd, uint8_t ra) { return Instruction::MakeU(Opcode::VS_SIN, rd, ra); }
+inline Instruction vs_cos(uint8_t rd, uint8_t ra) { return Instruction::MakeU(Opcode::VS_COS, rd, ra); }
+inline Instruction vs_expd2(uint8_t rd, uint8_t ra) { return Instruction::MakeU(Opcode::VS_EXPD2, rd, ra); }
+inline Instruction vs_logd2(uint8_t rd, uint8_t ra) { return Instruction::MakeU(Opcode::VS_LOGD2, rd, ra); }
+inline Instruction vs_not(uint8_t rd, uint8_t ra) { return Instruction::MakeU(Opcode::VS_NOT, rd, ra); }
+inline Instruction vs_mov(uint8_t rd, uint8_t ra) { return Instruction::MakeU(Opcode::VS_MOV, rd, ra); }
+inline Instruction vs_mov_imm(uint8_t rd, int16_t imm) { return Instruction::MakeMovImm(Opcode::VS_MOV_IMM, rd, imm); }
+inline Instruction vs_cvt_f32_s32(uint8_t rd, uint8_t ra) { return Instruction::MakeU(Opcode::VS_CVT_F32_S32, rd, ra); }
+inline Instruction vs_cvt_f32_u32(uint8_t rd, uint8_t ra) { return Instruction::MakeU(Opcode::VS_CVT_F32_U32, rd, ra); }
+inline Instruction vs_cvt_s32_f32(uint8_t rd, uint8_t ra) { return Instruction::MakeU(Opcode::VS_CVT_S32_F32, rd, ra); }
+
+// VS I-type: VLOAD, VSTORE, ATTR
+inline Instruction vs_vload(uint8_t rd, uint16_t byte_offset) { return Instruction::MakeI(Opcode::VS_VLOAD, rd, 0, byte_offset); }
+inline Instruction vs_vstore(uint8_t rd, uint16_t byte_offset, uint8_t ra) { return Instruction::MakeI(Opcode::VS_VSTORE, rd, ra, byte_offset); }
+inline Instruction vs_attr(uint8_t rd, uint16_t attr_id) { return Instruction::MakeI(Opcode::VS_ATTR, rd, 0, attr_id); }
+
+// VS B-type: CBR
+inline Instruction vs_cbr(uint8_t ra, int16_t offset) {
+    uint32_t encoding = (static_cast<uint32_t>(Opcode::VS_CBR) << 25)
+                       | (static_cast<uint32_t>(ra & 0x1F) << 20)
+                       | (static_cast<uint32_t>(offset & 0x3FF) << 10);
+    return Instruction(encoding);
+}
+
+// VS NORMALIZE: special R-type (reads 3 consecutive regs from Ra, writes 3 to Rd)
+inline Instruction vs_normalize(uint8_t rd, uint8_t ra) { return Instruction::MakeR(Opcode::VS_NORMALIZE, rd, ra, 0); }
+
+// VS VOUTPUT: J-type with offset
+inline Instruction vs_voutput(uint8_t rd, uint16_t offset) {
+    uint32_t encoding = (static_cast<uint32_t>(Opcode::VS_VOUTPUT) << 25)
+                       | (static_cast<uint32_t>(rd & 0x1F) << 20)
+                       | (static_cast<uint32_t>(offset));
+    return Instruction(encoding);
+}
+
+// VS SETP: predicate set (stub)
+inline Instruction vs_setp(uint8_t rd, uint8_t ra, uint8_t rb) { return Instruction::MakeR(Opcode::VS_SETP, rd, ra, rb); }
+
+} // namespace PatternVS
 
 } // namespace isa
 } // namespace softgpu

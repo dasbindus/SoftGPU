@@ -102,8 +102,18 @@ private:
     // P1-3: Texture buffers (最多 4 个纹理)
     SoftGPU::TextureBuffer* m_textureBuffers[4] = {nullptr, nullptr, nullptr, nullptr};
 
+    // VS: Vertex Buffer Object data
+    std::vector<float> m_vbo_data;
+    size_t m_vbo_count = 0;
+
+    // VS: Vertex output buffer (VOUTPUTBUF) - 256 bytes = 64 floats = 16 vertices × 4 components
+    static constexpr size_t MAX_VERTICES = 16;
+    static constexpr size_t VOUTPUT_BUF_SIZE = MAX_VERTICES * 4;
+    std::vector<float> m_voutput_buf;
+    size_t m_vertex_count = 0;
+
 public:
-    Interpreter() : memory_(1024 * 1024) {}
+    Interpreter() : memory_(1024 * 1024), m_voutput_buf(VOUTPUT_BUF_SIZE, 0.0f), m_vertex_count(0) {}
     
     // Initialize with program (code as vector of 32-bit words)
     void LoadProgram([[maybe_unused]] const uint32_t* code, [[maybe_unused]] size_t word_count, uint32_t start_addr = 0)
@@ -158,6 +168,43 @@ public:
                 ++it;
             }
         }
+    }
+
+    // ========================================================================
+    // VS Runner Support Methods
+    // ========================================================================
+
+    // Set VBO (Vertex Buffer Object) data for VLOAD instructions
+    void SetVBO(const float* data, size_t count) {
+        m_vbo_data.assign(data, data + count);
+        m_vbo_count = count;
+    }
+
+    // Get the number of processed vertices
+    size_t GetVertexCount() const { return m_vertex_count; }
+
+    // Get a single float from the VOUTPUT buffer
+    // vertex_idx: 0-based vertex index
+    // attribute_offset: 0=x, 1=y, 2=z, 3=w
+    float GetVOutputFloat(int vertex_idx, int attribute_offset) const {
+        if (vertex_idx < 0 || attribute_offset < 0) return 0.0f;
+        size_t idx = static_cast<size_t>(vertex_idx) * 4 + static_cast<size_t>(attribute_offset);
+        if (idx >= m_voutput_buf.size()) return 0.0f;
+        return m_voutput_buf[idx];
+    }
+
+    // Get pointer to VOUTPUT buffer data (const)
+    const float* GetVOutputBufData() const { return m_voutput_buf.data(); }
+
+    // Get size of VOUTPUT buffer in floats
+    size_t GetVOutputBufSize() const { return m_voutput_buf.size(); }
+
+    // Reset VS state (VBO, VOUTPUT buffer, vertex count)
+    void ResetVS() {
+        m_vbo_data.clear();
+        m_vbo_count = 0;
+        m_voutput_buf.assign(VOUTPUT_BUF_SIZE, 0.0f);
+        m_vertex_count = 0;
     }
 
     // Single step execution
@@ -560,7 +607,466 @@ public:
             pc_.addr += 4;
             break;
         }
-        
+
+        // ====================================================================
+        // VS (Vertex Shader) Instructions - Phase 1
+        // ====================================================================
+
+        // --- VS J-type: NOP, HALT, JUMP, VOUTPUT ---
+        case Opcode::VS_NOP:
+            // NOP: No operation, just advance PC
+            pc_.addr += 4;
+            break;
+
+        case Opcode::VS_HALT:
+            // HALT: Stop execution
+            pc_.addr += 4;
+            return;  // Exit ExecuteInstruction (caller will see running_ is still true but we just return)
+
+        case Opcode::VS_JUMP: {
+            // JUMP: PC += offset * 4
+            int16_t offset = inst.GetSignedImm();
+            pc_.addr += static_cast<uint32_t>(offset * 4);
+            break;
+        }
+
+        case Opcode::VS_VOUTPUT: {
+            // VOUTPUT Rd, #offset: Write clip coords to VOUTPUTBUF
+            // Rd must be 4-aligned (x,y,z,w)
+            // offset field is ignored; we use m_vertex_count as base index
+            (void)inst;  // offset not used (vertex index from counter)
+            float x = reg_file_.Read(rd);
+            float y = reg_file_.Read(rd + 1);
+            float z = reg_file_.Read(rd + 2);
+            float w = reg_file_.Read(rd + 3);
+
+            size_t base = m_vertex_count * 4;
+            if (base + 3 < m_voutput_buf.size()) {
+                m_voutput_buf[base + 0] = x;
+                m_voutput_buf[base + 1] = y;
+                m_voutput_buf[base + 2] = z;
+                m_voutput_buf[base + 3] = w;
+            }
+            m_vertex_count++;
+            pc_.addr += 4;
+            break;
+        }
+
+        // --- VS R-type: ADD, SUB, MUL, DIV, DOT3, NORMALIZE ---
+        case Opcode::VS_ADD:
+            reg_file_.Write(rd, val_a + val_b);
+            pc_.addr += 4;
+            break;
+
+        case Opcode::VS_SUB:
+            reg_file_.Write(rd, val_a - val_b);
+            pc_.addr += 4;
+            break;
+
+        case Opcode::VS_MUL:
+            reg_file_.Write(rd, val_a * val_b);
+            pc_.addr += 4;
+            break;
+
+        case Opcode::VS_DIV: {
+            // VS_DIV: 7-cycle latency via PendingDiv queue
+            float result = (val_b != 0.0f) ? (val_a / val_b) : std::numeric_limits<float>::infinity();
+            PendingDiv pending;
+            pending.rd = rd;
+            pending.result = result;
+            pending.completion_cycle = stats_.cycles + DIV_LATENCY;
+            m_pending_divs.push_back(pending);
+            pc_.addr += 4;
+            break;
+        }
+
+        case Opcode::VS_DOT3: {
+            // VS_DOT3: Rd = dot(Ra.xyz, Rb.xyz), Ra and Rb must be 4-aligned
+            float v0 = reg_file_.Read(ra);
+            float v1 = reg_file_.Read(ra + 1);
+            float v2 = reg_file_.Read(ra + 2);
+            float r0 = reg_file_.Read(rb);
+            float r1 = reg_file_.Read(rb + 1);
+            float r2 = reg_file_.Read(rb + 2);
+            float result = v0 * r0 + v1 * r1 + v2 * r2;
+            reg_file_.Write(rd, result);
+            pc_.addr += 4;
+            break;
+        }
+
+        case Opcode::VS_NORMALIZE: {
+            // VS_NORMALIZE: 5-cycle (DOT3 + RSQ + MUL×3)
+            // Reads Ra.xyz (Ra must be 4-aligned), writes Rd.xyz
+            float x = reg_file_.Read(ra);
+            float y = reg_file_.Read(ra + 1);
+            float z = reg_file_.Read(ra + 2);
+            float sq = x * x + y * y + z * z;
+            float inv_len = (sq > 0.0f) ? (1.0f / std::sqrt(sq)) : std::numeric_limits<float>::infinity();
+            reg_file_.Write(rd, x * inv_len);
+            reg_file_.Write(rd + 1, y * inv_len);
+            reg_file_.Write(rd + 2, z * inv_len);
+            pc_.addr += 4;
+            break;
+        }
+
+        // --- VS I-type: VLOAD ---
+        case Opcode::VS_VLOAD: {
+            // VS_VLOAD Rd, #byte_offset: Load 4 floats from VBO into Rd..Rd+3
+            // Ra is hardcoded to R0 (ignored), Rd must be 4-aligned
+            uint16_t byte_offset = inst.GetImm();  // 10-bit byte offset
+            size_t num_floats = 4;
+            for (size_t i = 0; i < num_floats; ++i) {
+                size_t vbo_idx = byte_offset / 4 + i;
+                float val = (vbo_idx < m_vbo_count) ? m_vbo_data[vbo_idx] : 0.0f;
+                reg_file_.Write(rd + static_cast<uint8_t>(i), val);
+            }
+            stats_.loads++;
+            pc_.addr += 4;
+            break;
+        }
+
+        // --- VS R4-type: MAT_MUL ---
+        case Opcode::VS_MAT_MUL: {
+            // VS_MAT_MUL: 4×4 matrix multiply, 4-cycle latency
+            // Column-major storage: M[j].f[i] accesses column j, row i
+            // Rd = Rm × Rv (vector form) or Rd = Ra × Rb (matrix form)
+            // R4-type: Rd, Ra(matrixA), Rb(matrixB), Rc(ignored)
+            // For vector form: Rd is destination, Ra is matrix, Rb is vector
+            // Matrix occupies 4 consecutive registers (16 floats total)
+            // Vector occupies Rd+1, Rd+2, Rd+3
+
+            // Read 4×4 matrix from Ra (16 floats, column-major)
+            float m[16];
+            for (int j = 0; j < 4; ++j) {
+                for (int i = 0; i < 4; ++i) {
+                    m[j * 4 + i] = reg_file_.Read(ra + j * 4 + i);
+                }
+            }
+
+            // Read vector from Rb (Rb, Rb+1, Rb+2, Rb+3)
+            float v[4];
+            for (int i = 0; i < 4; ++i) {
+                v[i] = reg_file_.Read(rb + i);
+            }
+
+            // Compute result: r[i] = sum_j m[j*4+i] * v[j]
+            float result[4];
+            for (int i = 0; i < 4; ++i) {
+                result[i] = m[i] * v[0] + m[4 + i] * v[1] + m[8 + i] * v[2] + m[12 + i] * v[3];
+            }
+
+            // Write result to Rd..Rd+3
+            for (int i = 0; i < 4; ++i) {
+                reg_file_.Write(rd + i, result[i]);
+            }
+            pc_.addr += 4;
+            break;
+        }
+
+        // ====================================================================
+        // VS (Vertex Shader) Instructions - Phase 2
+        // ====================================================================
+
+        // --- VS B-type: CBR ---
+        case Opcode::VS_CBR: {
+            // VS_CBR: if (Ra != 0) PC += offset * 4
+            float cond = reg_file_.Read(ra);
+            int16_t offset = inst.GetSignedImm();
+            if (cond != 0.0f) {
+                pc_.addr += static_cast<uint32_t>(offset * 4);
+                stats_.branches_taken++;
+            } else {
+                pc_.addr += 4;
+            }
+            break;
+        }
+
+        // --- VS R4-type: MAD ---
+        case Opcode::VS_MAD: {
+            // VS_MAD: Rd = Ra * Rb + Rc (Rc in bits [9:5] of immediate field)
+            float val_c = reg_file_.Read(inst.GetRc());
+            reg_file_.Write(rd, val_a * val_b + val_c);
+            pc_.addr += 4;
+            break;
+        }
+
+        // --- VS U-type SFU: SQRT, RSQ ---
+        case Opcode::VS_SQRT:
+            reg_file_.Write(rd, (val_a >= 0.0f) ? std::sqrt(val_a) : std::nanf(""));
+            pc_.addr += 4;
+            break;
+
+        case Opcode::VS_RSQ:
+            if (val_a > 0.0f) {
+                reg_file_.Write(rd, 1.0f / std::sqrt(val_a));
+            } else if (val_a == 0.0f) {
+                reg_file_.Write(rd, std::numeric_limits<float>::infinity());
+            } else {
+                reg_file_.Write(rd, std::nanf(""));
+            }
+            pc_.addr += 4;
+            break;
+
+        // --- VS R-type: CMP, MIN, MAX, SETP ---
+        case Opcode::VS_CMP:
+            // VS_CMP: Rd = (Ra >= 0) ? Rb : 0
+            reg_file_.Write(rd, (val_a >= 0.0f) ? val_b : 0.0f);
+            pc_.addr += 4;
+            break;
+
+        case Opcode::VS_MIN:
+            reg_file_.Write(rd, (val_a < val_b) ? val_a : val_b);
+            pc_.addr += 4;
+            break;
+
+        case Opcode::VS_MAX:
+            reg_file_.Write(rd, (val_a > val_b) ? val_a : val_b);
+            pc_.addr += 4;
+            break;
+
+        case Opcode::VS_SETP: {
+            // VS_SETP: stub - set predicate register (not implemented)
+            // For now, just write 1.0 to rd if condition is true
+            reg_file_.Write(rd, (val_a != 0.0f) ? 1.0f : 0.0f);
+            pc_.addr += 4;
+            break;
+        }
+
+        // --- VS R-type: DOT4, CROSS, LENGTH ---
+        case Opcode::VS_DOT4: {
+            // VS_DOT4: Rd = dot(Ra.xyzw, Rb.xyzw)
+            float r0 = reg_file_.Read(rb);
+            float r1 = reg_file_.Read(rb + 1);
+            float r2 = reg_file_.Read(rb + 2);
+            float r3 = reg_file_.Read(rb + 3);
+            float result = val_a * r0 + val_b * r1 + reg_file_.Read(ra + 2) * r2 + reg_file_.Read(ra + 3) * r3;
+            reg_file_.Write(rd, result);
+            pc_.addr += 4;
+            break;
+        }
+
+        case Opcode::VS_CROSS: {
+            // VS_CROSS: cross(Ra.xyz, Rb.xyz), result writes xyz to Rd
+            // Ra and Rb must be 4-aligned
+            float ax = reg_file_.Read(ra);
+            float ay = reg_file_.Read(ra + 1);
+            float az = reg_file_.Read(ra + 2);
+            float bx = reg_file_.Read(rb);
+            float by = reg_file_.Read(rb + 1);
+            float bz = reg_file_.Read(rb + 2);
+            reg_file_.Write(rd, ay * bz - az * by);      // x
+            reg_file_.Write(rd + 1, az * bx - ax * bz);  // y
+            reg_file_.Write(rd + 2, ax * by - ay * bx);   // z
+            pc_.addr += 4;
+            break;
+        }
+
+        case Opcode::VS_LENGTH: {
+            // VS_LENGTH: sqrt(dot(Ra.xyz, Ra.xyz)), Ra must be 4-aligned
+            float x = reg_file_.Read(ra);
+            float y = reg_file_.Read(ra + 1);
+            float z = reg_file_.Read(ra + 2);
+            float result = std::sqrt(x * x + y * y + z * z);
+            reg_file_.Write(rd, result);
+            pc_.addr += 4;
+            break;
+        }
+
+        // --- VS R4-type: MAT_ADD, MAT_TRANSPOSE ---
+        case Opcode::VS_MAT_ADD: {
+            // VS_MAT_ADD: 4×4 matrix element-wise addition
+            // Rd = Ra + Rb (each 16 floats)
+            for (int i = 0; i < 16; ++i) {
+                float a = reg_file_.Read(ra + i);
+                float b = reg_file_.Read(rb + i);
+                reg_file_.Write(rd + i, a + b);
+            }
+            pc_.addr += 4;
+            break;
+        }
+
+        case Opcode::VS_MAT_TRANSPOSE: {
+            // VS_MAT_TRANSPOSE: 4×4 matrix transpose
+            // Rd[j*4+i] = Ra[i*4+j] (swap row/col)
+            for (int i = 0; i < 4; ++i) {
+                for (int j = 0; j < 4; ++j) {
+                    float val = reg_file_.Read(ra + i * 4 + j);
+                    reg_file_.Write(rd + j * 4 + i, val);
+                }
+            }
+            pc_.addr += 4;
+            break;
+        }
+
+        // --- VS I-type: ATTR, VSTORE ---
+        case Opcode::VS_ATTR: {
+            // VS_ATTR: stub - request interpolated attribute from rasterizer
+            // Returns (u, v, 0, 1) as a placeholder
+            uint16_t attr_id = inst.GetImm();
+            (void)attr_id;  // unused in stub
+            reg_file_.Write(rd, 0.0f);
+            reg_file_.Write(rd + 1, 0.0f);
+            reg_file_.Write(rd + 2, 0.0f);
+            reg_file_.Write(rd + 3, 1.0f);
+            pc_.addr += 4;
+            break;
+        }
+
+        case Opcode::VS_VSTORE: {
+            // VS_VSTORE: Write Ra to VBO[Rd + offset]
+            uint16_t offset = inst.GetImm();
+            uint32_t addr = static_cast<uint32_t>(rd) * 4 + offset;
+            if (addr + 4 <= memory_.GetSize()) {
+                memory_.Store32(addr, val_a);
+            }
+            stats_.stores++;
+            pc_.addr += 4;
+            break;
+        }
+
+        // --- VS U-type SFU: SIN, COS, EXPD2, LOGD2 ---
+        case Opcode::VS_SIN: {
+            // Polynomial approximation of sin(x)
+            // Using range reduction: sin(x) = sin(x - 2π*n)
+            float x = val_a;
+            // Simple Taylor-ish approximation
+            float result = std::sin(x);
+            reg_file_.Write(rd, result);
+            pc_.addr += 4;
+            break;
+        }
+
+        case Opcode::VS_COS: {
+            float result = std::cos(val_a);
+            reg_file_.Write(rd, result);
+            pc_.addr += 4;
+            break;
+        }
+
+        case Opcode::VS_EXPD2: {
+            // EXPD2: 2^val_a
+            float result = std::exp2(val_a);
+            reg_file_.Write(rd, result);
+            pc_.addr += 4;
+            break;
+        }
+
+        case Opcode::VS_LOGD2: {
+            // LOGD2: log2(val_a)
+            float result = (val_a > 0.0f) ? std::log2(val_a) : std::nanf("");
+            reg_file_.Write(rd, result);
+            pc_.addr += 4;
+            break;
+        }
+
+        case Opcode::VS_POW: {
+            // POW: val_a ^ val_b
+            float result = std::pow(val_a, val_b);
+            reg_file_.Write(rd, result);
+            pc_.addr += 4;
+            break;
+        }
+
+        // --- VS R-type: AND, OR, XOR, SHL, SHR ---
+        case Opcode::VS_AND: {
+            uint32_t ia = *reinterpret_cast<uint32_t*>(&val_a);
+            uint32_t ib = *reinterpret_cast<uint32_t*>(&val_b);
+            float result;
+            *reinterpret_cast<uint32_t*>(&result) = ia & ib;
+            reg_file_.Write(rd, result);
+            pc_.addr += 4;
+            break;
+        }
+
+        case Opcode::VS_OR: {
+            uint32_t ia = *reinterpret_cast<uint32_t*>(&val_a);
+            uint32_t ib = *reinterpret_cast<uint32_t*>(&val_b);
+            float result;
+            *reinterpret_cast<uint32_t*>(&result) = ia | ib;
+            reg_file_.Write(rd, result);
+            pc_.addr += 4;
+            break;
+        }
+
+        case Opcode::VS_XOR: {
+            uint32_t ia = *reinterpret_cast<uint32_t*>(&val_a);
+            uint32_t ib = *reinterpret_cast<uint32_t*>(&val_b);
+            float result;
+            *reinterpret_cast<uint32_t*>(&result) = ia ^ ib;
+            reg_file_.Write(rd, result);
+            pc_.addr += 4;
+            break;
+        }
+
+        case Opcode::VS_SHL: {
+            uint32_t ia = *reinterpret_cast<uint32_t*>(&val_a);
+            int shift = static_cast<int>(val_b);
+            float result;
+            *reinterpret_cast<uint32_t*>(&result) = ia << shift;
+            reg_file_.Write(rd, result);
+            pc_.addr += 4;
+            break;
+        }
+
+        case Opcode::VS_SHR: {
+            uint32_t ia = *reinterpret_cast<uint32_t*>(&val_a);
+            int shift = static_cast<int>(val_b);
+            float result;
+            *reinterpret_cast<uint32_t*>(&result) = ia >> shift;
+            reg_file_.Write(rd, result);
+            pc_.addr += 4;
+            break;
+        }
+
+        // --- VS U-type: NOT ---
+        case Opcode::VS_NOT: {
+            uint32_t ia = *reinterpret_cast<uint32_t*>(&val_a);
+            float result;
+            *reinterpret_cast<uint32_t*>(&result) = ~ia;
+            reg_file_.Write(rd, result);
+            pc_.addr += 4;
+            break;
+        }
+
+        // --- VS U-type: CVT_* ---
+        case Opcode::VS_CVT_F32_S32: {
+            // Float to signed int (bit-level cast, treating float bits as int)
+            int32_t i = static_cast<int32_t>(val_a);
+            reg_file_.Write(rd, *reinterpret_cast<float*>(&i));
+            pc_.addr += 4;
+            break;
+        }
+
+        case Opcode::VS_CVT_F32_U32: {
+            // Float to unsigned int (bit-level cast)
+            uint32_t u = static_cast<uint32_t>(val_a);
+            reg_file_.Write(rd, *reinterpret_cast<float*>(&u));
+            pc_.addr += 4;
+            break;
+        }
+
+        case Opcode::VS_CVT_S32_F32: {
+            // Signed int to float (bit-level cast)
+            int32_t i = *reinterpret_cast<int32_t*>(&val_a);
+            reg_file_.Write(rd, static_cast<float>(i));
+            pc_.addr += 4;
+            break;
+        }
+
+        // --- VS U-type: MOV, MOV_IMM ---
+        case Opcode::VS_MOV:
+            reg_file_.Write(rd, val_a);
+            pc_.addr += 4;
+            break;
+
+        case Opcode::VS_MOV_IMM: {
+            // VS_MOV_IMM: Rd = sign_extended_16bit(imm16)
+            int16_t imm = inst.GetSignedImm16();
+            reg_file_.Write(rd, static_cast<float>(imm));
+            pc_.addr += 4;
+            break;
+        }
+
         default:
             pc_.addr += 4;
             break;
@@ -578,6 +1084,7 @@ public:
         pc_.link = 0;
         stats_.Reset();
         m_pending_divs.clear();  // P0-2: Clear pending DIVs on reset
+        ResetVS();
     }
     
     // Dump state for debugging
