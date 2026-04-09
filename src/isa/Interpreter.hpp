@@ -112,8 +112,29 @@ private:
     std::vector<float> m_voutput_buf;
     size_t m_vertex_count = 0;
 
+    // VS: Vertex attribute buffer (VATTRBUF) - outputs from VS_ATTR instructions
+    static constexpr size_t VATTR_BUF_SIZE = MAX_VERTICES * 4; // 64 floats
+    std::vector<float> m_vattr_buf;
+
+    // VS: ATTR table (attr_id → byte_offset in VBO)
+    std::vector<size_t> m_attr_table;
+
+    // VS: Uniform matrices (loaded from R8-R31)
+    std::array<float, 16> m_model_matrix{};
+    std::array<float, 16> m_view_matrix{};
+    std::array<float, 16> m_projection_matrix{};
+    float m_viewport_width = 640.0f;
+    float m_viewport_height = 480.0f;
+
+    // VS: Stored program bytecode for RunVertexProgram
+    std::vector<uint32_t> m_program;
+
 public:
-    Interpreter() : memory_(1024 * 1024), m_voutput_buf(VOUTPUT_BUF_SIZE, 0.0f), m_vertex_count(0) {}
+    Interpreter() : memory_(1024 * 1024), m_voutput_buf(VOUTPUT_BUF_SIZE, 0.0f), m_vattr_buf(VATTR_BUF_SIZE, 0.0f), m_vertex_count(0) {
+        // Default ATTR table: attr_id → byte_offset
+        // 0=pos(0), 1=normal(16), 2=color(16), 3=uv(24)
+        m_attr_table = {0, 16, 16, 24};
+    }
     
     // Initialize with program (code as vector of 32-bit words)
     void LoadProgram([[maybe_unused]] const uint32_t* code, [[maybe_unused]] size_t word_count, uint32_t start_addr = 0)
@@ -201,27 +222,133 @@ public:
     // Get size of VOUTPUT buffer in floats
     size_t GetVOutputBufSize() const { return m_voutput_buf.size(); }
 
-    // Reset VS state (VBO, VOUTPUT buffer, vertex count)
+    // Reset VS state (VBO, VOUTPUT buffer, VATTR buffer, vertex count)
     void ResetVS() {
         m_vbo_data.clear();
         m_vbo_count = 0;
         m_voutput_buf.assign(VOUTPUT_BUF_SIZE, 0.0f);
+        m_vattr_buf.assign(VATTR_BUF_SIZE, 0.0f);
         m_vertex_count = 0;
     }
 
-    // Single step execution
+    // Set ATTR table (attr_id → byte_offset)
+    void SetAttrTable(const std::vector<size_t>& table) {
+        m_attr_table = table;
+    }
+
+    // Set uniforms (model/view/projection matrices → R8-R31, viewport → R32/R33)
+    void SetUniforms(const float* model, const float* view, const float* proj) {
+        if (model) {
+            for (int i = 0; i < 16; ++i) m_model_matrix[i] = model[i];
+            // M_MAT → R8..R15
+            for (int i = 0; i < 16; ++i) reg_file_.Write(8 + i, model[i]);
+        }
+        if (view) {
+            for (int i = 0; i < 16; ++i) m_view_matrix[i] = view[i];
+            // V_MAT → R16..R23
+            for (int i = 0; i < 16; ++i) reg_file_.Write(16 + i, view[i]);
+        }
+        if (proj) {
+            for (int i = 0; i < 16; ++i) m_projection_matrix[i] = proj[i];
+            // P_MAT → R24..R31
+            for (int i = 0; i < 16; ++i) reg_file_.Write(24 + i, proj[i]);
+        }
+    }
+
+    // Set viewport dimensions (→ R32, R33)
+    void SetViewport(float width, float height) {
+        m_viewport_width = width;
+        m_viewport_height = height;
+        reg_file_.Write(32, width);
+        reg_file_.Write(33, height);
+    }
+
+    // Run a vertex program for N vertices
+    // program: pointer to ISA bytecode (uint32_t words)
+    // vertex_count: number of vertices to process (NOT program size)
+    // NOTE: program must be HALT-terminated; execution scans until HALT
+    // NOTE: Uniforms (R8-R31) are loaded from m_*_matrix AFTER reg_file_.Reset()
+    //       so caller should have populated these via SetUniforms() beforehand
+    void RunVertexProgram(const uint32_t* program, size_t vertex_count) {
+        if (!program || vertex_count == 0) return;
+
+        // Determine program size by scanning for VS_HALT (stop at HALT)
+        size_t program_size = 0;
+        while (program_size < 10000) { // safety limit
+            Instruction inst(program[program_size]);
+            if (inst.GetOpcode() == Opcode::VS_HALT || inst.GetOpcode() == Opcode::INVALID) {
+                program_size++; // include HALT in program
+                break;
+            }
+            program_size++;
+        }
+
+        // Store bytecode
+        m_program.assign(program, program + program_size);
+
+        for (size_t v = 0; v < vertex_count; ++v) {
+            // Reset per-vertex interpreter state (registers, pc, stats)
+            reg_file_.Reset();
+            pc_.addr = 0;
+            pc_.link = 0;
+            stats_.Reset();
+            m_pending_divs.clear();
+
+            // Reset VS buffers (VBO data retained, just reset indices)
+            m_voutput_buf.assign(VOUTPUT_BUF_SIZE, 0.0f);
+            m_vattr_buf.assign(VATTR_BUF_SIZE, 0.0f);
+            m_vertex_count = 0;
+
+            // Reload uniforms AFTER reset (from cached matrices set by SetUniforms)
+            // M_MAT → R8..R15
+            for (int i = 0; i < 16; ++i) reg_file_.Write(8 + i, m_model_matrix[i]);
+            // V_MAT → R16..R23
+            for (int i = 0; i < 16; ++i) reg_file_.Write(16 + i, m_view_matrix[i]);
+            // P_MAT → R24..R31
+            for (int i = 0; i < 16; ++i) reg_file_.Write(24 + i, m_projection_matrix[i]);
+            // Viewport → R32, R33
+            reg_file_.Write(32, m_viewport_width);
+            reg_file_.Write(33, m_viewport_height);
+
+            // Execute program until HALT
+            Run(100000);
+        }
+    }
+
+    // Get a single float from the VATTR buffer
+    float GetVAttrFloat(int vertex_idx, int attr_offset) const {
+        if (vertex_idx < 0 || attr_offset < 0) return 0.0f;
+        size_t idx = static_cast<size_t>(vertex_idx) * 4 + static_cast<size_t>(attr_offset);
+        if (idx >= m_vattr_buf.size()) return 0.0f;
+        return m_vattr_buf[idx];
+    }
+
+    // Get pointer to VATTR buffer data (const)
+    const float* GetVAttrBufData() const { return m_vattr_buf.data(); }
+
+    // Get size of VATTR buffer in floats
+    size_t GetVAttrBufSize() const { return m_vattr_buf.size(); }
+
+    // Get pointer to VBO data
+    const float* GetVBOData() const { return m_vbo_data.data(); }
+    size_t GetVBOCount() const { return m_vbo_count; }
+
+    // Single step execution (fetch from m_program using pc_.addr)
     bool Step()
     {
         // P0-2: Complete any pending DIV operations whose latency has elapsed
         drainPendingDIVs();
-        
-        // Fetch
-        uint32_t instruction_word = 0; // Would fetch from I-cache in real impl
-        Instruction inst(instruction_word); // Simplified
-        
+
+        // Fetch: read instruction from m_program at pc_.addr
+        uint32_t instruction_word = 0;
+        if (pc_.addr / 4 < m_program.size()) {
+            instruction_word = m_program[pc_.addr / 4];
+        }
+        Instruction inst(instruction_word);
+
         // Decode
         Opcode op = inst.GetOpcode();
-        
+
         if (op == Opcode::INVALID) {
             return false; // Stop on invalid instruction
         }
@@ -909,14 +1036,34 @@ public:
 
         // --- VS I-type: ATTR, VSTORE ---
         case Opcode::VS_ATTR: {
-            // VS_ATTR: stub - request interpolated attribute from rasterizer
-            // Returns (u, v, 0, 1) as a placeholder
+            // VS_ATTR Rd, #attr_id: Load vertex attribute into Rd..Rd+3 from VBO
+            // attr_id indexes m_attr_table to get byte_offset
+            // Data is loaded from: VBO_base + byte_offset (per-vertex VBO set by SetVBO)
             uint16_t attr_id = inst.GetImm();
-            (void)attr_id;  // unused in stub
-            reg_file_.Write(rd, 0.0f);
-            reg_file_.Write(rd + 1, 0.0f);
-            reg_file_.Write(rd + 2, 0.0f);
-            reg_file_.Write(rd + 3, 1.0f);
+            uint8_t rd = inst.GetRd();
+
+            // Get byte offset from attr table
+            size_t byte_offset = (attr_id < m_attr_table.size())
+                ? m_attr_table[attr_id]
+                : 0;
+
+            // Load 4 floats from VBO (byte_offset is in bytes, VBO stores floats)
+            size_t float_idx = byte_offset / 4;
+            for (int i = 0; i < 4; ++i) {
+                size_t idx = float_idx + i;
+                float val = (idx < m_vbo_count) ? m_vbo_data[idx] : 0.0f;
+                reg_file_.Write(rd + static_cast<uint8_t>(i), val);
+            }
+
+            // Also write to VATTR buffer for assembly
+            size_t attr_base = m_vertex_count * 4;
+            if (attr_base + 3 < m_vattr_buf.size()) {
+                for (int i = 0; i < 4; ++i) {
+                    m_vattr_buf[attr_base + i] = reg_file_.Read(rd + static_cast<uint8_t>(i));
+                }
+            }
+
+            stats_.loads++;
             pc_.addr += 4;
             break;
         }
