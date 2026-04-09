@@ -92,3 +92,26 @@ endif()
 
 include(GoogleTest)
 gtest_discover_tests(test_vsisa_phase1)
+
+# ---------------------------------------------------------------------------
+# P1: VS ISA Phase 2 Tests (CBR, MAD, SQRT, RSQ, CMP, MIN, MAX, SETP,
+#                           DOT4, CROSS, LENGTH, MAT_ADD, MAT_TRANSPOSE,
+#                           SIN, COS, EXPD2, LOGD2, POW,
+#                           AND, OR, XOR, NOT, SHL, SHR,
+#                           CVT_F32_S32, CVT_F32_U32, CVT_S32_F32,
+#                           MOV, ATTR, VSTORE)
+# ---------------------------------------------------------------------------
+add_executable(test_vsisa_phase2 test_vsisa_phase2.cpp)
+
+if(GTest_FOUND)
+    target_link_libraries(test_vsisa_phase2 PRIVATE core isa pipeline GTest::gtest GTest::gtest_main)
+else()
+    target_link_libraries(test_vsisa_phase2 PRIVATE core isa pipeline gtest gtest_main)
+endif()
+
+if(APPLE)
+    target_link_libraries(test_vsisa_phase2 PRIVATE c++)
+endif()
+
+include(GoogleTest)
+gtest_discover_tests(test_vsisa_phase2)

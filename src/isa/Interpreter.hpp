@@ -767,8 +767,16 @@ public:
         // --- VS B-type: CBR ---
         case Opcode::VS_CBR: {
             // VS_CBR: if (Ra != 0) PC += offset * 4
-            float cond = reg_file_.Read(ra);
-            int16_t offset = inst.GetSignedImm();
+            // B-type: ra at bits [24:20], immediate at bits [19:10]
+            uint8_t ra_field = static_cast<uint8_t>((inst.raw >> 20) & 0x1F);
+            uint16_t uoffset = static_cast<uint16_t>((inst.raw >> 10) & 0x3FF);
+            int16_t offset;
+            if (uoffset & 0x200) {
+                offset = static_cast<int16_t>(uoffset | 0xFC00);  // negative
+            } else {
+                offset = static_cast<int16_t>(uoffset);
+            }
+            float cond = reg_file_.Read(ra_field);
             if (cond != 0.0f) {
                 pc_.addr += static_cast<uint32_t>(offset * 4);
                 stats_.branches_taken++;
@@ -832,11 +840,15 @@ public:
         // --- VS R-type: DOT4, CROSS, LENGTH ---
         case Opcode::VS_DOT4: {
             // VS_DOT4: Rd = dot(Ra.xyzw, Rb.xyzw)
-            float r0 = reg_file_.Read(rb);
-            float r1 = reg_file_.Read(rb + 1);
-            float r2 = reg_file_.Read(rb + 2);
-            float r3 = reg_file_.Read(rb + 3);
-            float result = val_a * r0 + val_b * r1 + reg_file_.Read(ra + 2) * r2 + reg_file_.Read(ra + 3) * r3;
+            float ra0 = reg_file_.Read(ra);
+            float ra1 = reg_file_.Read(ra + 1);
+            float ra2 = reg_file_.Read(ra + 2);
+            float ra3 = reg_file_.Read(ra + 3);
+            float rb0 = reg_file_.Read(rb);
+            float rb1 = reg_file_.Read(rb + 1);
+            float rb2 = reg_file_.Read(rb + 2);
+            float rb3 = reg_file_.Read(rb + 3);
+            float result = ra0 * rb0 + ra1 * rb1 + ra2 * rb2 + ra3 * rb3;
             reg_file_.Write(rd, result);
             pc_.addr += 4;
             break;
@@ -1027,23 +1039,23 @@ public:
 
         // --- VS U-type: CVT_* ---
         case Opcode::VS_CVT_F32_S32: {
-            // Float to signed int (bit-level cast, treating float bits as int)
-            int32_t i = static_cast<int32_t>(val_a);
+            // Float to signed int: read float BITS as int32, then back to float
+            int32_t i = *reinterpret_cast<int32_t*>(&val_a);
             reg_file_.Write(rd, *reinterpret_cast<float*>(&i));
             pc_.addr += 4;
             break;
         }
 
         case Opcode::VS_CVT_F32_U32: {
-            // Float to unsigned int (bit-level cast)
-            uint32_t u = static_cast<uint32_t>(val_a);
+            // Float to unsigned int: read float BITS as uint32, then back to float
+            uint32_t u = *reinterpret_cast<uint32_t*>(&val_a);
             reg_file_.Write(rd, *reinterpret_cast<float*>(&u));
             pc_.addr += 4;
             break;
         }
 
         case Opcode::VS_CVT_S32_F32: {
-            // Signed int to float (bit-level cast)
+            // Signed int to float: read int BITS as float bits, then convert to float value
             int32_t i = *reinterpret_cast<int32_t*>(&val_a);
             reg_file_.Write(rd, static_cast<float>(i));
             pc_.addr += 4;
