@@ -519,14 +519,41 @@ TEST_F(VSISAPhase2Test, MOV_Basic)
 // ---------------------------------------------------------------------------
 TEST_F(VSISAPhase2Test, ATTR_Basic)
 {
-    // ATTR returns (u, v, 0, 1) as placeholder
-    Instruction attr = PatternVS::vs_attr(10, 0);
+    // VS_ATTR loads from VBO at byte_offset = m_attr_table[attr_id]
+    // Default attr table: attr_id=0 → byte_offset=0
+    // Set VBO so that VBO[0..3] = (0, 0, 0, 1)
+    float vbo[] = {0.0f, 0.0f, 0.0f, 1.0f};
+    interp.SetVBO(vbo, 4);
+
+    Instruction attr = PatternVS::vs_attr(10, 0);  // attr_id=0
     EXPECT_EQ(attr.GetOpcode(), Opcode::VS_ATTR);
     interp.ExecuteInstruction(attr);
     EXPECT_FLOAT_EQ(GetReg(10), 0.0f);   // u
     EXPECT_FLOAT_EQ(GetReg(11), 0.0f);   // v
-    EXPECT_FLOAT_EQ(GetReg(12), 0.0f);  // z
-    EXPECT_FLOAT_EQ(GetReg(13), 1.0f);  // w
+    EXPECT_FLOAT_EQ(GetReg(12), 0.0f);   // z
+    EXPECT_FLOAT_EQ(GetReg(13), 1.0f);   // w
+}
+
+// ---------------------------------------------------------------------------
+// Test: VS_ATTR with color attribute (attr_id=2, byte_offset=16)
+// ---------------------------------------------------------------------------
+TEST_F(VSISAPhase2Test, ATTR_Color)
+{
+    // VBO layout: pos(16 bytes) + color(16 bytes) = 32 bytes total
+    // color at byte_offset=16 → float index=4
+    float vbo[] = {
+        0.0f, 0.0f, 0.0f, 1.0f,  // position (not used by ATTR)
+        0.5f, 0.3f, 0.7f, 1.0f   // color at VBO[4..7]
+    };
+    interp.SetVBO(vbo, 8);
+
+    // attr_id=2 → byte_offset=16 (color in default layout)
+    Instruction attr = PatternVS::vs_attr(10, 2);
+    interp.ExecuteInstruction(attr);
+    EXPECT_FLOAT_EQ(GetReg(10), 0.5f);   // r
+    EXPECT_FLOAT_EQ(GetReg(11), 0.3f);   // g
+    EXPECT_FLOAT_EQ(GetReg(12), 0.7f);   // b
+    EXPECT_FLOAT_EQ(GetReg(13), 1.0f);   // a
 }
 
 // ---------------------------------------------------------------------------
