@@ -7,6 +7,7 @@
 
 #include "isa_v2_5.hpp"
 #include "register_file_v2_5.hpp"
+#include "../pipeline/TextureBuffer.hpp"
 #include <cstdint>
 #include <cmath>
 #include <vector>
@@ -296,13 +297,27 @@ private:
     }
     void ExTEX() {
         uint8_t rd = inst_.GetRd(), ra = inst_.GetRa(), rb = inst_.GetRb();
-        int cx = static_cast<int>(rf_.Read(ra) * 8.0f);
-        int cy = static_cast<int>(rf_.Read(rb) * 8.0f);
-        float c = ((cx + cy) % 2 == 0) ? 1.0f : 0.0f;
-        rf_.Write(rd, c);
-        rf_.Write(rd+1, c);
-        rf_.Write(rd+2, c);
-        rf_.Write(rd+3, 1.0f);
+        float u = rf_.Read(ra);
+        float v = rf_.Read(rb);
+
+        // Cast void* back to TextureBuffer* and sample
+        SoftGPU::TextureBuffer* tex = reinterpret_cast<SoftGPU::TextureBuffer*>(tex_[0]);
+        if (tex && tex->valid()) {
+            SoftGPU::float4 c = tex->sampleNearest(u, v);
+            rf_.Write(rd, c.r);
+            rf_.Write(rd+1, c.g);
+            rf_.Write(rd+2, c.b);
+            rf_.Write(rd+3, c.a);
+        } else {
+            // Fallback: checkerboard if no valid texture
+            int cx = static_cast<int>(u * 8.0f);
+            int cy = static_cast<int>(v * 8.0f);
+            float c = ((cx + cy) % 2 == 0) ? 1.0f : 0.0f;
+            rf_.Write(rd, c);
+            rf_.Write(rd+1, c);
+            rf_.Write(rd+2, c);
+            rf_.Write(rd+3, 1.0f);
+        }
     }
     void ExSAMPLE() { ExTEX(); }
 
