@@ -498,12 +498,12 @@ private:
 // ============================================================================
 // Constructor & Reset
 // ============================================================================
-Interpreter::Interpreter() : mem_(1048576), vobuf_(64, 0.0f), vabuf_(64, 0.0f) {
+inline Interpreter::Interpreter() : mem_(1048576), vobuf_(64, 0.0f), vabuf_(64, 0.0f) {
     attable_ = {0, 16, 16, 24};
     Reset();
 }
 
-void Interpreter::Reset() {
+inline void Interpreter::Reset() {
     rf_.Reset();
     pc_ = link_ = 0;
     st_.Reset();
@@ -515,25 +515,25 @@ void Interpreter::Reset() {
     vcnt_ = curvtx_ = 0;
 }
 
-void Interpreter::LoadProgram(const uint32_t* code, size_t n, uint32_t a) {
+inline void Interpreter::LoadProgram(const uint32_t* code, size_t n, uint32_t a) {
     prog_.assign(code, code + n);
     pc_ = a;
     iv_ = idw_ = idf_ = run_ = true;
 }
 
-void Interpreter::SetVBO(const float* d, size_t n) {
+inline void Interpreter::SetVBO(const float* d, size_t n) {
     vbodata_.assign(d, d + n);
     vcount_ = n;
 }
 
-void Interpreter::SetAttrTable(const std::vector<size_t>& t) {
+inline void Interpreter::SetAttrTable(const std::vector<size_t>& t) {
     attable_ = t;
 }
 
 // ============================================================================
 // Pipeline: IF
 // ============================================================================
-void Interpreter::Fetch() {
+inline void Interpreter::Fetch() {
     if (!run_) return;
 
     // Fetch word2 of dual-word (second cycle)
@@ -556,12 +556,12 @@ void Interpreter::Fetch() {
     if (!idw_) idf_ = true;
 }
 
-void Interpreter::Decode() {
+inline void Interpreter::Decode() {
     if (!iv_) return;
     if (inst_.GetOpcode() == Opcode::INVALID) { iv_ = false; run_ = false; }
 }
 
-void Interpreter::DrainDIVs() {
+inline void Interpreter::DrainDIVs() {
     uint64_t c = st_.cycles;
     for (size_t i = 0; i < pd_.size(); ) {
         if (pd_[i].completion_cycle <= c) {
@@ -574,7 +574,7 @@ void Interpreter::DrainDIVs() {
 // ============================================================================
 // Pipeline: EX
 // ============================================================================
-void Interpreter::Execute() {
+inline void Interpreter::Execute() {
     if (!iv_) return;
     st_.instructions_executed++;
     DrainDIVs();
@@ -756,7 +756,7 @@ void Interpreter::Execute() {
     if (run_) pc_ += idw_ ? 8 : 4;
 }
 
-bool Interpreter::Step() {
+inline bool Interpreter::Step() {
     st_.cycles++;
     Fetch();
     Decode();
@@ -764,19 +764,19 @@ bool Interpreter::Step() {
     return run_;
 }
 
-void Interpreter::Run(uint64_t max_cycles) {
+inline void Interpreter::Run(uint64_t max_cycles) {
     while (run_ && st_.cycles < max_cycles) {
         if (!Step()) break;
     }
 }
 
-float Interpreter::GetVOutputFloat(int vi, int off) const {
+inline float Interpreter::GetVOutputFloat(int vi, int off) const {
     if (vi < 0 || off < 0) return 0.0f;
     size_t idx = static_cast<size_t>(vi) * 4 + static_cast<size_t>(off);
     return (idx < vobuf_.size()) ? vobuf_[idx] : 0.0f;
 }
 
-std::string Interpreter::DumpState() const {
+inline std::string Interpreter::DumpState() const {
     char buf[512];
     snprintf(buf, sizeof(buf),
         "PC=0x%08X Cycles=%llu Insts=%llu Loads=%llu Stores=%llu\n"

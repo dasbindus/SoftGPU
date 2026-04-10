@@ -8,7 +8,7 @@
 #include "IStage.hpp"
 #include "core/PipelineTypes.hpp"
 #include "VSOutputAssembler.hpp"
-#include "../isa/Interpreter.hpp"
+#include "../isa/interpreter_v2_5.hpp"
 #include <vector>
 
 namespace SoftGPU {
@@ -70,8 +70,7 @@ private:
     // C++ 路径执行（参考实现）
     void executeCPPRef();
 
-    // 加载 uniforms 到 interpreter 寄存器
-    void loadUniformsToRegisters(softgpu::isa::Interpreter& interp);
+
 
     std::vector<float>    m_vertexBuffer;
     std::vector<uint32_t> m_indexBuffer;
@@ -85,7 +84,7 @@ private:
     VSExecutionMode m_execMode = VSExecutionMode::Auto;
     std::vector<uint32_t> m_vsProgram;        // ISA bytecode
     std::vector<size_t>   m_attrTable;        // ATTR table: attr_id → byte_offset
-    softgpu::isa::Interpreter m_interpreter;  // ISA 解释器
+    softgpu::isa::v2_5::Interpreter m_interpreter;  // ISA 解释器
     VSOutputAssembler     m_assembler;        // 输出汇编器
 
     // 内部：执行 MVP 变换（C++ 路径）

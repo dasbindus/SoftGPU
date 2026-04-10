@@ -44,24 +44,6 @@ void VertexShader::SetAttrLayout(const std::vector<size_t>& layout) {
     m_interpreter.SetAttrTable(layout);
 }
 
-void VertexShader::loadUniformsToRegisters(softgpu::isa::Interpreter& interp) {
-    // M_MAT → R8..R15 (column-major 4×4)
-    for (int i = 0; i < 16; ++i) {
-        interp.SetRegister(8 + i, m_uniforms.modelMatrix[i]);
-    }
-    // V_MAT → R16..R23
-    for (int i = 0; i < 16; ++i) {
-        interp.SetRegister(16 + i, m_uniforms.viewMatrix[i]);
-    }
-    // P_MAT → R24..R31
-    for (int i = 0; i < 16; ++i) {
-        interp.SetRegister(24 + i, m_uniforms.projectionMatrix[i]);
-    }
-    // Viewport → R32, R33
-    interp.SetRegister(32, m_uniforms.viewportWidth);
-    interp.SetRegister(33, m_uniforms.viewportHeight);
-}
-
 void VertexShader::execute() {
     switch (m_execMode) {
     case VSExecutionMode::ISA:
