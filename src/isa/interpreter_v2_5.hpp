@@ -352,6 +352,8 @@ private:
         rf_.Write(rd, (a + 4 <= mem_.GetSize()) ? mem_.Load32(a) : 0.0f);
     }
     void ExATTR() {
+        // Format-B dual-word: extract single vertex attribute component from VBO
+        // Ra implicit=VBO base pointer, imm=VBO byte offset
         uint8_t rd = inst_.GetRd();
         uint16_t off = inst_.GetImm10();
         uint32_t a = vbobase_ + off;
