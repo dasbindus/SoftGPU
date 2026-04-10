@@ -344,6 +344,8 @@ private:
         curvtx_++; vcnt_++;
     }
     void ExLDC() {
+        // Format-B dual-word: load from constant buffer
+        // Ra = constant buffer base address, imm = byte offset
         uint8_t rd = inst_.GetRd();
         uint16_t off = inst_.GetImm10();
         uint32_t a = cbbase_ + off * 4;
