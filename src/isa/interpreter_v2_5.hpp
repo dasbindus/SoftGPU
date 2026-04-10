@@ -266,6 +266,10 @@ private:
         uint32_t r = ~b;
         rf_.Write(rd, reinterpret_cast<float&>(r));
     }
+    void ExMOV() {
+        uint8_t rd = inst_.GetRd(), ra = inst_.GetRa();
+        rf_.Write(rd, rf_.Read(ra));
+    }
 
     // Format-B dual-word
     // For dual-word: next instruction = pc_ + 8
@@ -584,6 +588,9 @@ void Interpreter::Execute() {
             break;
         case Opcode::NOT:
             ExNOT();
+            break;
+        case Opcode::MOV:
+            ExMOV();
             break;
 
         // Format-B dual-word

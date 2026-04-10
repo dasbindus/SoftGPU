@@ -68,6 +68,7 @@ enum class Opcode : uint8_t {
 
     // ---- VS-Only (0x40-0x5F)
     MOV_IMM = 0x48,
+    MOV = 0x63,
     VLOAD = 0x49,
     VSTORE = 0x4A,
     OUTPUT_VS = 0x4B,
@@ -156,6 +157,7 @@ struct Instruction {
             case Opcode::F2I:
             case Opcode::I2F:
             case Opcode::NOT:
+            case Opcode::MOV:
                 return Format::C;
             case Opcode::BRA:
             case Opcode::CALL:
@@ -270,6 +272,7 @@ inline const char* GetOpcodeName(Opcode op) {
         case Opcode::F2I: return "F2I";
         case Opcode::I2F: return "I2F";
         case Opcode::NOT: return "NOT";
+        case Opcode::MOV: return "MOV";
         case Opcode::LD: return "LD";
         case Opcode::ST: return "ST";
         case Opcode::TEX: return "TEX";
