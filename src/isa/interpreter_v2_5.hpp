@@ -335,6 +335,9 @@ private:
         st_.stores++;
     }
     void ExOUTPUT_VS() {
+        // Format-B dual-word: output clip-space coordinates to rasterizer
+        // Rd = clip coordinates (4-aligned, x/y/z/w), offset = VOUTPUTBUF internal offset
+        // Execution cycles: 2, terminating instruction
         uint8_t rd = inst_.GetRd();
         uint32_t base = curvtx_ * 4;
         if (base + 3 < vobuf_.size()) for (int i = 0; i < 4; ++i) vobuf_[base + i] = rf_.Read(rd + i);
