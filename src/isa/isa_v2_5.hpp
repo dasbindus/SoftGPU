@@ -105,10 +105,10 @@ struct Instruction {
     uint8_t GetRb_W2() const { return (word2 >> 12) & 0x7F; }
     uint16_t GetImm10() const { return word2 & 0x3FF; }
 
-    int16_t GetSignedImm10() const {
+    int32_t GetSignedImm10() const {
         uint16_t u = word2 & 0x3FF;
-        if (u & 0x200) return static_cast<int16_t>(u | 0xFC00);
-        return static_cast<int16_t>(u);
+        if (u & 0x200) return -static_cast<int32_t>(u & 0x1FF);
+        return static_cast<int32_t>(u);
     }
 
     uint16_t GetFunc() const { return (word1 >> 8) & 0x1FF; }
