@@ -324,6 +324,8 @@ private:
         st_.loads++;
     }
     void ExVSTORE() {
+        // Format-B dual-word: stores vertex attributes (4 floats) to VBO
+        // Ra implicit=R0 (VBO base pointer), Rb=src register (4-aligned), imm=byte_offset
         uint8_t rb = inst_.GetRb_W2();
         uint16_t boff = inst_.GetImm10();
         for (int i = 0; i < 4; ++i) {
