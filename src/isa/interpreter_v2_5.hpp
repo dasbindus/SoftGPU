@@ -314,10 +314,13 @@ private:
         st_.stores++;
     }
     void ExVLOAD() {
+        // Format-B dual-word: Ra implicit=R0 (VBO base pointer), imm=byte_offset(0-1023)
+        // Rd must be 4-aligned (4 consecutive registers, fills vec4)
         uint8_t rd = inst_.GetRd();
-        uint16_t boff = inst_.GetImm10();
-        size_t fi = boff / 4;
-        for (int i = 0; i < 4; ++i) rf_.Write(rd + i, (fi + i < vcount_) ? vbodata_[fi + i] : 0.0f);
+        uint16_t boff = inst_.GetImm10();  // byte_offset
+        size_t fi = boff / 4;              // convert byte offset to float index
+        for (int i = 0; i < 4; ++i)
+            rf_.Write(rd + i, (fi + i < vcount_) ? vbodata_[fi + i] : 0.0f);
         st_.loads++;
     }
     void ExVSTORE() {
