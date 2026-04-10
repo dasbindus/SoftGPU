@@ -86,7 +86,7 @@ private:
     // Format-D
     void ExNOP() {}
     void ExHALT() { run_ = false; }  // Execute HALT case does `return;` (skips pc_ fall-through)
-    void ExRET() { float r1 = rf_.Read(1); pc_ = reinterpret_cast<uint32_t&>(r1); st_.returns++; }
+    void ExRET() { float r63 = rf_.Read(63); pc_ = reinterpret_cast<uint32_t&>(r63); st_.returns++; }
     void ExBAR() { /* scalar interpreter: threads run sequentially, no-op barrier */ }
 
     // Format-A R-type
@@ -288,10 +288,10 @@ private:
         else pc_ = next;
     }
     void ExCALL() {
-        // NOTE: R1 is the link register (saves pc_ + 8 = address after CALL instruction).
-        // The called subroutine must preserve R1 if it uses it, or the caller must save/restore.
+        // R63 is the dedicated link register (saves pc_ + 8 = address after CALL instruction).
+        // R63 is chosen as it's unlikely to be used by compiled code.
         link_ = pc_ + 8;
-        rf_.Write(1, reinterpret_cast<float&>(link_));
+        rf_.Write(63, reinterpret_cast<float&>(link_));
         int16_t off = inst_.GetSignedImm10();
         pc_ = pc_ + 8 + static_cast<uint32_t>(off) * 4;
         st_.calls++;
