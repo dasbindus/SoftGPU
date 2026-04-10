@@ -102,6 +102,8 @@ struct Instruction {
     uint8_t GetRd() const { return (word1 >> 17) & 0x7F; }
     uint8_t GetRa() const { return (word1 >> 10) & 0x7F; }
     uint8_t GetRb() const { return (word1 >> 3) & 0x7F; }
+    // R4-type: Rc packed at bits [9:5] (same as old ISA)
+    uint8_t GetRc() const { return (word1 >> 5) & 0x1F; }
     uint8_t GetRb_W2() const { return (word2 >> 12) & 0x7F; }
     uint16_t GetImm10() const { return word2 & 0x3FF; }
 

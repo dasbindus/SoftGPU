@@ -75,6 +75,99 @@ public:
     void Reset();
     std::string DumpState() const;
 
+    // ========================================================================
+    // Compatibility methods (matching old ISA Interpreter interface)
+    // ========================================================================
+
+    // Set MVP uniforms: writes model/view/proj matrices to register ranges
+    // M_MAT → R8..R23, V_MAT → R24..R39, P_MAT → R40..R55
+    void SetUniforms(const float* model, const float* view, const float* proj) {
+        if (model) {
+            for (int i = 0; i < 16; ++i) m_model_matrix[i] = model[i];
+            for (int i = 0; i < 16; ++i) rf_.Write(8 + i, model[i]);
+        }
+        if (view) {
+            for (int i = 0; i < 16; ++i) m_view_matrix[i] = view[i];
+            for (int i = 0; i < 16; ++i) rf_.Write(24 + i, view[i]);
+        }
+        if (proj) {
+            for (int i = 0; i < 16; ++i) m_projection_matrix[i] = proj[i];
+            for (int i = 0; i < 16; ++i) rf_.Write(40 + i, proj[i]);
+        }
+    }
+
+    // Set viewport dimensions: writes to R56 (width), R57 (height)
+    void SetViewport(float width, float height) {
+        m_viewport_width = width;
+        m_viewport_height = height;
+        rf_.Write(56, width);
+        rf_.Write(57, height);
+    }
+
+    // Run vertex program for N vertices
+    // Reloads uniforms from cached matrices before each vertex
+    void RunVertexProgram(const uint32_t* program, size_t vertex_count) {
+        if (!program || vertex_count == 0) return;
+
+        // Determine program size by scanning for HALT
+        size_t program_size = 0;
+        while (program_size < 10000) {
+            Instruction tmp(program[program_size]);
+            if (tmp.GetOpcode() == Opcode::HALT || tmp.GetOpcode() == Opcode::INVALID) {
+                program_size++;
+                break;
+            }
+            program_size++;
+        }
+        cached_prog_.assign(program, program + program_size);
+
+        for (size_t v = 0; v < vertex_count; ++v) {
+            // Reset per-vertex state
+            rf_.Reset();
+            pc_ = link_ = 0;
+            st_.Reset();
+            pd_.clear();
+            iv_ = idw_ = idf_ = false;
+            run_ = true;
+            vobuf_.assign(64, 0.0f);
+            vabuf_.assign(64, 0.0f);
+            vcnt_ = curvtx_ = 0;
+
+            // Reload uniforms from cached matrices (R8-R57)
+            for (int i = 0; i < 16; ++i) rf_.Write(8 + i, m_model_matrix[i]);
+            for (int i = 0; i < 16; ++i) rf_.Write(24 + i, m_view_matrix[i]);
+            for (int i = 0; i < 16; ++i) rf_.Write(40 + i, m_projection_matrix[i]);
+            rf_.Write(56, m_viewport_width);
+            rf_.Write(57, m_viewport_height);
+
+            // Load program and run until HALT
+            LoadProgram(cached_prog_.data(), cached_prog_.size(), 0);
+            Run(100000);
+        }
+    }
+
+    // Reset VS state (VBO, VOUTPUT buffer, VATTR buffer, vertex count)
+    void ResetVS() {
+        vbodata_.clear();
+        vcount_ = 0;
+        vobuf_.assign(64, 0.0f);
+        vabuf_.assign(64, 0.0f);
+        vcnt_ = curvtx_ = 0;
+    }
+
+    // VATTR buffer accessors
+    float GetVAttrFloat(int vi, int off) const {
+        if (vi < 0 || off < 0) return 0.0f;
+        size_t idx = static_cast<size_t>(vi) * 4 + static_cast<size_t>(off);
+        return (idx < vabuf_.size()) ? vabuf_[idx] : 0.0f;
+    }
+    const float* GetVAttrBufData() const { return vabuf_.data(); }
+    size_t GetVAttrBufSize() const { return vabuf_.size(); }
+
+    // VBO data accessors
+    const float* GetVBOData() const { return vbodata_.data(); }
+    size_t GetVBOCount() const { return vbodata_.size(); }
+
 private:
     void Fetch();
     void Decode();
@@ -172,8 +265,8 @@ private:
     // Format-A R4-type
     void ExMAD() {
         uint8_t rd = inst_.GetRd(), ra = inst_.GetRa(), rb = inst_.GetRb();
-        float a = rf_.Read(ra), b = rf_.Read(rb);
-        rf_.Write(rd, a * b + b);
+        float a = rf_.Read(ra), b = rf_.Read(rb), c = rf_.Read(inst_.GetRc());
+        rf_.Write(rd, a * b + c);
     }
     void ExSEL() {
         uint8_t rd = inst_.GetRd(), ra = inst_.GetRa(), rb = inst_.GetRb();
@@ -390,6 +483,16 @@ private:
     uint32_t vbobase_ = 0;
     uint32_t curvtx_ = 0;
     bool run_ = true;
+
+    // Compatibility with old ISA: MVP matrices + viewport
+    std::array<float, 16> m_model_matrix{};
+    std::array<float, 16> m_view_matrix{};
+    std::array<float, 16> m_projection_matrix{};
+    float m_viewport_width = 640.0f;
+    float m_viewport_height = 480.0f;
+
+    // Compatibility: cached vertex program bytecode
+    std::vector<uint32_t> cached_prog_;
 };
 
 // ============================================================================
