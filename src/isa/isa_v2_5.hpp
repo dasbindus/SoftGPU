@@ -101,7 +101,7 @@ struct Instruction {
     uint8_t GetRd() const { return (word1 >> 17) & 0x7F; }
     uint8_t GetRa() const { return (word1 >> 10) & 0x7F; }
     uint8_t GetRb() const { return (word1 >> 3) & 0x7F; }
-    uint8_t GetRb_W2() const { return (word2 >> 18) & 0x7F; }
+    uint8_t GetRb_W2() const { return (word2 >> 12) & 0x7F; }
     uint16_t GetImm10() const { return word2 & 0x3FF; }
 
     int16_t GetSignedImm10() const {
@@ -185,18 +185,19 @@ struct Instruction {
     // Factory: Format-A (R-type, 3 registers)
     static Instruction MakeA(Opcode op, uint8_t rd, uint8_t ra, uint8_t rb) {
         uint32_t w = (static_cast<uint32_t>(op) << 24)
-                   | (static_cast<uint32_t>(rd & 0x7F) << 17
+                   | (static_cast<uint32_t>(rd & 0x7F) << 17)
                    | (static_cast<uint32_t>(ra & 0x7F) << 10)
                    | (static_cast<uint32_t>(rb & 0x7F) << 3;
         return Instruction(w);
     }
 
     // Factory: Format-B (dual-word)
+    // Word2 layout: imm[9:0]=bits[9:0], Rb[6:0]=bits[18:12] (gap bits[11:10] unused)
     static Instruction MakeB(Opcode op, uint8_t rd, uint8_t ra, uint8_t rb, uint16_t imm) {
         uint32_t w1 = (static_cast<uint32_t>(op) << 24)
-                    | (static_cast<uint32_t>(rd & 0x7F) << 17
+                    | (static_cast<uint32_t>(rd & 0x7F) << 17)
                     | (static_cast<uint32_t>(ra & 0x7F) << 10;
-        uint32_t w2 = (static_cast<uint32_t>(rb & 0x7F) << 18) | (imm & 0x3FF);
+        uint32_t w2 = (static_cast<uint32_t>(rb & 0x7F) << 12) | (imm & 0x3FF);
         return Instruction(w1, w2);
     }
 

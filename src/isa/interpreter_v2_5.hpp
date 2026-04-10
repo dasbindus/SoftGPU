@@ -85,9 +85,9 @@ private:
 
     // Format-D
     void ExNOP() {}
-    void ExHALT() { pc_ += 4; run_ = false; }
+    void ExHALT() { run_ = false; }  // Execute HALT case does `return;` (skips pc_ fall-through)
     void ExRET() { float r1 = rf_.Read(1); pc_ = reinterpret_cast<uint32_t&>(r1); st_.returns++; }
-    void ExBAR() {}
+    void ExBAR() { /* scalar interpreter: threads run sequentially, no-op barrier */ }
 
     // Format-A R-type
     void ExADD() {
@@ -171,7 +171,8 @@ private:
     }
     void ExSMOOTHSTEP() {
         uint8_t rd = inst_.GetRd(), ra = inst_.GetRa(), rb = inst_.GetRb();
-        float e0 = rf_.Read(rd), e1 = rf_.Read(ra), x = rf_.Read(rb);
+        // ISA v2.5: R[rd] = smoothstep(R[Ra], R[Rb], R[Rd]) — edge0=Ra, edge1=Rb, x=Rd
+        float e0 = rf_.Read(ra), e1 = rf_.Read(rb), x = rf_.Read(rd);
         float t = (e1 == e0) ? 0.0f : (x - e0) / (e1 - e0);
         if (t < 0.0f) t = 0.0f; else if (t > 1.0f) t = 1.0f;
         rf_.Write(rd, t * t * (3.0f - 2.0f * t));

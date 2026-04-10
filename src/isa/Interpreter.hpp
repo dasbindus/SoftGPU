@@ -119,7 +119,7 @@ private:
     // VS: ATTR table (attr_id → byte_offset in VBO)
     std::vector<size_t> m_attr_table;
 
-    // VS: Uniform matrices (loaded from R8-R31)
+    // VS: Uniform matrices (loaded from R8-R57)
     std::array<float, 16> m_model_matrix{};
     std::array<float, 16> m_view_matrix{};
     std::array<float, 16> m_projection_matrix{};
@@ -236,38 +236,38 @@ public:
         m_attr_table = table;
     }
 
-    // Set uniforms (model/view/projection matrices → R8-R31, viewport → R32/R33)
+    // Set uniforms (model/view/projection matrices → R8-R57, viewport → R56/R57)
     void SetUniforms(const float* model, const float* view, const float* proj) {
         if (model) {
             for (int i = 0; i < 16; ++i) m_model_matrix[i] = model[i];
-            // M_MAT → R8..R15
+            // M_MAT → R8..R23
             for (int i = 0; i < 16; ++i) reg_file_.Write(8 + i, model[i]);
         }
         if (view) {
             for (int i = 0; i < 16; ++i) m_view_matrix[i] = view[i];
-            // V_MAT → R16..R23
-            for (int i = 0; i < 16; ++i) reg_file_.Write(16 + i, view[i]);
+            // V_MAT → R24..R39
+            for (int i = 0; i < 16; ++i) reg_file_.Write(24 + i, view[i]);
         }
         if (proj) {
             for (int i = 0; i < 16; ++i) m_projection_matrix[i] = proj[i];
-            // P_MAT → R24..R31
-            for (int i = 0; i < 16; ++i) reg_file_.Write(24 + i, proj[i]);
+            // P_MAT → R40..R55
+            for (int i = 0; i < 16; ++i) reg_file_.Write(40 + i, proj[i]);
         }
     }
 
-    // Set viewport dimensions (→ R32, R33)
+    // Set viewport dimensions (→ R56, R57)
     void SetViewport(float width, float height) {
         m_viewport_width = width;
         m_viewport_height = height;
-        reg_file_.Write(32, width);
-        reg_file_.Write(33, height);
+        reg_file_.Write(56, width);
+        reg_file_.Write(57, height);
     }
 
     // Run a vertex program for N vertices
     // program: pointer to ISA bytecode (uint32_t words)
     // vertex_count: number of vertices to process (NOT program size)
     // NOTE: program must be HALT-terminated; execution scans until HALT
-    // NOTE: Uniforms (R8-R31) are loaded from m_*_matrix AFTER reg_file_.Reset()
+    // NOTE: Uniforms (R8-R57) are loaded from m_*_matrix AFTER reg_file_.Reset()
     //       so caller should have populated these via SetUniforms() beforehand
     void RunVertexProgram(const uint32_t* program, size_t vertex_count) {
         if (!program || vertex_count == 0) return;
@@ -300,15 +300,15 @@ public:
             m_vertex_count = 0;
 
             // Reload uniforms AFTER reset (from cached matrices set by SetUniforms)
-            // M_MAT → R8..R15
+            // M_MAT → R8..R23
             for (int i = 0; i < 16; ++i) reg_file_.Write(8 + i, m_model_matrix[i]);
-            // V_MAT → R16..R23
-            for (int i = 0; i < 16; ++i) reg_file_.Write(16 + i, m_view_matrix[i]);
-            // P_MAT → R24..R31
-            for (int i = 0; i < 16; ++i) reg_file_.Write(24 + i, m_projection_matrix[i]);
-            // Viewport → R32, R33
-            reg_file_.Write(32, m_viewport_width);
-            reg_file_.Write(33, m_viewport_height);
+            // V_MAT → R24..R39
+            for (int i = 0; i < 16; ++i) reg_file_.Write(24 + i, m_view_matrix[i]);
+            // P_MAT → R40..R55
+            for (int i = 0; i < 16; ++i) reg_file_.Write(40 + i, m_projection_matrix[i]);
+            // Viewport → R56, R57
+            reg_file_.Write(56, m_viewport_width);
+            reg_file_.Write(57, m_viewport_height);
 
             // Execute program until HALT
             Run(100000);
