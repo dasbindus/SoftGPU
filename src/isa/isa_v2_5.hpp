@@ -187,7 +187,7 @@ struct Instruction {
         uint32_t w = (static_cast<uint32_t>(op) << 24)
                    | (static_cast<uint32_t>(rd & 0x7F) << 17)
                    | (static_cast<uint32_t>(ra & 0x7F) << 10)
-                   | (static_cast<uint32_t>(rb & 0x7F) << 3;
+                   | (static_cast<uint32_t>(rb & 0x7F) << 3);
         return Instruction(w);
     }
 
@@ -196,7 +196,7 @@ struct Instruction {
     static Instruction MakeB(Opcode op, uint8_t rd, uint8_t ra, uint8_t rb, uint16_t imm) {
         uint32_t w1 = (static_cast<uint32_t>(op) << 24)
                     | (static_cast<uint32_t>(rd & 0x7F) << 17)
-                    | (static_cast<uint32_t>(ra & 0x7F) << 10;
+                    | (static_cast<uint32_t>(ra & 0x7F) << 10);
         uint32_t w2 = (static_cast<uint32_t>(rb & 0x7F) << 12) | (imm & 0x3FF);
         return Instruction(w1, w2);
     }
@@ -204,7 +204,7 @@ struct Instruction {
     // Factory: Format-B BRA (condition register only)
     static Instruction MakeBRA(uint8_t ra, int16_t off) {
         uint32_t w1 = (static_cast<uint32_t>(Opcode::BRA) << 24)
-                    | (static_cast<uint32_t>(ra & 0x7F) << 10;
+                    | (static_cast<uint32_t>(ra & 0x7F) << 10);
         uint32_t w2 = static_cast<uint32_t>(off & 0x3FF);
         return Instruction(w1, w2);
     }
@@ -212,16 +212,16 @@ struct Instruction {
     // Factory: Format-C (single register + func)
     static Instruction MakeC(Opcode op, uint8_t rd, uint8_t ra) {
         uint32_t w = (static_cast<uint32_t>(op) << 24)
-                   | (static_cast<uint32_t>(rd & 0x7F) << 17
-                   | (static_cast<uint32_t>(ra & 0x7F) << 10;
+                   | (static_cast<uint32_t>(rd & 0x7F) << 17)
+                   | (static_cast<uint32_t>(ra & 0x7F) << 10);
         return Instruction(w);
     }
 
     // Factory: Format-E (2 registers)
     static Instruction MakeE(Opcode op, uint8_t rd, uint8_t ra) {
         uint32_t w = (static_cast<uint32_t>(op) << 24)
-                   | (static_cast<uint32_t>(rd & 0x7F) << 17
-                   | (static_cast<uint32_t>(ra & 0x7F) << 10;
+                   | (static_cast<uint32_t>(rd & 0x7F) << 17)
+                   | (static_cast<uint32_t>(ra & 0x7F) << 10);
         return Instruction(w);
     }
 };

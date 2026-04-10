@@ -122,33 +122,43 @@ private:
     }
     void ExAND() {
         uint8_t rd = inst_.GetRd(), ra = inst_.GetRa(), rb = inst_.GetRb();
-        uint32_t ia = reinterpret_cast<uint32_t&>(rf_.Read(ra));
-        uint32_t ib = reinterpret_cast<uint32_t&>(rf_.Read(rb));
-        rf_.Write(rd, reinterpret_cast<float&>(ia & ib));
+        float fa = rf_.Read(ra), fb = rf_.Read(rb);
+        uint32_t ia = reinterpret_cast<uint32_t&>(fa);
+        uint32_t ib = reinterpret_cast<uint32_t&>(fb);
+        uint32_t r = ia & ib;
+        rf_.Write(rd, reinterpret_cast<float&>(r));
     }
     void ExOR() {
         uint8_t rd = inst_.GetRd(), ra = inst_.GetRa(), rb = inst_.GetRb();
-        uint32_t ia = reinterpret_cast<uint32_t&>(rf_.Read(ra));
-        uint32_t ib = reinterpret_cast<uint32_t&>(rf_.Read(rb));
-        rf_.Write(rd, reinterpret_cast<float&>(ia | ib));
+        float fa = rf_.Read(ra), fb = rf_.Read(rb);
+        uint32_t ia = reinterpret_cast<uint32_t&>(fa);
+        uint32_t ib = reinterpret_cast<uint32_t&>(fb);
+        uint32_t r = ia | ib;
+        rf_.Write(rd, reinterpret_cast<float&>(r));
     }
     void ExXOR() {
         uint8_t rd = inst_.GetRd(), ra = inst_.GetRa(), rb = inst_.GetRb();
-        uint32_t ia = reinterpret_cast<uint32_t&>(rf_.Read(ra));
-        uint32_t ib = reinterpret_cast<uint32_t&>(rf_.Read(rb));
-        rf_.Write(rd, reinterpret_cast<float&>(ia ^ ib));
+        float fa = rf_.Read(ra), fb = rf_.Read(rb);
+        uint32_t ia = reinterpret_cast<uint32_t&>(fa);
+        uint32_t ib = reinterpret_cast<uint32_t&>(fb);
+        uint32_t r = ia ^ ib;
+        rf_.Write(rd, reinterpret_cast<float&>(r));
     }
     void ExSHL() {
         uint8_t rd = inst_.GetRd(), ra = inst_.GetRa(), rb = inst_.GetRb();
-        uint32_t ia = reinterpret_cast<uint32_t&>(rf_.Read(ra));
+        float fa = rf_.Read(ra);
+        uint32_t ia = reinterpret_cast<uint32_t&>(fa);
         int sh = static_cast<int>(rf_.Read(rb)) & 0x1F;
-        rf_.Write(rd, reinterpret_cast<float&>(ia << sh));
+        uint32_t r = ia << sh;
+        rf_.Write(rd, reinterpret_cast<float&>(r));
     }
     void ExSHR() {
         uint8_t rd = inst_.GetRd(), ra = inst_.GetRa(), rb = inst_.GetRb();
-        uint32_t ia = reinterpret_cast<uint32_t&>(rf_.Read(ra));
+        float fa = rf_.Read(ra);
+        uint32_t ia = reinterpret_cast<uint32_t&>(fa);
         int sh = static_cast<int>(rf_.Read(rb)) & 0x1F;
-        rf_.Write(rd, reinterpret_cast<float&>(ia >> sh));
+        uint32_t r = ia >> sh;
+        rf_.Write(rd, reinterpret_cast<float&>(r));
     }
     void ExSETP() {
         uint8_t rd = inst_.GetRd(), ra = inst_.GetRa();
@@ -238,18 +248,23 @@ private:
     }
     void ExF2I() {
         uint8_t rd = inst_.GetRd(), ra = inst_.GetRa();
-        uint32_t b = reinterpret_cast<uint32_t&>(rf_.Read(ra));
+        float fa = rf_.Read(ra);
+        uint32_t b = reinterpret_cast<uint32_t&>(fa);
         rf_.Write(rd, reinterpret_cast<float&>(b));
     }
     void ExI2F() {
         uint8_t rd = inst_.GetRd(), ra = inst_.GetRa();
-        int32_t v = reinterpret_cast<int32_t&>(rf_.Read(ra));
-        rf_.Write(rd, reinterpret_cast<float&>(static_cast<uint32_t>(v)));
+        float fa = rf_.Read(ra);
+        int32_t v = reinterpret_cast<int32_t&>(fa);
+        uint32_t r = static_cast<uint32_t>(v);
+        rf_.Write(rd, reinterpret_cast<float&>(r));
     }
     void ExNOT() {
         uint8_t rd = inst_.GetRd(), ra = inst_.GetRa();
-        uint32_t b = reinterpret_cast<uint32_t&>(rf_.Read(ra));
-        rf_.Write(rd, reinterpret_cast<float&>(~b));
+        float fa = rf_.Read(ra);
+        uint32_t b = reinterpret_cast<uint32_t&>(fa);
+        uint32_t r = ~b;
+        rf_.Write(rd, reinterpret_cast<float&>(r));
     }
 
     // Format-B dual-word
