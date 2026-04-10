@@ -288,6 +288,8 @@ private:
         else pc_ = next;
     }
     void ExCALL() {
+        // NOTE: R1 is the link register (saves pc_ + 8 = address after CALL instruction).
+        // The called subroutine must preserve R1 if it uses it, or the caller must save/restore.
         link_ = pc_ + 8;
         rf_.Write(1, reinterpret_cast<float&>(link_));
         int16_t off = inst_.GetSignedImm10();
@@ -605,10 +607,10 @@ void Interpreter::Execute() {
             return;
         case Opcode::LD:
             ExLD();
-            return;
+            break;  // fall through to pc_ += 8 (dual-word)
         case Opcode::ST:
             ExST();
-            return;
+            break;  // fall through to pc_ += 8 (dual-word)
         case Opcode::VLOAD:
             ExVLOAD();
             break;
