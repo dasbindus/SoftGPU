@@ -107,7 +107,7 @@ struct Instruction {
 
     int32_t GetSignedImm10() const {
         uint16_t u = word2 & 0x3FF;
-        if (u & 0x200) return -static_cast<int32_t>(u & 0x1FF);
+        if (u & 0x200) return static_cast<int32_t>(u) - 1024;
         return static_cast<int32_t>(u);
     }
 
