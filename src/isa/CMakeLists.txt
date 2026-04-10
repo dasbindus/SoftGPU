@@ -1,7 +1,7 @@
 # ISA Module - SoftGPU Instruction Set Architecture
 #
-# v1.0 ISA - 28 Instructions
-# Provides instruction decode, execute, and interpretation for fragment shaders
+# v1.0 ISA - 28 Instructions (legacy)
+# v2.5 ISA - 50+ Instructions (new unified ISA)
 
 add_library(isa STATIC
     Opcode.cpp
@@ -30,3 +30,9 @@ set_target_properties(isa PROPERTIES
     OUTPUT_NAME "softgpu_isa"
     POSITION_INDEPENDENT_CODE ON
 )
+
+# ==============================================================================
+# v2.5 ISA - Header-only implementation
+# Files: isa_v2_5.hpp, register_file_v2_5.hpp, interpreter_v2_5.hpp
+# Automatically included via target_include_directories above
+# ==============================================================================
