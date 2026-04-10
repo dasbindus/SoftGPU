@@ -115,3 +115,22 @@ endif()
 
 include(GoogleTest)
 gtest_discover_tests(test_vsisa_phase2)
+
+# ---------------------------------------------------------------------------
+# P1: VS ISA Phase 3 Tests (VLOAD boundary, VSTORE memory, OUTPUT_VS clip,
+#                           LDC constant load, ATTR extended)
+# ---------------------------------------------------------------------------
+add_executable(test_vsisa_phase3 test_vsisa_phase3.cpp)
+
+if(GTest_FOUND)
+    target_link_libraries(test_vsisa_phase3 PRIVATE core isa pipeline GTest::gtest GTest::gtest_main)
+else()
+    target_link_libraries(test_vsisa_phase3 PRIVATE core isa pipeline gtest gtest_main)
+endif()
+
+if(APPLE)
+    target_link_libraries(test_vsisa_phase3 PRIVATE c++)
+endif()
+
+include(GoogleTest)
+gtest_discover_tests(test_vsisa_phase3)
