@@ -8,7 +8,7 @@
 
 #include "ShaderCore.hpp"
 #include "core/PipelineTypes.hpp"
-#include "isa/ISA.hpp"
+#include "isa/interpreter_v2_5.hpp"
 #include <memory>
 #include <vector>
 #include <array>
@@ -301,7 +301,7 @@ private:
     TileBufferManager* m_tile_buffer_manager = nullptr;
     
     // P0-2: Per-scheduler interpreter for DIV pending tracking
-    softgpu::isa::Interpreter m_interpreter;
+    softgpu::isa::v2_5::Interpreter m_interpreter;
     
     // 内部方法
     void initializeWarps();

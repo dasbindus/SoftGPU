@@ -7,11 +7,38 @@
 #include "ShaderCore.hpp"
 #include "core/PipelineTypes.hpp"
 #include "stages/TilingStage.hpp"
-#include "isa/ISA.hpp"
+#include "isa/interpreter_v2_5.hpp"
 #include "stages/TileBuffer.hpp"
 #include <cstring>
 #include <algorithm>
 #include <iostream>
+
+// ============================================================================
+// Shader Register Mapping (v2.5 ISA)
+// ============================================================================
+namespace ShaderRegs {
+    // 输入寄存器 (R1-R9)
+    constexpr uint8_t FRAG_X = 1;
+    constexpr uint8_t FRAG_Y = 2;
+    constexpr uint8_t FRAG_Z = 3;
+    constexpr uint8_t COLOR_R = 4;
+    constexpr uint8_t COLOR_G = 5;
+    constexpr uint8_t COLOR_B = 6;
+    constexpr uint8_t COLOR_A = 7;
+    constexpr uint8_t TEX_U = 8;
+    constexpr uint8_t TEX_V = 9;
+
+    // 输出寄存器 (R10-R15)
+    constexpr uint8_t OUT_R = 10;
+    constexpr uint8_t OUT_G = 11;
+    constexpr uint8_t OUT_B = 12;
+    constexpr uint8_t OUT_A = 13;
+    constexpr uint8_t OUT_Z = 14;
+    constexpr uint8_t KILLED = 15;
+
+    // 临时寄存器 (R16-R31)
+    constexpr uint8_t TMP0 = 16;
+}
 
 namespace SoftGPU {
 
@@ -117,19 +144,15 @@ void WarpScheduler::executeWarp(Warp& warp) {
     
     const ShaderFunction* shader = warp.getShader();
     
-    // PHASE3: Reuse Interpreter for ISA execution
-    // Each warp uses the shared Interpreter from WarpScheduler
-    // thread_local ensures each thread has its own Interpreter instance
-    // This fixes non-determinism bug in multi-threaded mode where multiple
-    // threads were sharing the same static Interpreter causing race conditions
-    // P0-2: Using member m_interpreter (was thread_local static)
-    m_interpreter.Reset();
+    // v2.5: Load program once, then execute each lane
+    if (!shader->empty()) {
+        m_interpreter.LoadProgram(shader->code.data(), shader->code.size(), 0);
+    }
     
     // 为每个 active lane 执行 shader
     for (uint32_t lane = 0; lane < warp.getFragmentCount(); ++lane) {
         FragmentContext& frag = warp.getFragment(lane);
         
-        // 获取 shader 代码
         if (shader->empty()) {
             // Passthrough
             frag.out_r = frag.color_r;
@@ -140,80 +163,41 @@ void WarpScheduler::executeWarp(Warp& warp) {
             continue;
         }
         
+        // v2.5: Reset clears registers, PC, and stats
+        m_interpreter.Reset();
+        
         // 设置 fragment 输入到寄存器
-        m_interpreter.SetRegister(1, frag.pos_x);
-        m_interpreter.SetRegister(2, frag.pos_y);
-        m_interpreter.SetRegister(3, frag.pos_z);
-        m_interpreter.SetRegister(4, frag.color_r);
-        m_interpreter.SetRegister(5, frag.color_g);
-        m_interpreter.SetRegister(6, frag.color_b);
-        m_interpreter.SetRegister(7, frag.color_a);
-        m_interpreter.SetRegister(8, frag.u);
-        m_interpreter.SetRegister(9, frag.v);
-        m_interpreter.SetRegister(10, 0.0f);  // OUT_R
-        m_interpreter.SetRegister(11, 0.0f);  // OUT_G
-        m_interpreter.SetRegister(12, 0.0f);  // OUT_B
-        m_interpreter.SetRegister(13, 1.0f);  // OUT_A
-        m_interpreter.SetRegister(14, frag.pos_z);  // OUT_Z
-        m_interpreter.SetRegister(15, 0.0f);  // KILLED
+        m_interpreter.SetRegister(ShaderRegs::FRAG_X, frag.pos_x);
+        m_interpreter.SetRegister(ShaderRegs::FRAG_Y, frag.pos_y);
+        m_interpreter.SetRegister(ShaderRegs::FRAG_Z, frag.pos_z);
+        m_interpreter.SetRegister(ShaderRegs::COLOR_R, frag.color_r);
+        m_interpreter.SetRegister(ShaderRegs::COLOR_G, frag.color_g);
+        m_interpreter.SetRegister(ShaderRegs::COLOR_B, frag.color_b);
+        m_interpreter.SetRegister(ShaderRegs::COLOR_A, frag.color_a);
+        m_interpreter.SetRegister(ShaderRegs::TEX_U, frag.u);
+        m_interpreter.SetRegister(ShaderRegs::TEX_V, frag.v);
+        m_interpreter.SetRegister(ShaderRegs::OUT_R, 0.0f);
+        m_interpreter.SetRegister(ShaderRegs::OUT_G, 0.0f);
+        m_interpreter.SetRegister(ShaderRegs::OUT_B, 0.0f);
+        m_interpreter.SetRegister(ShaderRegs::OUT_A, 1.0f);
+        m_interpreter.SetRegister(ShaderRegs::OUT_Z, frag.pos_z);
+        m_interpreter.SetRegister(ShaderRegs::KILLED, 0.0f);
         
-        // P2-1: Warp divergence tracking
-        bool lane_would_branch[Warp::WARP_SIZE] = {false};
-        bool divergence_detected_this_shader = false;
+        // v2.5: Run executes the full program (manages PC internally)
+        // max_cycles = 1024 prevents infinite loops
+        m_interpreter.Run(1024);
         
-        // 执行 shader 指令序列
-        uint32_t max_instr = 256;
-        uint32_t instr_count = 0;
-        uint32_t pc = 0;
-        
-        while (instr_count < max_instr) {
-            if (pc / 4 >= shader->code.size()) {
-                break;
-            }
-            
-            uint32_t instr_word = shader->code[pc / 4];
-            softgpu::isa::Instruction inst(instr_word);
-            softgpu::isa::Opcode op = inst.GetOpcode();
-            
-            if (op == softgpu::isa::Opcode::INVALID || op == softgpu::isa::Opcode::NOP) {
-                break;
-            }
-            
-            // P2-1: Check for BRA before execution to detect divergence
-            if (op == softgpu::isa::Opcode::BRA) {
-                uint8_t ra = inst.GetRa();
-                float cond = m_interpreter.GetRegister(ra);
-                lane_would_branch[lane] = (cond != 0.0f);
-            }
-            
-            // 使用 Interpreter 执行指令
-            m_interpreter.ExecuteInstruction(inst);
-            m_interpreter.SetRegister(0, 0.0f);  // R0 = zero
-            
-            pc += 4;
-            warp.getStats().instructions_executed++;
-            instr_count++;
-        }
-        
-        // P2-1: Detect divergence by comparing branch outcomes across lanes
-        for (uint32_t other_lane = 0; other_lane < warp.getFragmentCount(); ++other_lane) {
-            if (other_lane != lane && !divergence_detected_this_shader) {
-                if (lane_would_branch[lane] != lane_would_branch[other_lane]) {
-                    m_stats.divergenceCount++;
-                    m_stats.divergenceThreads += warp.getFragmentCount();
-                    m_stats.divergenceLostCycles += 1;
-                    divergence_detected_this_shader = true;
-                }
-            }
-        }
+        // 更新统计
+        const auto& st = m_interpreter.GetStats();
+        warp.getStats().instructions_executed += st.instructions_executed;
         
         // 捕获输出
-        frag.out_r = m_interpreter.GetRegister(10);
-        frag.out_g = m_interpreter.GetRegister(11);
-        frag.out_b = m_interpreter.GetRegister(12);
-        frag.out_a = m_interpreter.GetRegister(13);
-        frag.out_z = m_interpreter.GetRegister(14);
-        frag.killed = (m_interpreter.GetRegister(15) != 0.0f);
+        frag.out_r = m_interpreter.GetRegister(ShaderRegs::OUT_R);
+        frag.out_g = m_interpreter.GetRegister(ShaderRegs::OUT_G);
+        frag.out_b = m_interpreter.GetRegister(ShaderRegs::OUT_B);
+        frag.out_a = m_interpreter.GetRegister(ShaderRegs::OUT_A);
+        frag.out_z = m_interpreter.GetRegister(ShaderRegs::OUT_Z);
+        frag.killed = (m_interpreter.GetRegister(ShaderRegs::KILLED) != 0.0f);
     }
     
     // Warp 完成
@@ -478,11 +462,7 @@ WarpBatchResult WarpScheduler::executeWarpBatch(WarpBatchConfig cfg) {
         warps_scheduled_this_batch++;
     }
     
-    // 2. P0-2: Drain pending DIVs at start of each cycle
-    // Completes any DIV instructions that have reached their latency
-    m_interpreter.drainPendingDIVs();
-    
-    // 3. 执行所有 Running Warp
+    // 2. 执行所有 Running Warp
     for (auto& warp : m_warps) {
         if (warp.isRunning()) {
             // 传递 tile buffer 写入开关
@@ -521,8 +501,10 @@ void WarpScheduler::executeWarpWithTileWrite(Warp& warp, bool enable_tile_write)
     
     const ShaderFunction* shader = warp.getShader();
     
-    // P0-2: Using member m_interpreter (was thread_local static)
-    m_interpreter.Reset();
+    // v2.5: Load program once, then execute each lane
+    if (!shader->empty()) {
+        m_interpreter.LoadProgram(shader->code.data(), shader->code.size(), 0);
+    }
     
     // 为每个 active lane 执行 shader
     for (uint32_t lane = 0; lane < warp.getFragmentCount(); ++lane) {
@@ -536,88 +518,41 @@ void WarpScheduler::executeWarpWithTileWrite(Warp& warp, bool enable_tile_write)
             frag.out_a = frag.color_a;
             frag.out_z = frag.pos_z;
         } else {
-            // P2-1: Warp divergence tracking
-            // Pre-compute branch conditions for all lanes before executing BRA
-            // This allows us to detect if different threads take different branches
-            bool lane_would_branch[Warp::WARP_SIZE] = {false};
-            bool divergence_detected_this_shader = false;
-            uint32_t diverging_lane_mask = 0;
+            // v2.5: Reset clears registers, PC, and stats
+            m_interpreter.Reset();
             
             // 设置 fragment 输入到寄存器
-            m_interpreter.SetRegister(1, frag.pos_x);
-            m_interpreter.SetRegister(2, frag.pos_y);
-            m_interpreter.SetRegister(3, frag.pos_z);
-            m_interpreter.SetRegister(4, frag.color_r);
-            m_interpreter.SetRegister(5, frag.color_g);
-            m_interpreter.SetRegister(6, frag.color_b);
-            m_interpreter.SetRegister(7, frag.color_a);
-            m_interpreter.SetRegister(8, frag.u);
-            m_interpreter.SetRegister(9, frag.v);
-            m_interpreter.SetRegister(10, 0.0f);  // OUT_R
-            m_interpreter.SetRegister(11, 0.0f);  // OUT_G
-            m_interpreter.SetRegister(12, 0.0f);  // OUT_B
-            m_interpreter.SetRegister(13, 1.0f);  // OUT_A
-            m_interpreter.SetRegister(14, frag.pos_z);  // OUT_Z
-            m_interpreter.SetRegister(15, 0.0f);  // KILLED
+            m_interpreter.SetRegister(ShaderRegs::FRAG_X, frag.pos_x);
+            m_interpreter.SetRegister(ShaderRegs::FRAG_Y, frag.pos_y);
+            m_interpreter.SetRegister(ShaderRegs::FRAG_Z, frag.pos_z);
+            m_interpreter.SetRegister(ShaderRegs::COLOR_R, frag.color_r);
+            m_interpreter.SetRegister(ShaderRegs::COLOR_G, frag.color_g);
+            m_interpreter.SetRegister(ShaderRegs::COLOR_B, frag.color_b);
+            m_interpreter.SetRegister(ShaderRegs::COLOR_A, frag.color_a);
+            m_interpreter.SetRegister(ShaderRegs::TEX_U, frag.u);
+            m_interpreter.SetRegister(ShaderRegs::TEX_V, frag.v);
+            m_interpreter.SetRegister(ShaderRegs::OUT_R, 0.0f);
+            m_interpreter.SetRegister(ShaderRegs::OUT_G, 0.0f);
+            m_interpreter.SetRegister(ShaderRegs::OUT_B, 0.0f);
+            m_interpreter.SetRegister(ShaderRegs::OUT_A, 1.0f);
+            m_interpreter.SetRegister(ShaderRegs::OUT_Z, frag.pos_z);
+            m_interpreter.SetRegister(ShaderRegs::KILLED, 0.0f);
             
-            // 执行 shader 指令序列
-            uint32_t max_instr = 256;
-            uint32_t instr_count = 0;
-            uint32_t pc = 0;
+            // v2.5: Run executes the full program (manages PC internally)
+            // max_cycles = 1024 prevents infinite loops
+            m_interpreter.Run(1024);
             
-            while (instr_count < max_instr) {
-                if (pc / 4 >= shader->code.size()) {
-                    break;
-                }
-                
-                uint32_t instr_word = shader->code[pc / 4];
-                softgpu::isa::Instruction inst(instr_word);
-                softgpu::isa::Opcode op = inst.GetOpcode();
-                
-                if (op == softgpu::isa::Opcode::INVALID || op == softgpu::isa::Opcode::NOP) {
-                    break;
-                }
-                
-                // P2-1: Check for BRA before execution to detect divergence
-                // Save the branch condition for this lane BEFORE executing
-                if (op == softgpu::isa::Opcode::BRA) {
-                    uint8_t ra = inst.GetRa();
-                    float cond = m_interpreter.GetRegister(ra);
-                    lane_would_branch[lane] = (cond != 0.0f);
-                }
-                
-                m_interpreter.ExecuteInstruction(inst);
-                m_interpreter.SetRegister(0, 0.0f);  // R0 = zero
-                
-                pc += 4;
-                warp.getStats().instructions_executed++;
-                instr_count++;
-            }
-            
-            // P2-1: After shader execution, detect divergence by checking branch outcomes
-            // Only detect once per warp execution (first BRA that shows divergence)
-            for (uint32_t other_lane = 0; other_lane < warp.getFragmentCount(); ++other_lane) {
-                if (other_lane != lane && !divergence_detected_this_shader) {
-                    if (lane_would_branch[lane] != lane_would_branch[other_lane]) {
-                        // Divergence detected: different threads go different branches
-                        m_stats.divergenceCount++;
-                        m_stats.divergenceThreads += warp.getFragmentCount();
-                        // P2-1: Lost cycles = additional passes needed due to divergence
-                        // In SIMD model, divergence forces sequential execution of both paths
-                        m_stats.divergenceLostCycles += 1;
-                        divergence_detected_this_shader = true;
-                        diverging_lane_mask |= (1u << lane) | (1u << other_lane);
-                    }
-                }
-            }
+            // 更新统计
+            const auto& st = m_interpreter.GetStats();
+            warp.getStats().instructions_executed += st.instructions_executed;
             
             // 捕获输出
-            frag.out_r = m_interpreter.GetRegister(10);
-            frag.out_g = m_interpreter.GetRegister(11);
-            frag.out_b = m_interpreter.GetRegister(12);
-            frag.out_a = m_interpreter.GetRegister(13);
-            frag.out_z = m_interpreter.GetRegister(14);
-            frag.killed = (m_interpreter.GetRegister(15) != 0.0f);
+            frag.out_r = m_interpreter.GetRegister(ShaderRegs::OUT_R);
+            frag.out_g = m_interpreter.GetRegister(ShaderRegs::OUT_G);
+            frag.out_b = m_interpreter.GetRegister(ShaderRegs::OUT_B);
+            frag.out_a = m_interpreter.GetRegister(ShaderRegs::OUT_A);
+            frag.out_z = m_interpreter.GetRegister(ShaderRegs::OUT_Z);
+            frag.killed = (m_interpreter.GetRegister(ShaderRegs::KILLED) != 0.0f);
         }
         
         // P0-1: 委托模式写入 TileBuffer
@@ -651,19 +586,19 @@ void WarpScheduler::executeWarpWithTileWrite(Warp& warp, bool enable_tile_write)
 // ============================================================================
 
 ShaderFunction makeTestWarpShader() {
-    using softgpu::isa::Instruction;
-    using softgpu::isa::Opcode;
+    using softgpu::isa::v2_5::Instruction;
+    using softgpu::isa::v2_5::Opcode;
     
     ShaderFunction shader;
     
-    // Simple test shader: passthrough color
+    // Simple test shader: passthrough color (v2.5 format)
     shader.code = {
-        Instruction::MakeU(Opcode::MOV, 10, 4).raw,  // MOV OUT_R, COLOR_R
-        Instruction::MakeU(Opcode::MOV, 11, 5).raw,  // MOV OUT_G, COLOR_G
-        Instruction::MakeU(Opcode::MOV, 12, 6).raw,  // MOV OUT_B, COLOR_B
-        Instruction::MakeU(Opcode::MOV, 13, 7).raw,  // MOV OUT_A, COLOR_A
-        Instruction::MakeU(Opcode::MOV, 14, 3).raw,  // MOV OUT_Z, FRAG_Z
-        Instruction::MakeNOP().raw
+        Instruction::MakeC(Opcode::MOV, ShaderRegs::OUT_R, ShaderRegs::COLOR_R).word1,  // MOV OUT_R, COLOR_R
+        Instruction::MakeC(Opcode::MOV, ShaderRegs::OUT_G, ShaderRegs::COLOR_G).word1,  // MOV OUT_G, COLOR_G
+        Instruction::MakeC(Opcode::MOV, ShaderRegs::OUT_B, ShaderRegs::COLOR_B).word1,  // MOV OUT_B, COLOR_B
+        Instruction::MakeC(Opcode::MOV, ShaderRegs::OUT_A, ShaderRegs::COLOR_A).word1,  // MOV OUT_A, COLOR_A
+        Instruction::MakeC(Opcode::MOV, ShaderRegs::OUT_Z, ShaderRegs::FRAG_Z).word1,  // MOV OUT_Z, FRAG_Z
+        Instruction::MakeD(Opcode::HALT).word1
     };
     shader.start_addr = 0;
     
