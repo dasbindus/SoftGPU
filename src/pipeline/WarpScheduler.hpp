@@ -8,6 +8,7 @@
 
 #include "ShaderCore.hpp"
 #include "core/PipelineTypes.hpp"
+#include "isa/ISA.hpp"
 #include <memory>
 #include <vector>
 #include <array>

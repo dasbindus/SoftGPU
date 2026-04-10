@@ -63,7 +63,9 @@ public:
     void Run(uint64_t max_cycles = 1000000);
     void SetVBO(const float* data, size_t count);
     void SetAttrTable(const std::vector<size_t>& table);
-    void SetTextureBuffer(int index, void* tex);
+    inline void SetTextureBuffer(int index, void* tex) {
+        if (index >= 0 && index < 4) tex_[index] = tex;
+    }
     float GetRegister(uint8_t reg) const { return rf_.Read(reg); }
     void SetRegister(uint8_t reg, float v) { rf_.Write(reg, v); }
     uint32_t GetPC() const { return pc_; }

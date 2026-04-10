@@ -8,7 +8,7 @@
 
 #include "core/PipelineTypes.hpp"
 #include "stages/TileBuffer.hpp"
-#include "isa/ISA.hpp"
+#include "isa/interpreter_v2_5.hpp"
 #include "pipeline/TextureBuffer.hpp"
 #include <memory>
 #include <vector>
@@ -17,10 +17,9 @@
 
 namespace SoftGPU {
 
-using softgpu::isa::Interpreter;
-using softgpu::isa::Instruction;
-using softgpu::isa::Opcode;
-using softgpu::isa::RegisterFile;
+using softgpu::isa::v2_5::Instruction;
+using softgpu::isa::v2_5::Opcode;
+using softgpu::isa::v2_5::Interpreter;
 
 // ============================================================================
 // ShaderFunction - 编译后的着色器函数
@@ -216,7 +215,7 @@ public:
 
 private:
     // 内部状态
-    Interpreter m_interpreter;
+    Interpreter m_interpreter;  // softgpu::isa::v2_5::Interpreter
     ShaderFunction m_currentShader;
     Stats m_stats;
     bool m_verbose = false;
