@@ -39,7 +39,7 @@ inline std::vector<uint32_t> MakeProgram(const std::vector<Instruction>& instrs)
     std::vector<uint32_t> prog;
     for (const auto& inst : instrs) {
         prog.push_back(inst.word1);
-        if (inst.is_dual_word) {
+        if (inst.GetFormat() == Format::B) {
             prog.push_back(inst.word2);
         }
     }

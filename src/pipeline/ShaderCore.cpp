@@ -5,6 +5,7 @@
 // ============================================================================
 
 #include "ShaderCore.hpp"
+#include "core/ShaderRegs.hpp"
 #include "stages/TileBuffer.hpp"
 #include "core/PipelineTypes.hpp"
 #include "isa/interpreter_v2_5.hpp"
@@ -12,41 +13,9 @@
 #include <cmath>
 #include <sstream>
 #include <iostream>
+#include <cassert>
 
 namespace SoftGPU {
-
-// ============================================================================
-// 常量
-// ============================================================================
-
-namespace ShaderRegs {
-    // 输入寄存器 (R1-R9)
-    constexpr uint8_t FRAG_X = 1;
-    constexpr uint8_t FRAG_Y = 2;
-    constexpr uint8_t FRAG_Z = 3;
-    constexpr uint8_t COLOR_R = 4;
-    constexpr uint8_t COLOR_G = 5;
-    constexpr uint8_t COLOR_B = 6;
-    constexpr uint8_t COLOR_A = 7;
-    constexpr uint8_t TEX_U = 8;
-    constexpr uint8_t TEX_V = 9;
-
-    // 输出寄存器 (R10-R15)
-    constexpr uint8_t OUT_R = 10;
-    constexpr uint8_t OUT_G = 11;
-    constexpr uint8_t OUT_B = 12;
-    constexpr uint8_t OUT_A = 13;
-    constexpr uint8_t OUT_Z = 14;
-    constexpr uint8_t KILLED = 15;
-
-    // 临时寄存器 (R16-R31)
-    constexpr uint8_t TMP0 = 16;
-    constexpr uint8_t TMP1 = 17;
-    constexpr uint8_t TMP2 = 18;
-
-    // 着色器参数基址
-    constexpr uint8_t ARG_BASE = 1;
-}
 
 // ============================================================================
 // ShaderCore Implementation
@@ -91,10 +60,10 @@ ShaderFunction ShaderCore::getDefaultFragmentShader() {
     return shader;
 }
 
-ShaderFunction ShaderCore::getFlatColorShader(float, float, float, float) {
+// Unified factory: replaces getFlatColorShader, getBarycentricColorShader, getDepthTestShader
+// which all produced identical output (color passthrough + depth output).
+ShaderFunction makeColorPassShader() {
     ShaderFunction shader;
-
-    // v2.5 ISA: 简单颜色传递 + HALT
     shader.code = {
         Instruction::MakeC(Opcode::MOV, ShaderRegs::OUT_R, ShaderRegs::COLOR_R).word1,
         Instruction::MakeC(Opcode::MOV, ShaderRegs::OUT_G, ShaderRegs::COLOR_G).word1,
@@ -104,44 +73,6 @@ ShaderFunction ShaderCore::getFlatColorShader(float, float, float, float) {
         Instruction::MakeD(Opcode::HALT).word1
     };
     shader.start_addr = 0;
-
-    return shader;
-}
-
-ShaderFunction ShaderCore::getBarycentricColorShader() {
-    ShaderFunction shader;
-
-    // v2.5 ISA: 使用 MAD 指令进行颜色插值
-    // MAD TMP0, R0, COLOR_R, COLOR_R = COLOR_R * 1.0 = COLOR_R
-    shader.code = {
-        Instruction::MakeA(Opcode::MAD, ShaderRegs::TMP0, ShaderRegs::COLOR_R, ShaderRegs::COLOR_R).word1,
-        // OUT_R = COLOR_R (passthrough)
-        Instruction::MakeC(Opcode::MOV, ShaderRegs::OUT_R, ShaderRegs::COLOR_R).word1,
-        Instruction::MakeC(Opcode::MOV, ShaderRegs::OUT_G, ShaderRegs::COLOR_G).word1,
-        Instruction::MakeC(Opcode::MOV, ShaderRegs::OUT_B, ShaderRegs::COLOR_B).word1,
-        Instruction::MakeC(Opcode::MOV, ShaderRegs::OUT_A, ShaderRegs::COLOR_A).word1,
-        Instruction::MakeC(Opcode::MOV, ShaderRegs::OUT_Z, ShaderRegs::FRAG_Z).word1,
-        Instruction::MakeD(Opcode::HALT).word1
-    };
-    shader.start_addr = 0;
-
-    return shader;
-}
-
-ShaderFunction ShaderCore::getDepthTestShader() {
-    ShaderFunction shader;
-
-    // v2.5 ISA: 颜色传递 + depth 输出（实际 depth test 在 TileBuffer 中进行）
-    shader.code = {
-        Instruction::MakeC(Opcode::MOV, ShaderRegs::OUT_R, ShaderRegs::COLOR_R).word1,
-        Instruction::MakeC(Opcode::MOV, ShaderRegs::OUT_G, ShaderRegs::COLOR_G).word1,
-        Instruction::MakeC(Opcode::MOV, ShaderRegs::OUT_B, ShaderRegs::COLOR_B).word1,
-        Instruction::MakeC(Opcode::MOV, ShaderRegs::OUT_A, ShaderRegs::COLOR_A).word1,
-        Instruction::MakeC(Opcode::MOV, ShaderRegs::OUT_Z, ShaderRegs::FRAG_Z).word1,
-        Instruction::MakeD(Opcode::HALT).word1
-    };
-    shader.start_addr = 0;
-
     return shader;
 }
 
@@ -170,9 +101,9 @@ ShaderFunction ShaderCore::getMultiTriangleShader() {
 }
 
 ShaderFunction ShaderCore::compileShader(const std::string& glsl_source) {
-    // TODO: 实现 GLSL 编译器
     (void)glsl_source;
-    return getDefaultFragmentShader();
+    assert(false && "compileShader not implemented — use built-in shader factories");
+    return {};
 }
 
 void ShaderCore::createBuiltinTestTexture() {
@@ -254,8 +185,8 @@ void ShaderCore::setupFragmentInput(FragmentContext& ctx) {
     interp.SetRegister(ShaderRegs::COLOR_G, ctx.color_g);
     interp.SetRegister(ShaderRegs::COLOR_B, ctx.color_b);
     interp.SetRegister(ShaderRegs::COLOR_A, ctx.color_a);
-    interp.SetRegister(ShaderRegs::TEX_U, ctx.color_r);
-    interp.SetRegister(ShaderRegs::TEX_V, ctx.color_g);
+    interp.SetRegister(ShaderRegs::TEX_U, ctx.u);
+    interp.SetRegister(ShaderRegs::TEX_V, ctx.v);
 
     // 初始化输出寄存器
     interp.SetRegister(ShaderRegs::OUT_R, 0.0f);

@@ -295,6 +295,10 @@ private:
         float r = rf_.Read(ra) * rf_.Read(rb) + rf_.Read(ra+1) * rf_.Read(rb+1) + rf_.Read(ra+2) * rf_.Read(rb+2) + rf_.Read(ra+3) * rf_.Read(rb+3);
         rf_.Write(rd, r);
     }
+    // Scale factor for converting normalized texture coordinates [0,1] to
+    // texel indices in the fallback checkerboard pattern.
+    static constexpr float TEXTURE_COORD_SCALE = 8.0f;
+
     void ExTEX() {
         uint8_t rd = inst_.GetRd(), ra = inst_.GetRa(), rb = inst_.GetRb();
         float u = rf_.Read(ra);
@@ -310,8 +314,8 @@ private:
             rf_.Write(rd+3, c.a);
         } else {
             // Fallback: checkerboard if no valid texture
-            int cx = static_cast<int>(u * 8.0f);
-            int cy = static_cast<int>(v * 8.0f);
+            int cx = static_cast<int>(u * TEXTURE_COORD_SCALE);
+            int cy = static_cast<int>(v * TEXTURE_COORD_SCALE);
             float c = ((cx + cy) % 2 == 0) ? 1.0f : 0.0f;
             rf_.Write(rd, c);
             rf_.Write(rd+1, c);

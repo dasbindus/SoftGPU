@@ -87,16 +87,130 @@ enum class Opcode : uint8_t {
 enum class Format { A, B, C, D, E };
 
 // ============================================================================
+// Named Constants
+// ============================================================================
+constexpr uint16_t IMM10_MASK = 0x3FF;  // 10-bit immediate: max value 1023
+
+// ============================================================================
+// Opcode Metadata Table (DRY: format + cycles in one place)
+// ============================================================================
+struct OpcodeMeta {
+    Format format;
+    uint8_t cycles;
+};
+
+static constexpr OpcodeMeta kOpcodeTable[] = {
+    // ---- Control Flow (0x00-0x0F)
+    // [0x00] NOP
+    { Format::D, 1 },
+    // [0x01] BRA
+    { Format::B, 1 },
+    // [0x02] CALL
+    { Format::B, 1 },
+    // [0x03] RET
+    { Format::D, 1 },
+    // [0x04] JMP
+    { Format::B, 1 },
+    // [0x05] BAR
+    { Format::D, 1 },
+    // [0x06-0x0E] unused
+    { Format::E, 1 }, { Format::E, 1 }, { Format::E, 1 }, { Format::E, 1 },
+    { Format::E, 1 }, { Format::E, 1 }, { Format::E, 1 }, { Format::E, 1 },
+    // [0x0F] HALT
+    { Format::D, 1 },
+
+    // ---- ALU (0x10-0x1F)
+    { Format::A, 1 }, // ADD
+    { Format::A, 1 }, // SUB
+    { Format::A, 1 }, // MUL
+    { Format::A, 7 }, // DIV
+    { Format::A, 1 }, // MAD
+    { Format::A, 1 }, // CMP
+    { Format::A, 1 }, // MIN
+    { Format::A, 1 }, // MAX
+    { Format::A, 1 }, // AND
+    { Format::A, 1 }, // OR
+    { Format::A, 1 }, // XOR
+    { Format::A, 1 }, // SHL
+    { Format::A, 1 }, // SHR
+    { Format::A, 1 }, // SEL
+    { Format::A, 1 }, // SMOOTHSTEP
+    { Format::A, 1 }, // SETP
+
+    // ---- SFU (0x20-0x2F)
+    { Format::C, 1 }, // RCP
+    { Format::C, 1 }, // SQRT
+    { Format::C, 1 }, // RSQ
+    { Format::C, 1 }, // SIN
+    { Format::C, 1 }, // COS
+    { Format::C, 1 }, // EXPD2
+    { Format::C, 1 }, // LOGD2
+    { Format::A, 1 }, // POW
+    { Format::C, 1 }, // ABS
+    { Format::C, 1 }, // NEG
+    { Format::C, 1 }, // FLOOR
+    { Format::C, 1 }, // CEIL
+    { Format::C, 1 }, // FRACT
+    { Format::C, 1 }, // F2I
+    { Format::C, 1 }, // I2F
+    { Format::C, 1 }, // NOT
+
+    // ---- Memory (0x30-0x3F)
+    { Format::B, 2 }, // LD
+    { Format::B, 2 }, // ST
+    { Format::A, 10 }, // TEX
+    { Format::A, 10 }, // SAMPLE
+    { Format::B, 2 }, // OUTPUT
+
+    // ---- VS-Only (0x40-0x5F)
+    { Format::E, 1 }, { Format::E, 1 }, { Format::E, 1 }, { Format::E, 1 },
+    { Format::E, 1 }, { Format::E, 1 }, { Format::E, 1 }, { Format::E, 1 }, // 0x40-0x47
+    { Format::B, 2 }, // MOV_IMM (0x48)
+    { Format::B, 1 }, // VLOAD (0x49)
+    { Format::B, 2 }, // VSTORE (0x4A)
+    { Format::B, 2 }, // OUTPUT_VS (0x4B)
+    { Format::B, 2 }, // LDC (0x4C)
+    { Format::B, 2 }, // ATTR (0x4D)
+    { Format::A, 1 }, // DOT3 (0x4E)
+    { Format::A, 1 }, // DOT4 (0x4F)
+    { Format::E, 1 }, { Format::E, 1 }, { Format::E, 1 }, { Format::E, 1 },
+    { Format::E, 1 }, { Format::E, 1 }, { Format::E, 1 }, { Format::E, 1 },
+    { Format::E, 1 }, { Format::E, 1 }, { Format::E, 1 }, { Format::E, 1 },
+    { Format::E, 1 }, { Format::E, 1 }, { Format::E, 1 }, { Format::E, 1 }, // 0x50-0x5F
+
+    // ---- VS MOV (0x63)
+    { Format::C, 1 }, // MOV (0x63)
+
+    // ---- Reserved/Invalid (0xC0-0xFE)
+    { Format::E, 1 }, { Format::E, 1 }, { Format::E, 1 }, { Format::E, 1 },
+    { Format::E, 1 }, { Format::E, 1 }, { Format::E, 1 }, { Format::E, 1 },
+    { Format::E, 1 }, { Format::E, 1 }, { Format::E, 1 }, { Format::E, 1 },
+    { Format::E, 1 }, { Format::E, 1 }, { Format::E, 1 }, { Format::E, 1 },
+    { Format::E, 1 }, { Format::E, 1 }, { Format::E, 1 }, { Format::E, 1 },
+    { Format::E, 1 }, { Format::E, 1 }, { Format::E, 1 }, { Format::E, 1 },
+    { Format::E, 1 }, { Format::E, 1 }, { Format::E, 1 }, { Format::E, 1 },
+    { Format::E, 1 }, { Format::E, 1 }, { Format::E, 1 }, { Format::E, 1 },
+    { Format::E, 1 }, { Format::E, 1 }, { Format::E, 1 }, { Format::E, 1 },
+    { Format::E, 1 }, { Format::E, 1 }, { Format::E, 1 }, { Format::E, 1 },
+    { Format::E, 1 }, { Format::E, 1 }, { Format::E, 1 }, { Format::E, 1 },
+    { Format::E, 1 }, { Format::E, 1 }, { Format::E, 1 }, { Format::E, 1 },
+    { Format::E, 1 }, { Format::E, 1 }, { Format::E, 1 }, { Format::E, 1 },
+    { Format::E, 1 }, { Format::E, 1 }, { Format::E, 1 }, { Format::E, 1 },
+    { Format::E, 1 }, { Format::E, 1 }, { Format::E, 1 }, { Format::E, 1 },
+    // [0xFF] INVALID
+    { Format::E, 1 },
+};
+
+// ============================================================================
 // Instruction
 // ============================================================================
 struct Instruction {
     uint32_t word1 = 0;
     uint32_t word2 = 0;
-    bool is_dual_word = false;
 
     Instruction() {}
     Instruction(uint32_t w1) : word1(w1) {}
-    Instruction(uint32_t w1, uint32_t w2) : word1(w1), word2(w2), is_dual_word(true) {}
+    Instruction(uint32_t w1, uint32_t w2) : word1(w1), word2(w2) {}
 
     Opcode GetOpcode() const { return static_cast<Opcode>((word1 >> 24) & 0xFF); }
     uint8_t GetRd() const { return (word1 >> 17) & 0x7F; }
@@ -108,76 +222,15 @@ struct Instruction {
     uint16_t GetImm10() const { return word2 & 0x3FF; }
 
     int32_t GetSignedImm10() const {
-        uint16_t u = word2 & 0x3FF;
+        uint16_t u = word2 & IMM10_MASK;
         if (u & 0x200) return static_cast<int32_t>(u) - 1024;
         return static_cast<int32_t>(u);
     }
 
     uint16_t GetFunc() const { return (word1 >> 8) & 0x1FF; }
 
-    static Format GetFormat(Opcode op) {
-        switch (op) {
-            case Opcode::NOP:
-            case Opcode::RET:
-            case Opcode::HALT:
-            case Opcode::BAR:
-                return Format::D;
-            case Opcode::ADD:
-            case Opcode::SUB:
-            case Opcode::MUL:
-            case Opcode::DIV:
-            case Opcode::MAD:
-            case Opcode::CMP:
-            case Opcode::MIN:
-            case Opcode::MAX:
-            case Opcode::AND:
-            case Opcode::OR:
-            case Opcode::XOR:
-            case Opcode::SHL:
-            case Opcode::SHR:
-            case Opcode::SEL:
-            case Opcode::SMOOTHSTEP:
-            case Opcode::SETP:
-            case Opcode::POW:
-            case Opcode::DOT3:
-            case Opcode::DOT4:
-            case Opcode::TEX:
-            case Opcode::SAMPLE:
-                return Format::A;
-            case Opcode::RCP:
-            case Opcode::SQRT:
-            case Opcode::RSQ:
-            case Opcode::SIN:
-            case Opcode::COS:
-            case Opcode::EXPD2:
-            case Opcode::LOGD2:
-            case Opcode::ABS:
-            case Opcode::NEG:
-            case Opcode::FLOOR:
-            case Opcode::CEIL:
-            case Opcode::FRACT:
-            case Opcode::F2I:
-            case Opcode::I2F:
-            case Opcode::NOT:
-            case Opcode::MOV:
-                return Format::C;
-            case Opcode::BRA:
-            case Opcode::CALL:
-            case Opcode::JMP:
-            case Opcode::LD:
-            case Opcode::ST:
-            case Opcode::OUTPUT:
-            case Opcode::MOV_IMM:
-            case Opcode::VLOAD:
-            case Opcode::VSTORE:
-            case Opcode::OUTPUT_VS:
-            case Opcode::LDC:
-            case Opcode::ATTR:
-                return Format::B;
-            default:
-                return Format::E;
-        }
-    }
+    static Format GetFormat(Opcode op) { return kOpcodeTable[static_cast<uint8_t>(op)].format; }
+    static uint8_t GetCycles(Opcode op) { return kOpcodeTable[static_cast<uint8_t>(op)].cycles; }
 
     Format GetFormat() const { return GetFormat(GetOpcode()); }
 
@@ -305,22 +358,5 @@ inline const char* GetOpcodeName(Opcode op) {
     }
 }
 
-inline int GetCycles(Opcode op) {
-    switch (op) {
-        case Opcode::DIV: return 7;
-        case Opcode::TEX:
-        case Opcode::SAMPLE: return 10;
-        case Opcode::LD:
-        case Opcode::ST:
-        case Opcode::VLOAD:
-        case Opcode::VSTORE:
-        case Opcode::OUTPUT:
-        case Opcode::OUTPUT_VS:
-        case Opcode::MOV_IMM:
-        case Opcode::LDC:
-        case Opcode::ATTR: return 2;
-        default: return 1;
-    }
-}
 
 }}} // namespaces
