@@ -146,9 +146,9 @@ void WarpScheduler::executeWarp(Warp& warp, bool enable_tile_write) {
             m_interpreter.SetRegister(ShaderRegs::COLOR_G, frag.color_g);
             m_interpreter.SetRegister(ShaderRegs::COLOR_B, frag.color_b);
             m_interpreter.SetRegister(ShaderRegs::COLOR_A, frag.color_a);
-            // TEX_U/V: delegate to ShaderCore convention (use frag.u/v)
-            m_interpreter.SetRegister(ShaderRegs::TEX_U, frag.u);
-            m_interpreter.SetRegister(ShaderRegs::TEX_V, frag.v);
+            // TEX_U/V: use color channels as texture coordinates (same convention as ShaderCore)
+            m_interpreter.SetRegister(ShaderRegs::TEX_U, frag.color_r);
+            m_interpreter.SetRegister(ShaderRegs::TEX_V, frag.color_g);
             m_interpreter.SetRegister(ShaderRegs::OUT_R, 0.0f);
             m_interpreter.SetRegister(ShaderRegs::OUT_G, 0.0f);
             m_interpreter.SetRegister(ShaderRegs::OUT_B, 0.0f);
@@ -297,7 +297,7 @@ void WarpScheduler::runMultithreaded() {
                 Warp& warp = m_warps[i];
                 
                 if (warp.isRunning()) {
-                    executeWarp(warp);
+                    executeWarp(warp, false);
                 } else {
                     // 短暂休眠，避免忙等待
                     std::this_thread::sleep_for(std::chrono::microseconds(10));
@@ -451,7 +451,7 @@ WarpBatchResult WarpScheduler::executeWarpBatch(WarpBatchConfig cfg) {
     for (auto& warp : m_warps) {
         if (warp.isRunning()) {
             // 传递 tile buffer 写入开关
-            executeWarpWithTileWrite(warp, cfg.enable_tile_write);
+            executeWarp(warp, cfg.enable_tile_write);
             
             if (warp.isDone()) {
                 result.warps_completed++;
@@ -476,94 +476,6 @@ WarpBatchResult WarpScheduler::executeWarpBatch(WarpBatchConfig cfg) {
     }
     
     return result;
-}
-
-// 内部：执行单个 warp 并可选写入 TileBuffer
-void WarpScheduler::executeWarpWithTileWrite(Warp& warp, bool enable_tile_write) {
-    if (!warp.isRunning() || warp.getShader() == nullptr) {
-        return;
-    }
-    
-    const ShaderFunction* shader = warp.getShader();
-    
-    // v2.5: Load program once, then execute each lane
-    if (!shader->empty()) {
-        m_interpreter.LoadProgram(shader->code.data(), shader->code.size(), 0);
-    }
-    
-    // 为每个 active lane 执行 shader
-    for (uint32_t lane = 0; lane < warp.getFragmentCount(); ++lane) {
-        FragmentContext& frag = warp.getFragment(lane);
-        
-        if (shader->empty()) {
-            // Passthrough
-            frag.out_r = frag.color_r;
-            frag.out_g = frag.color_g;
-            frag.out_b = frag.color_b;
-            frag.out_a = frag.color_a;
-            frag.out_z = frag.pos_z;
-        } else {
-            // v2.5: Reset clears registers, PC, and stats
-            m_interpreter.Reset();
-            
-            // 设置 fragment 输入到寄存器
-            m_interpreter.SetRegister(ShaderRegs::FRAG_X, frag.pos_x);
-            m_interpreter.SetRegister(ShaderRegs::FRAG_Y, frag.pos_y);
-            m_interpreter.SetRegister(ShaderRegs::FRAG_Z, frag.pos_z);
-            m_interpreter.SetRegister(ShaderRegs::COLOR_R, frag.color_r);
-            m_interpreter.SetRegister(ShaderRegs::COLOR_G, frag.color_g);
-            m_interpreter.SetRegister(ShaderRegs::COLOR_B, frag.color_b);
-            m_interpreter.SetRegister(ShaderRegs::COLOR_A, frag.color_a);
-            m_interpreter.SetRegister(ShaderRegs::TEX_U, frag.u);
-            m_interpreter.SetRegister(ShaderRegs::TEX_V, frag.v);
-            m_interpreter.SetRegister(ShaderRegs::OUT_R, 0.0f);
-            m_interpreter.SetRegister(ShaderRegs::OUT_G, 0.0f);
-            m_interpreter.SetRegister(ShaderRegs::OUT_B, 0.0f);
-            m_interpreter.SetRegister(ShaderRegs::OUT_A, 1.0f);
-            m_interpreter.SetRegister(ShaderRegs::OUT_Z, frag.pos_z);
-            m_interpreter.SetRegister(ShaderRegs::KILLED, 0.0f);
-            
-            // v2.5: Run executes the full program (manages PC internally)
-            // max_cycles = 1024 prevents infinite loops
-            m_interpreter.Run(1024);
-            
-            // 更新统计
-            const auto& st = m_interpreter.GetStats();
-            warp.getStats().instructions_executed += st.instructions_executed;
-            
-            // 捕获输出
-            frag.out_r = m_interpreter.GetRegister(ShaderRegs::OUT_R);
-            frag.out_g = m_interpreter.GetRegister(ShaderRegs::OUT_G);
-            frag.out_b = m_interpreter.GetRegister(ShaderRegs::OUT_B);
-            frag.out_a = m_interpreter.GetRegister(ShaderRegs::OUT_A);
-            frag.out_z = m_interpreter.GetRegister(ShaderRegs::OUT_Z);
-            frag.killed = (m_interpreter.GetRegister(ShaderRegs::KILLED) != 0.0f);
-        }
-        
-        // P0-1: 委托模式写入 TileBuffer
-        if (enable_tile_write && m_tile_buffer_manager != nullptr && !frag.killed) {
-            uint32_t tile_idx = frag.tile_y * NUM_TILES_X + frag.tile_x;  // row-major: tileY * NUM_TILES_X + tileX
-            uint32_t local_x = static_cast<uint32_t>(frag.pos_x) - frag.tile_x * TILE_WIDTH;
-            uint32_t local_y = static_cast<uint32_t>(frag.pos_y) - frag.tile_y * TILE_HEIGHT;
-            
-            float color[4] = {frag.out_r, frag.out_g, frag.out_b, frag.out_a};
-            bool written = m_tile_buffer_manager->depthTestAndWrite(
-                tile_idx, local_x, local_y, frag.out_z, color);
-            
-            if (written) {
-                warp.getStats().instructions_executed++;  // reuse stat for written count
-            }
-        }
-    }
-    
-    // Warp 完成
-    warp.finish();
-    warp.getStats().cycles_active++;
-    
-    // 调用回调
-    if (m_warp_done_callback) {
-        m_warp_done_callback(&warp);
-    }
 }
 
 // ============================================================================

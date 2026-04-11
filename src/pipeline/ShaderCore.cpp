@@ -185,8 +185,10 @@ void ShaderCore::setupFragmentInput(FragmentContext& ctx) {
     interp.SetRegister(ShaderRegs::COLOR_G, ctx.color_g);
     interp.SetRegister(ShaderRegs::COLOR_B, ctx.color_b);
     interp.SetRegister(ShaderRegs::COLOR_A, ctx.color_a);
-    interp.SetRegister(ShaderRegs::TEX_U, ctx.u);
-    interp.SetRegister(ShaderRegs::TEX_V, ctx.v);
+    // TEX_U/V: use color channels (r,g) as texture coordinates
+    // (rasterizer interpolates vertex r/g as frag.color_r/g)
+    m_interpreter.SetRegister(ShaderRegs::TEX_U, ctx.color_r);
+    m_interpreter.SetRegister(ShaderRegs::TEX_V, ctx.color_g);
 
     // 初始化输出寄存器
     interp.SetRegister(ShaderRegs::OUT_R, 0.0f);

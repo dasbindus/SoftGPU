@@ -305,8 +305,7 @@ private:
     
     // 内部方法
     void initializeWarps();
-    void executeWarp(Warp& warp);
-    void executeWarpWithTileWrite(Warp& warp, bool enable_tile_write);
+    void executeWarp(Warp& warp, bool enable_tile_write);
     bool allWarpsDone() const;
     void updateStats();
     
