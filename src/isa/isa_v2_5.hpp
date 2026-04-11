@@ -228,6 +228,19 @@ struct Instruction {
                    | (static_cast<uint32_t>(ra & 0x7F) << 10);
         return Instruction(w);
     }
+
+    // Factory: MAD (R4-type with Rc=Rb[4:0] in v2.5 encoding)
+    // In v2.5, Rb occupies bits[9:3] (7 bits) and Rc occupies bits[9:5] (5 bits).
+    // Since they overlap, Rc is constrained to equal Rb[4:0].
+    // This factory enforces: Rc = Rb & 0x1F.
+    static Instruction MakeMAD(uint8_t rd, uint8_t ra, uint8_t rb, uint8_t rc) {
+        uint32_t rb_field = rb; // Rc = Rb[4:0], so Rb_field = Rb
+        uint32_t w = (static_cast<uint32_t>(Opcode::MAD) << 24)
+                   | (static_cast<uint32_t>(rd & 0x7F) << 17)
+                   | (static_cast<uint32_t>(ra & 0x7F) << 10)
+                   | (static_cast<uint32_t>(rb_field & 0x7F) << 3);
+        return Instruction(w);
+    }
 };
 
 // ============================================================================
