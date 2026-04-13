@@ -46,7 +46,7 @@ TEST(IntegrationTest, GreenTriangle_Center) {
 
     RenderCommand cmd;
     cmd.vertexBufferData = vertices;
-    cmd.vertexBufferSize = 12;  // 3 vertices * 4 floats pos + 4 floats color
+    cmd.vertexBufferSize = 24;  // 3 vertices * 8 floats (pos + color)
     cmd.drawParams.vertexCount = 3;
     cmd.drawParams.indexed = false;
     cmd.modelMatrix = identityMatrix();
@@ -200,7 +200,7 @@ TEST(IntegrationTest, DISABLED_Performance_SingleTriangle) {
 
     RenderCommand cmd;
     cmd.vertexBufferData = triangle;
-    cmd.vertexBufferSize = 12;
+    cmd.vertexBufferSize = 24;
     cmd.drawParams.vertexCount = 3;
     cmd.modelMatrix = identityMatrix();
     cmd.viewMatrix = identityMatrix();
@@ -236,7 +236,7 @@ TEST(IntegrationTest, PerformanceReport_Prints) {
 
     RenderCommand cmd;
     cmd.vertexBufferData = triangle;
-    cmd.vertexBufferSize = 12;
+    cmd.vertexBufferSize = 24;
     cmd.drawParams.vertexCount = 3;
     cmd.modelMatrix = identityMatrix();
     cmd.viewMatrix = identityMatrix();
@@ -265,7 +265,7 @@ TEST(IntegrationTest, PPM_Dump_GoldenTriangle) {
 
     RenderCommand cmd;
     cmd.vertexBufferData = vertices;
-    cmd.vertexBufferSize = 12;
+    cmd.vertexBufferSize = 24;
     cmd.drawParams.vertexCount = 3;
     cmd.modelMatrix = identityMatrix();
     cmd.viewMatrix = identityMatrix();
@@ -301,7 +301,7 @@ TEST(IntegrationTest, PPM_Header_Correct) {
 
     RenderCommand cmd;
     cmd.vertexBufferData = triangle;
-    cmd.vertexBufferSize = 12;
+    cmd.vertexBufferSize = 24;
     cmd.drawParams.vertexCount = 3;
     cmd.modelMatrix = identityMatrix();
     cmd.viewMatrix = identityMatrix();
