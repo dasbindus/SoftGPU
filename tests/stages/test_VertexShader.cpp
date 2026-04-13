@@ -416,7 +416,8 @@ TEST(InterpreterTest, DirectMAT_MUL_Identity) {
     interp.SetRegister(7, 1.0f);
 
     // Execute MAT_MUL R4, R8, R4
-    Instruction mat_mul = PatternVS::vs_mat_mul(4, 8, 4);
+    // VS_MAT_MUL old ISA encoding: opcode=0x28, rd=4, ra=8, rb=4, rc=0
+    Instruction mat_mul(static_cast<uint32_t>((0x28U << 25) | (4U << 20) | (8U << 15) | (4U << 10)));
     interp.ExecuteInstruction(mat_mul);
 
     // With identity matrix, output = input
@@ -445,10 +446,14 @@ TEST(InterpreterTest, RunVertexProgram_SimplePipeline) {
     interp.SetVBO(vbo, 8);
 
     // Program: VLOAD R4,#0 → VOUTPUT R4,#0 → HALT
+    // Old ISA raw encodings (7-bit opcode at bits[31:25]):
+    // VS_VLOAD:  (0x29<<25)|(4<<20)|0 = 0x52400000
+    // VS_VOUTPUT: (0x26<<25)|(4<<20)|0 = 0x4C400000
+    // VS_HALT:   (0x2A<<25) = 0x54000000
     std::vector<uint32_t> program = {
-        PatternVS::vs_vload(4, 0).raw,
-        PatternVS::vs_voutput(4, 0).raw,
-        PatternVS::vs_halt().raw,
+        0x52400000U,  // VS_VLOAD R4, #0
+        0x4C400000U,  // VS_VOUTPUT R4, #0
+        0x54000000U,  // VS_HALT
     };
 
     interp.RunVertexProgram(program.data(), 1);
