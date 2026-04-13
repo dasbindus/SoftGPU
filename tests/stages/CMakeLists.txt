@@ -14,11 +14,10 @@ else()
     set(APPLE_CXX_LIBS "")
 endif()
 
-# DISABLED: Old ISA (Instruction.hpp, Opcode.hpp, Interpreter.hpp) removed
-# add_executable(test_VertexShader test_VertexShader.cpp)
-# target_link_libraries(test_VertexShader PRIVATE stages core ${GTEST_LIBS} ${APPLE_CXX_LIBS})
-# include(GoogleTest)
-# gtest_discover_tests(test_VertexShader)
+add_executable(test_VertexShader test_VertexShader.cpp)
+target_link_libraries(test_VertexShader PRIVATE stages core ${GTEST_LIBS} ${APPLE_CXX_LIBS})
+include(GoogleTest)
+gtest_discover_tests(test_VertexShader)
 
 add_executable(test_PrimitiveAssembly test_PrimitiveAssembly.cpp)
 target_link_libraries(test_PrimitiveAssembly PRIVATE stages core ${GTEST_LIBS} ${APPLE_CXX_LIBS})
