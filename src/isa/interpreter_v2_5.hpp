@@ -393,13 +393,13 @@ private:
         int16_t off = inst_.GetSignedImm10();
         float c = rf_.Read(ra);
         uint32_t next = pc_ + 8;
-        if (c != 0.0f) { pc_ = next + static_cast<uint32_t>(off) * 4; st_.branches_taken++; }
+        if (c != 0.0f) { pc_ = next + static_cast<uint32_t>(static_cast<int32_t>(off) * 4); st_.branches_taken++; }
         else { pc_ = next; }
     }
     void ExJMP() {
         int16_t off = inst_.GetSignedImm10();
         uint32_t next = pc_ + 8;
-        if (off != 0) pc_ = next + static_cast<uint32_t>(off) * 4;
+        if (off != 0) pc_ = next + static_cast<uint32_t>(static_cast<int32_t>(off) * 4);
         else pc_ = next;
     }
     void ExCALL() {
@@ -408,7 +408,7 @@ private:
         link_ = pc_ + 8;
         rf_.Write(63, reinterpret_cast<float&>(link_));
         int16_t off = inst_.GetSignedImm10();
-        pc_ = pc_ + 8 + static_cast<uint32_t>(off) * 4;
+        pc_ = pc_ + 8 + static_cast<uint32_t>(static_cast<int32_t>(off) * 4);
         st_.calls++;
     }
     void ExLD() {
