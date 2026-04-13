@@ -490,8 +490,9 @@ private:
     uint32_t link_ = 0;
     Instruction inst_;
     bool iv_ = false;
-    bool idw_ = false;
-    bool idf_ = false;
+    bool idw_ = false;      // current instruction is dual-word (Format_B)
+    bool idf_ = false;      // instruction fetch done (word2 fetched)
+    bool after_word1_ = false;  // just executed Format_B word1, don't advance pc_ to word2 yet
     Stats st_;
     std::vector<PendingDiv> pd_;
     Memory mem_;
@@ -533,6 +534,7 @@ inline void Interpreter::Reset() {
     st_.Reset();
     pd_.clear();
     iv_ = idw_ = idf_ = false;
+    after_word1_ = false;
     run_ = true;
     vobuf_.assign(64, 0.0f);
     vabuf_.assign(64, 0.0f);
@@ -543,6 +545,7 @@ inline void Interpreter::LoadProgram(const uint32_t* code, size_t n, uint32_t a)
     prog_.assign(code, code + n);
     pc_ = a;
     iv_ = idw_ = idf_ = run_ = true;
+    after_word1_ = false;
 }
 
 inline void Interpreter::SetVBO(const float* d, size_t n) {
@@ -777,7 +780,16 @@ inline void Interpreter::Execute() {
     }
 
     // Fall-through: advance pc_ to next instruction
-    if (run_) pc_ += idw_ ? 8 : 4;
+    if (run_) {
+        if (idw_ && !after_word1_) {
+            // Format_B word1: don't advance pc_, set flag for word2
+            after_word1_ = true;
+        } else {
+            // Format_B word2 or single-word: advance by 4 (one uint32_t)
+            pc_ += 4;
+            after_word1_ = false;
+        }
+    }
 }
 
 inline bool Interpreter::Step() {
