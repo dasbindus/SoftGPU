@@ -5,6 +5,7 @@
 // ============================================================================
 
 #include "RenderPipeline.hpp"
+#include "ShaderCore.hpp"
 
 #include <iostream>
 #include <iomanip>
@@ -26,6 +27,12 @@ RenderPipeline::RenderPipeline()
       m_memory(),
       m_tileWriteBack() {
     connectStages();
+
+    // Load default VS ISA program (ISA v2.5 bytecode)
+    auto defaultVS = ShaderCore::getDefaultVertexShader();
+    if (!defaultVS.code.empty()) {
+        m_vertexShader.SetProgram(defaultVS.code.data(), defaultVS.code.size());
+    }
 }
 
 RenderPipeline::~RenderPipeline() {

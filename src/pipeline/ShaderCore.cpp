@@ -307,8 +307,8 @@ void ShaderCore::syncMemoryWithTileBuffer(TileBufferManager*, uint32_t) {
 //   Byte 16-31:  color      (r, g, b, a)     → float[4..7]
 //
 // Register allocation for MVP transform:
-//   R4-R7  = vertex position (x,y,z,w)  [loaded by VLOAD]
-//   R8-R11 = vertex color    (r,g,b,a)  [loaded by VLOAD]
+//   R4-R7   = vertex position (x,y,z,w)  [loaded by VLOAD]
+//   R60-R63 = vertex color    (r,g,b,a)  [loaded by ATTR, does NOT overlap matrices]
 //
 // Matrix registers (set by SetUniforms / RunVertexProgram):
 //   M: R8-R23  (col0=R8..R11, col1=R12..R15, col2=R16..R19, col3=R20..R23)
@@ -335,18 +335,18 @@ ShaderFunction ShaderCore::getDefaultVertexShader() {
     // VLOAD R4, #0: loads position (x,y,z,w) into R4-R7
     shader.code.push_back(Instruction::MakeB(Opcode::VLOAD, 4, 0, 0, 0).word1);
     shader.code.push_back(Instruction::MakeB(Opcode::VLOAD, 4, 0, 0, 0).word2);
-    // ATTR R8, #4: load color.r from VBO float[4]
-    shader.code.push_back(Instruction::MakeB(Opcode::ATTR, 8, 0, 0, 4).word1);
-    shader.code.push_back(Instruction::MakeB(Opcode::ATTR, 8, 0, 0, 4).word2);
-    // ATTR R9, #5: load color.g from VBO float[5]
-    shader.code.push_back(Instruction::MakeB(Opcode::ATTR, 9, 0, 0, 5).word1);
-    shader.code.push_back(Instruction::MakeB(Opcode::ATTR, 9, 0, 0, 5).word2);
-    // ATTR R10, #6: load color.b from VBO float[6]
-    shader.code.push_back(Instruction::MakeB(Opcode::ATTR, 10, 0, 0, 6).word1);
-    shader.code.push_back(Instruction::MakeB(Opcode::ATTR, 10, 0, 0, 6).word2);
-    // ATTR R11, #7: load color.a from VBO float[7]
-    shader.code.push_back(Instruction::MakeB(Opcode::ATTR, 11, 0, 0, 7).word1);
-    shader.code.push_back(Instruction::MakeB(Opcode::ATTR, 11, 0, 0, 7).word2);
+    // ATTR R60, #4: load color.r from VBO float[4]
+    shader.code.push_back(Instruction::MakeB(Opcode::ATTR, 60, 0, 0, 4).word1);
+    shader.code.push_back(Instruction::MakeB(Opcode::ATTR, 60, 0, 0, 4).word2);
+    // ATTR R61, #5: load color.g from VBO float[5]
+    shader.code.push_back(Instruction::MakeB(Opcode::ATTR, 61, 0, 0, 5).word1);
+    shader.code.push_back(Instruction::MakeB(Opcode::ATTR, 61, 0, 0, 5).word2);
+    // ATTR R62, #6: load color.b from VBO float[6]
+    shader.code.push_back(Instruction::MakeB(Opcode::ATTR, 62, 0, 0, 6).word1);
+    shader.code.push_back(Instruction::MakeB(Opcode::ATTR, 62, 0, 0, 6).word2);
+    // ATTR R63, #7: load color.a from VBO float[7]
+    shader.code.push_back(Instruction::MakeB(Opcode::ATTR, 63, 0, 0, 7).word1);
+    shader.code.push_back(Instruction::MakeB(Opcode::ATTR, 63, 0, 0, 7).word2);
 
     // =========================================================================
     // Model transform: t = M * v
@@ -447,11 +447,11 @@ ShaderFunction ShaderCore::getDefaultVertexShader() {
     shader.code.push_back(Instruction::MakeB(Opcode::OUTPUT_VS, 12, 0, 0, 0).word2);
 
     // === Store color to VATTR buffer for fragment shader ===
-    // After VLOAD, R8-R11 = {r,g,b,a} (from VBO float indices 4,5,6,7)
-    // VSTORE R8, #0: writes R8-R11 to vabuf_[0..3]
+    // R60-R63 = {r,g,b,a} (loaded by ATTR instructions above)
+    // VSTORE Rb=60, imm=0: writes R60-R63 to vabuf_[0..3]
     // GetVAttrFloat(0, 0..3) reads vabuf_[0..3] = {r,g,b,a}
-    shader.code.push_back(Instruction::MakeB(Opcode::VSTORE, 8, 0, 8, 0).word1);
-    shader.code.push_back(Instruction::MakeB(Opcode::VSTORE, 8, 0, 8, 0).word2);
+    shader.code.push_back(Instruction::MakeE(Opcode::VSTORE, 60, uint16_t(0)).word1);
+    shader.code.push_back(Instruction::MakeE(Opcode::VSTORE, 60, uint16_t(0)).word2);
 
     // === HALT ===
     shader.code.push_back(Instruction::MakeD(Opcode::HALT).word1);

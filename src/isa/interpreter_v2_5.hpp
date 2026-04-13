@@ -439,13 +439,17 @@ private:
         st_.loads++;
     }
     void ExVSTORE() {
-        // Format-B dual-word: stores vertex attributes (4 floats) to VATTR buffer
-        // Rb=src register (4-aligned), imm=VATTR buffer byte offset
-        uint8_t rb = inst_.GetRb_W2();
-        uint16_t boff = inst_.GetImm10();
+        // Format-E: rd=source register (4-aligned), word2=attr_byte_offset
+        // Writes rf_[rd+i] → vabuf_[(attr_byte_offset/4)+i]
+        uint8_t rd = inst_.GetRd();
+        uint16_t attr_boff = inst_.GetWord2() & 0x3FF;  // byte offset
+        fprintf(stderr, "DEBUG VSTORE: rd=%u attr_boff=%u R%d=%.1f R%d=%.1f R%d=%.1f R%d=%.1f\n",
+                (unsigned)rd, (unsigned)attr_boff,
+                rd, rf_.Read(rd), rd+1, rf_.Read(rd+1),
+                rd+2, rf_.Read(rd+2), rd+3, rf_.Read(rd+3));
         for (int i = 0; i < 4; ++i) {
-            size_t attr_idx = (boff / 4) + i;
-            if (attr_idx < vabuf_.size()) vabuf_[attr_idx] = rf_.Read(rb + i);
+            size_t attr_idx = (attr_boff / 4) + i;
+            if (attr_idx < vabuf_.size()) vabuf_[attr_idx] = rf_.Read(rd + i);
         }
         st_.stores++;
     }
@@ -455,6 +459,9 @@ private:
         // Execution cycles: 2, terminating instruction
         uint8_t rd = inst_.GetRd();
         uint32_t base = curvtx_ * 4;
+        float cx = rf_.Read(rd), cy = rf_.Read(rd+1), cz = rf_.Read(rd+2), cw = rf_.Read(rd+3);
+        fprintf(stderr, "DEBUG OUTPUT_VS: vtx=%u rd=%u clip=(%.3f, %.3f, %.3f, %.3f)\n",
+                (unsigned)curvtx_, (unsigned)rd, cx, cy, cz, cw);
         if (base + 3 < vobuf_.size()) for (int i = 0; i < 4; ++i) vobuf_[base + i] = rf_.Read(rd + i);
         curvtx_++; vcnt_++;
     }
@@ -492,7 +499,9 @@ private:
     bool iv_ = false;
     bool idw_ = false;      // current instruction is dual-word (Format_B)
     bool idf_ = false;      // instruction fetch done (word2 fetched)
-    bool after_word1_ = false;  // just executed Format_B word1, don't advance pc_ to word2 yet
+    bool after_word1_ = false;     // just executed Format_B word1, don't advance pc_ to word2 yet
+    bool after_format_e_ = false;  // just executed Format_E word1, skip word2 in next cycle
+    bool skip_decode_ = false;      // skip next Decode (word2 is data, not opcode)
     Stats st_;
     std::vector<PendingDiv> pd_;
     Memory mem_;
@@ -579,13 +588,13 @@ inline void Interpreter::Fetch() {
     idf_ = false;
     Opcode op = inst_.GetOpcode();
     Format fmt = Instruction::GetFormat(op);
-    idw_ = (fmt == Format::B);
+    idw_ = (fmt == Format::B || fmt == Format::E);
     if (!idw_) idf_ = true;
 }
 
 inline void Interpreter::Decode() {
     if (!iv_) return;
-    if (inst_.GetOpcode() == Opcode::INVALID) { iv_ = false; run_ = false; }
+    if (inst_.GetOpcode() == Opcode::INVALID) { iv_ = false; /* do NOT stop pipeline */ }
 }
 
 inline void Interpreter::DrainDIVs() {
@@ -758,6 +767,7 @@ inline void Interpreter::Execute() {
             break;
         case Opcode::VSTORE:
             ExVSTORE();
+            word2_is_data_ = true;  // next uint32_t is data (immediate), skip Decode/Execute
             break;
         case Opcode::OUTPUT_VS:
             ExOUTPUT_VS();
@@ -781,13 +791,20 @@ inline void Interpreter::Execute() {
 
     // Fall-through: advance pc_ to next instruction
     if (run_) {
-        if (idw_ && !after_word1_) {
-            // Format_B word1: don't advance pc_, set flag for word2
-            after_word1_ = true;
-        } else {
-            // Format_B word2 or single-word: advance by 4 (one uint32_t)
-            pc_ += 4;
+        if (after_format_e_) {
+            // Format-E word2 (data word): already positioned at next instruction, just reset flag
             after_word1_ = false;
+            after_format_e_ = false;
+        } else {
+            // Normal instruction advancement
+            if (idw_ && !after_word1_) {
+                // Format_B word1: don't advance pc_, set flag for word2
+                after_word1_ = true;
+            } else {
+                // Format_B word2 or single-word: advance by 4 (one uint32_t)
+                pc_ += 4;
+                after_word1_ = false;
+            }
         }
     }
 }

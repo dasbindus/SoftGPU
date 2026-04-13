@@ -171,7 +171,7 @@ static constexpr OpcodeMeta kOpcodeTable[] = {
     { Format::E, 1 }, { Format::E, 1 }, { Format::E, 1 }, { Format::E, 1 }, // 0x40-0x47
     { Format::B, 2 }, // MOV_IMM (0x48)
     { Format::B, 1 }, // VLOAD (0x49)
-    { Format::B, 2 }, // VSTORE (0x4A)
+    { Format::E, 1 }, // VSTORE (0x4A)
     { Format::B, 2 }, // OUTPUT_VS (0x4B)
     { Format::B, 2 }, // LDC (0x4C)
     { Format::B, 2 }, // ATTR (0x4D)
@@ -224,6 +224,7 @@ struct Instruction {
     uint8_t GetRc() const { return (word1 >> 5) & 0x1F; }
     uint8_t GetRb_W2() const { return (word2 >> 12) & 0x7F; }
     uint16_t GetImm10() const { return word2 & 0x3FF; }
+    uint32_t GetWord2() const { return word2; }
 
     int32_t GetSignedImm10() const {
         uint16_t u = word2 & IMM10_MASK;
@@ -284,6 +285,16 @@ struct Instruction {
                    | (static_cast<uint32_t>(rd & 0x7F) << 17)
                    | (static_cast<uint32_t>(ra & 0x7F) << 10);
         return Instruction(w);
+    }
+
+    // Factory: Format-E (single-word + attr_byte_offset) for VSTORE
+    // word1: opcode | rd | ra(7) | reserved
+    // word2: attr_byte_offset(10) | reserved
+    static Instruction MakeE(Opcode op, uint8_t rd, uint16_t attr_offset) {
+        uint32_t w1 = (static_cast<uint32_t>(op) << 24)
+                    | (static_cast<uint32_t>(rd & 0x7F) << 17);
+        uint32_t w2 = attr_offset & 0x3FF;  // 10-bit byte offset
+        return Instruction(w1, w2);
     }
 
     // Factory: MAD (R4-type with Rc=Rb[4:0] in v2.5 encoding)
