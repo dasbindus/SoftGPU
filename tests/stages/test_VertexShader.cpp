@@ -165,8 +165,18 @@ TEST_F(VertexShaderTest, Counters) {
 // ISA Path Tests: identity.vert — VLOAD → VOUTPUT (passthrough)
 // ---------------------------------------------------------------------------
 
+namespace {
+
+// Helper: pack a v2.5 Instruction (word1+word2) into two uint32_t entries
+inline void PackV25Instruction(const softgpu::isa::v2_5::Instruction& inst, std::vector<uint32_t>& out) {
+    out.push_back(inst.word1);
+    out.push_back(inst.word2);
+}
+
+}  // anonymous namespace
+
 TEST_F(VertexShaderTest, ISA_IdentityVert_Passthrough) {
-    using namespace softgpu::isa;
+    using namespace softgpu::isa::v2_5;
 
     VertexShader vs;
 
@@ -195,17 +205,24 @@ TEST_F(VertexShaderTest, ISA_IdentityVert_Passthrough) {
         1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1  // identity
     };
 
-    // identity.vert bytecode:
-    // VLOAD  R4, #0    ; load pos (x,y,z,w) from VBO offset 0
-    // ATTR   R8, #2    ; load color from VBO offset 16
-    // VOUTPUT R4, #0   ; output clip pos
+    // identity.vert bytecode (v2.5 Format-B dual-word):
+    // VLOAD   R4, #0    ; load pos (x,y,z,w) from VBO byte_offset=0 → float[0]
+    // ATTR    R8, #4    ; load color.r from VBO float[4]
+    // ATTR    R9, #5    ; load color.g from VBO float[5]
+    // ATTR    R10, #6   ; load color.b from VBO float[6]
+    // ATTR    R11, #7   ; load color.a from VBO float[7]
+    // VSTORE  R8, #0    ; store color (R8-R11) to vabuf_[0..3]
+    // OUTPUT_VS R4, #0 ; output clip pos to rasterizer
     // HALT
-    std::vector<uint32_t> program = {
-        PatternVS::vs_vload(4, 0).raw,    // VLOAD R4, #0
-        PatternVS::vs_attr(8, 2).raw,     // ATTR  R8, #2 (color)
-        PatternVS::vs_voutput(4, 0).raw,   // VOUTPUT R4, #0
-        PatternVS::vs_halt().raw,         // HALT
-    };
+    std::vector<uint32_t> program;
+    PackV25Instruction(Instruction::MakeB(Opcode::VLOAD, 4, 0, 0, 0), program);     // VLOAD R4, #0
+    PackV25Instruction(Instruction::MakeB(Opcode::ATTR,  8, 0, 0, 4), program);     // ATTR  R8, #4 (color.r)
+    PackV25Instruction(Instruction::MakeB(Opcode::ATTR,  9, 0, 0, 5), program);     // ATTR  R9, #5 (color.g)
+    PackV25Instruction(Instruction::MakeB(Opcode::ATTR,  10, 0, 0, 6), program);     // ATTR  R10, #6 (color.b)
+    PackV25Instruction(Instruction::MakeB(Opcode::ATTR,  11, 0, 0, 7), program);     // ATTR  R11, #7 (color.a)
+    PackV25Instruction(Instruction::MakeB(Opcode::VSTORE, 0, 0, 8, 0), program);    // VSTORE R8, #0 (color to vabuf_)
+    PackV25Instruction(Instruction::MakeB(Opcode::OUTPUT_VS, 4, 0, 0, 0), program); // OUTPUT_VS R4, #0
+    PackV25Instruction(Instruction::MakeD(Opcode::HALT), program);                 // HALT
 
     vs.SetProgram(program.data(), program.size());
     vs.SetExecutionMode(VSExecutionMode::ISA);
@@ -309,7 +326,7 @@ TEST_F(VertexShaderTest, ISA_ChainedMVP_CPPPath) {
 // ---------------------------------------------------------------------------
 
 TEST_F(VertexShaderTest, ISA_vs_CPP_Consistency) {
-    using namespace softgpu::isa;
+    using namespace softgpu::isa::v2_5;
 
     // Setup: 3 vertices with different positions and colors
     std::vector<float> vb = {
@@ -330,13 +347,16 @@ TEST_F(VertexShaderTest, ISA_vs_CPP_Consistency) {
         1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1  // identity
     };
 
-    // identity.vert bytecode
-    std::vector<uint32_t> program = {
-        PatternVS::vs_vload(4, 0).raw,
-        PatternVS::vs_attr(8, 2).raw,
-        PatternVS::vs_voutput(4, 0).raw,
-        PatternVS::vs_halt().raw,
-    };
+    // identity.vert bytecode (v2.5 Format-B dual-word)
+    std::vector<uint32_t> program;
+    PackV25Instruction(Instruction::MakeB(Opcode::VLOAD, 4, 0, 0, 0), program);     // VLOAD R4, #0
+    PackV25Instruction(Instruction::MakeB(Opcode::ATTR,  8, 0, 0, 4), program);     // ATTR  R8, #4 (color.r)
+    PackV25Instruction(Instruction::MakeB(Opcode::ATTR,  9, 0, 0, 5), program);     // ATTR  R9, #5 (color.g)
+    PackV25Instruction(Instruction::MakeB(Opcode::ATTR,  10, 0, 0, 6), program);     // ATTR  R10, #6 (color.b)
+    PackV25Instruction(Instruction::MakeB(Opcode::ATTR,  11, 0, 0, 7), program);     // ATTR  R11, #7 (color.a)
+    PackV25Instruction(Instruction::MakeB(Opcode::VSTORE, 0, 0, 8, 0), program);    // VSTORE R8, #0 (color to vabuf_)
+    PackV25Instruction(Instruction::MakeB(Opcode::OUTPUT_VS, 4, 0, 0, 0), program); // OUTPUT_VS R4, #0
+    PackV25Instruction(Instruction::MakeD(Opcode::HALT), program);                 // HALT
 
     // C++ path
     VertexShader vsCpp;

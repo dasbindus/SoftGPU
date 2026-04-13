@@ -161,6 +161,10 @@ static constexpr OpcodeMeta kOpcodeTable[] = {
     { Format::A, 10 }, // TEX
     { Format::A, 10 }, // SAMPLE
     { Format::B, 2 }, // OUTPUT
+    // Padding for 0x35-0x3F (reserved/unused)
+    { Format::E, 1 }, { Format::E, 1 }, { Format::E, 1 }, { Format::E, 1 },
+    { Format::E, 1 }, { Format::E, 1 }, { Format::E, 1 }, { Format::E, 1 },
+    { Format::E, 1 }, { Format::E, 1 }, { Format::E, 1 }, { Format::E, 1 },
 
     // ---- VS-Only (0x40-0x5F)
     { Format::E, 1 }, { Format::E, 1 }, { Format::E, 1 }, { Format::E, 1 },

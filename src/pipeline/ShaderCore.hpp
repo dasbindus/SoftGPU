@@ -146,6 +146,11 @@ public:
     // 获取默认的 fragment shader（简单插值 + depth test）
     static ShaderFunction getDefaultFragmentShader();
 
+    // 获取默认的 vertex shader（完整 MVP 变换，ISA v2.5 bytecode）
+    // 等价于 VertexShader::transformVertex() 的 ISA 实现
+    // 生成 P * V * M * v 变换，使用 DOT4 指令序列
+    static ShaderFunction getDefaultVertexShader();
+
     // ----------------------------------------------------------------
     // PHASE 6: Multi-Triangle ISA Shader
     // 组合多种操作：颜色插值 + depth test + kill

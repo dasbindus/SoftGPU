@@ -113,14 +113,15 @@ public:
         if (!program || vertex_count == 0) return;
 
         // Determine program size by scanning for HALT
+        // PackV25Instruction always packs 2 words per instruction
         size_t program_size = 0;
         while (program_size < 10000) {
             Instruction tmp(program[program_size]);
             if (tmp.GetOpcode() == Opcode::HALT || tmp.GetOpcode() == Opcode::INVALID) {
-                program_size++;
+                program_size += 2;  // Include both words of HALT
                 break;
             }
-            program_size++;
+            program_size += 2;  // Skip 2 words per instruction
         }
         cached_prog_.assign(program, program + program_size);
 
@@ -438,13 +439,13 @@ private:
         st_.loads++;
     }
     void ExVSTORE() {
-        // Format-B dual-word: stores vertex attributes (4 floats) to VBO
-        // Ra implicit=R0 (VBO base pointer), Rb=src register (4-aligned), imm=byte_offset
+        // Format-B dual-word: stores vertex attributes (4 floats) to VATTR buffer
+        // Rb=src register (4-aligned), imm=VATTR buffer byte offset
         uint8_t rb = inst_.GetRb_W2();
         uint16_t boff = inst_.GetImm10();
         for (int i = 0; i < 4; ++i) {
-            size_t idx = (boff / 4) + i;
-            if (idx < vcount_) vbodata_[idx] = rf_.Read(rb + i);
+            size_t attr_idx = (boff / 4) + i;
+            if (attr_idx < vabuf_.size()) vabuf_[attr_idx] = rf_.Read(rb + i);
         }
         st_.stores++;
     }
@@ -466,12 +467,14 @@ private:
         rf_.Write(rd, (a + 4 <= mem_.GetSize()) ? mem_.Load32(a) : 0.0f);
     }
     void ExATTR() {
-        // Format-B dual-word: extract single vertex attribute component from VBO
-        // Ra implicit=VBO base pointer, imm=VBO byte offset
+        // Format-B dual-word: load vertex attribute from VBO
+        // imm = VBO float index (NOT byte offset)
         uint8_t rd = inst_.GetRd();
-        uint16_t off = inst_.GetImm10();
-        uint32_t a = vbobase_ + off;
-        rf_.Write(rd, (a + 4 <= mem_.GetSize()) ? mem_.Load32(a) : 0.0f);
+        uint16_t fi = inst_.GetImm10();  // float index
+        if (fi < vcount_)
+            rf_.Write(rd, vbodata_[fi]);
+        else
+            rf_.Write(rd, 0.0f);
         st_.loads++;
     }
     void ExMOVIMM() {
