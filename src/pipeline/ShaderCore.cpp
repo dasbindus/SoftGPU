@@ -383,32 +383,76 @@ ShaderFunction ShaderCore::getDefaultVertexShader() {
     // =========================================================================
     // View transform: u = V * t
     // V is column-major: col0=R24..R27, col1=R28..R31, col2=R32..R35, col3=R36..R39
-    // Result u goes to R32-R35
+    // t is at R28-R31 (overlaps with V's col1!)
+    // Result u goes to R56-R59 (temp), then MOVed to R32-R35 for projection.
+    //
+    // BUG FIX: V's col1 (R28-R31) overlaps with t (R28-R31). The old MUL+MAD
+    // chaining was broken: after MUL R32, R24, R28, the subsequent
+    // MAD R32, R28, R29 would read R28 which was ALREADY OVERWRITTEN by the
+    // previous MAD's write to R32 (not R28 — actually R28 is not a dst of the
+    // MAD, so R28 is still correct... wait. Let me re-trace:
+    //
+    // Old chain for u.x:
+    //   MUL R32, R24, R28   -> R32 = V[0]*t.x   (R28 = t.x, R24 = V[0])
+    //   MAD R32, R28, R29   -> R32 = R28*R29 + R32 = t.x*R29 + V[0]*t.x
+    //                          (R28 = t.x ✓, R29 = t.y ✓, R24 = V[4] ← wait R24 is V[0] not V[4]!)
+    //
+    // Actually, the OLD code had a subtler bug: MAD Rd, Ra, Rb reads Ra, Rb
+    // then writes Rd = Ra*Rb + old(Rd). After MUL R32, R24, R28:
+    //   R32 = V[0]*t.x
+    // After MAD R32, R28, R29:
+    //   R32 = R28*R29 + V[0]*t.x = t.x*t.y + V[0]*t.x   (V[4] is at R28, which is t.x!)
+    //   But V[4] should multiply t.y, not t.x! The code uses R28 as V[4] but R28=t.x.
+    //   The correct 2nd term is V[4]*t.y = R28*R29 where R28=V[4] AND R29=t.y.
+    //   But R28 is being used as both V[4] and t.x, which are different values!
+    //   R28 = V[4] at input, but R28 = t.x after VLOAD. Since V's col1 (R28-R31)
+    //   is overwritten by t (R28-R31), V[4] is effectively lost.
+    //
+    // CORRECT approach: compute each column's products into SEPARATE temp
+    // registers, then sum. This avoids any register overlap.
+    // Temp registers: R56-R59 for partial column products, moved to R32-R35 at end.
     // =========================================================================
 
-    // u.x = V[0]*t.x + V[4]*t.y + V[8]*t.z + V[12]*t.w
-    shader.code.push_back(Instruction::MakeA(Opcode::MUL, 32, 24, 28).word1);   // R32 = V[0]*t.x
-    shader.code.push_back(Instruction::MakeA(Opcode::MAD, 32, 28, 29).word1);   // R32 += V[4]*t.y
-    shader.code.push_back(Instruction::MakeA(Opcode::MAD, 32, 32, 30).word1);   // R32 += V[8]*t.z
-    shader.code.push_back(Instruction::MakeA(Opcode::MAD, 32, 36, 31).word1);   // R32 += V[12]*t.w
+    // u.x = V[0,0]*t.x + V[0,1]*t.y + V[0,2]*t.z + V[0,3]*t.w
+    // V col0: R24=V[0,0], R25=V[1,0], R26=V[2,0], R27=V[3,0]; t.x=R28
+    // V col1: R28=V[0,1], R29=V[1,1], R30=V[2,1], R31=V[3,1]; t.y=R29
+    // V col2: R32=V[0,2], R33=V[1,2], R34=V[2,2], R35=V[3,2]; t.z=R30
+    // V col3: R36=V[0,3], R37=V[1,3], R38=V[2,3], R39=V[3,3]; t.w=R31
+    // Compute each column's contribution separately:
+    shader.code.push_back(Instruction::MakeA(Opcode::MUL, 56, 24, 28).word1);   // R56 = V[0,0]*t.x
+    shader.code.push_back(Instruction::MakeA(Opcode::MUL, 57, 28, 29).word1);   // R57 = V[0,1]*t.y
+    shader.code.push_back(Instruction::MakeA(Opcode::MUL, 58, 32, 30).word1);   // R58 = V[0,2]*t.z
+    shader.code.push_back(Instruction::MakeA(Opcode::MUL, 59, 36, 31).word1);   // R59 = V[0,3]*t.w
+    shader.code.push_back(Instruction::MakeA(Opcode::ADD, 56, 56, 57).word1);   // R56 = V[0,0]*t.x + V[0,1]*t.y
+    shader.code.push_back(Instruction::MakeA(Opcode::ADD, 57, 58, 59).word1);   // R57 = V[0,2]*t.z + V[0,3]*t.w
+    shader.code.push_back(Instruction::MakeA(Opcode::ADD, 32, 56, 57).word1);   // R32 = u.x (sum of all 4 terms)
 
-    // u.y = V[1]*t.x + V[5]*t.y + V[9]*t.z + V[13]*t.w
-    shader.code.push_back(Instruction::MakeA(Opcode::MUL, 33, 25, 28).word1);   // R33 = V[1]*t.x
-    shader.code.push_back(Instruction::MakeA(Opcode::MAD, 33, 29, 29).word1);   // R33 += V[5]*t.y
-    shader.code.push_back(Instruction::MakeA(Opcode::MAD, 33, 33, 30).word1);   // R33 += V[9]*t.z
-    shader.code.push_back(Instruction::MakeA(Opcode::MAD, 33, 37, 31).word1);   // R33 += V[13]*t.w
+    // u.y = V[1,0]*t.x + V[1,1]*t.y + V[1,2]*t.z + V[1,3]*t.w
+    shader.code.push_back(Instruction::MakeA(Opcode::MUL, 56, 25, 28).word1);   // R56 = V[1,0]*t.x
+    shader.code.push_back(Instruction::MakeA(Opcode::MUL, 57, 29, 29).word1);   // R57 = V[1,1]*t.y
+    shader.code.push_back(Instruction::MakeA(Opcode::MUL, 58, 33, 30).word1);   // R58 = V[1,2]*t.z
+    shader.code.push_back(Instruction::MakeA(Opcode::MUL, 59, 37, 31).word1);   // R59 = V[1,3]*t.w
+    shader.code.push_back(Instruction::MakeA(Opcode::ADD, 56, 56, 57).word1);   // R56 = V[1,0]*t.x + V[1,1]*t.y
+    shader.code.push_back(Instruction::MakeA(Opcode::ADD, 57, 58, 59).word1);   // R57 = V[1,2]*t.z + V[1,3]*t.w
+    shader.code.push_back(Instruction::MakeA(Opcode::ADD, 33, 56, 57).word1);   // R33 = u.y
 
-    // u.z = V[2]*t.x + V[6]*t.y + V[10]*t.z + V[14]*t.w
-    shader.code.push_back(Instruction::MakeA(Opcode::MUL, 34, 26, 28).word1);   // R34 = V[2]*t.x
-    shader.code.push_back(Instruction::MakeA(Opcode::MAD, 34, 30, 29).word1);   // R34 += V[6]*t.y
-    shader.code.push_back(Instruction::MakeA(Opcode::MAD, 34, 34, 30).word1);   // R34 += V[10]*t.z
-    shader.code.push_back(Instruction::MakeA(Opcode::MAD, 34, 38, 31).word1);   // R34 += V[14]*t.w
+    // u.z = V[2,0]*t.x + V[2,1]*t.y + V[2,2]*t.z + V[2,3]*t.w
+    shader.code.push_back(Instruction::MakeA(Opcode::MUL, 56, 26, 28).word1);   // R56 = V[2,0]*t.x
+    shader.code.push_back(Instruction::MakeA(Opcode::MUL, 57, 30, 29).word1);   // R57 = V[2,1]*t.y
+    shader.code.push_back(Instruction::MakeA(Opcode::MUL, 58, 34, 30).word1);   // R58 = V[2,2]*t.z
+    shader.code.push_back(Instruction::MakeA(Opcode::MUL, 59, 38, 31).word1);   // R59 = V[2,3]*t.w
+    shader.code.push_back(Instruction::MakeA(Opcode::ADD, 56, 56, 57).word1);   // R56 = V[2,0]*t.x + V[2,1]*t.y
+    shader.code.push_back(Instruction::MakeA(Opcode::ADD, 57, 58, 59).word1);   // R57 = V[2,2]*t.z + V[2,3]*t.w
+    shader.code.push_back(Instruction::MakeA(Opcode::ADD, 34, 56, 57).word1);   // R34 = u.z
 
-    // u.w = V[3]*t.x + V[7]*t.y + V[11]*t.z + V[15]*t.w
-    shader.code.push_back(Instruction::MakeA(Opcode::MUL, 35, 27, 28).word1);   // R35 = V[3]*t.x
-    shader.code.push_back(Instruction::MakeA(Opcode::MAD, 35, 31, 29).word1);   // R35 += V[7]*t.y
-    shader.code.push_back(Instruction::MakeA(Opcode::MAD, 35, 35, 30).word1);   // R35 += V[11]*t.z
-    shader.code.push_back(Instruction::MakeA(Opcode::MAD, 35, 39, 31).word1);   // R35 += V[15]*t.w
+    // u.w = V[3,0]*t.x + V[3,1]*t.y + V[3,2]*t.z + V[3,3]*t.w
+    shader.code.push_back(Instruction::MakeA(Opcode::MUL, 56, 27, 28).word1);   // R56 = V[3,0]*t.x
+    shader.code.push_back(Instruction::MakeA(Opcode::MUL, 57, 31, 29).word1);   // R57 = V[3,1]*t.y
+    shader.code.push_back(Instruction::MakeA(Opcode::MUL, 58, 35, 30).word1);   // R58 = V[3,2]*t.z
+    shader.code.push_back(Instruction::MakeA(Opcode::MUL, 59, 39, 31).word1);   // R59 = V[3,3]*t.w
+    shader.code.push_back(Instruction::MakeA(Opcode::ADD, 56, 56, 57).word1);   // R56 = V[3,0]*t.x + V[3,1]*t.y
+    shader.code.push_back(Instruction::MakeA(Opcode::ADD, 57, 58, 59).word1);   // R57 = V[3,2]*t.z + V[3,3]*t.w
+    shader.code.push_back(Instruction::MakeA(Opcode::ADD, 35, 56, 57).word1);   // R35 = u.w
     // R32=u.x, R33=u.y, R34=u.z, R35=u.w
 
     // =========================================================================

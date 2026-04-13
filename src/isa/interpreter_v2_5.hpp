@@ -199,15 +199,20 @@ private:
     }
     void ExMUL() {
         uint8_t rd = inst_.GetRd(), ra = inst_.GetRa(), rb = inst_.GetRb();
-        float va = rf_.Read(ra), vb = rf_.Read(rb), result = va * vb;
-        rf_.Write(rd, result);
-        // Debug: trace writes to MVP result registers
-        if (rd >= 12 && rd <= 15) {
-            fprintf(stderr, "DEBUG MUL: R%d = %.3f * %.3f = %.3f (P*M chain)\n", rd, va, vb, result);
+        rf_.Write(rd, rf_.Read(ra) * rf_.Read(rb));
+        // Debug: trace MVP intermediate results
+        if (rd >= 28 && rd <= 31) {
+            fprintf(stderr, "DEBUG M MUL: R%d = %.3f * %.3f = %.3f\n",
+                    rd, rf_.Read(ra), rf_.Read(rb), rf_.Read(rd));
         }
-        if (rd >= 28 && rd <= 35) {
-            fprintf(stderr, "DEBUG MUL: R%d = %.3f * %.3f = %.3f (M/V chain)\n", rd, va, vb, result);
+        if (rd >= 32 && rd <= 35) {
+            fprintf(stderr, "DEBUG V MUL: R%d = %.3f * %.3f = %.3f\n",
+                    rd, rf_.Read(ra), rf_.Read(rb), rf_.Read(rd));
         }
+    }
+
+    void CheckReg33() {
+        fprintf(stderr, "DEBUG CheckReg33: R33=%.3f (before Model)\n", rf_.Read(33));
     }
     void ExDIV() {
         uint8_t rd = inst_.GetRd(), ra = inst_.GetRa(), rb = inst_.GetRb();
@@ -279,15 +284,18 @@ private:
     // Format-A R4-type
     void ExMAD() {
         uint8_t rd = inst_.GetRd(), ra = inst_.GetRa(), rb = inst_.GetRb();
-        float a = rf_.Read(ra), b = rf_.Read(rb), c = rf_.Read(inst_.GetRc());
+        // MAD: Rd = Ra * Rb + Rd (accumulate into destination register)
+        float a = rf_.Read(ra), b = rf_.Read(rb), c = rf_.Read(rd);
         float result = a * b + c;
         rf_.Write(rd, result);
-        // Debug: trace writes to MVP result registers
-        if (rd >= 12 && rd <= 15) {
-            fprintf(stderr, "DEBUG MAD: R%d = %.3f * %.3f + %.3f = %.3f (P*M chain)\n", rd, a, b, c, result);
+        // Debug: trace MVP intermediate results
+        if (rd >= 28 && rd <= 31) {
+            fprintf(stderr, "DEBUG M MAD: R%d = %.3f * %.3f + %.3f = %.3f\n",
+                    rd, a, b, c, result);
         }
-        if (rd >= 28 && rd <= 35) {
-            fprintf(stderr, "DEBUG MAD: R%d = %.3f * %.3f + %.3f = %.3f (M/V chain)\n", rd, a, b, c, result);
+        if (rd >= 32 && rd <= 35) {
+            fprintf(stderr, "DEBUG V MAD: R%d = %.3f * %.3f + %.3f = %.3f\n",
+                    rd, a, b, c, result);
         }
     }
     void ExSEL() {
@@ -818,7 +826,8 @@ inline void Interpreter::Execute() {
     // Fall-through: advance pc_ to next instruction
     if (run_) {
         if (after_format_e_) {
-            // Format-E word2 (data word): already positioned at next instruction, just reset flag
+            // Format-E word2 (data word): advance past word1+word2 to next instruction
+            pc_ += 8;
             after_word1_ = false;
             after_format_e_ = false;
         } else {
