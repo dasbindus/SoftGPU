@@ -113,15 +113,17 @@ public:
         if (!program || vertex_count == 0) return;
 
         // Determine program size by scanning for HALT
-        // PackV25Instruction always packs 2 words per instruction
+        // Instructions have variable length: Format-D=1 word, Format-B/E=2 words
         size_t program_size = 0;
         while (program_size < 10000) {
             Instruction tmp(program[program_size]);
-            if (tmp.GetOpcode() == Opcode::HALT || tmp.GetOpcode() == Opcode::INVALID) {
-                program_size += 2;  // Include both words of HALT
+            Opcode op = tmp.GetOpcode();
+            if (op == Opcode::HALT || op == Opcode::INVALID) {
+                program_size += 1;  // HALT/INVALID is 1 word (Format-D)
                 break;
             }
-            program_size += 2;  // Skip 2 words per instruction
+            Format fmt = Instruction::GetFormat(op);
+            program_size += (fmt == Format::B || fmt == Format::E) ? 2 : 1;
         }
         cached_prog_.assign(program, program + program_size);
 
@@ -197,7 +199,15 @@ private:
     }
     void ExMUL() {
         uint8_t rd = inst_.GetRd(), ra = inst_.GetRa(), rb = inst_.GetRb();
-        rf_.Write(rd, rf_.Read(ra) * rf_.Read(rb));
+        float va = rf_.Read(ra), vb = rf_.Read(rb), result = va * vb;
+        rf_.Write(rd, result);
+        // Debug: trace writes to MVP result registers
+        if (rd >= 12 && rd <= 15) {
+            fprintf(stderr, "DEBUG MUL: R%d = %.3f * %.3f = %.3f (P*M chain)\n", rd, va, vb, result);
+        }
+        if (rd >= 28 && rd <= 35) {
+            fprintf(stderr, "DEBUG MUL: R%d = %.3f * %.3f = %.3f (M/V chain)\n", rd, va, vb, result);
+        }
     }
     void ExDIV() {
         uint8_t rd = inst_.GetRd(), ra = inst_.GetRa(), rb = inst_.GetRb();
@@ -270,7 +280,15 @@ private:
     void ExMAD() {
         uint8_t rd = inst_.GetRd(), ra = inst_.GetRa(), rb = inst_.GetRb();
         float a = rf_.Read(ra), b = rf_.Read(rb), c = rf_.Read(inst_.GetRc());
-        rf_.Write(rd, a * b + c);
+        float result = a * b + c;
+        rf_.Write(rd, result);
+        // Debug: trace writes to MVP result registers
+        if (rd >= 12 && rd <= 15) {
+            fprintf(stderr, "DEBUG MAD: R%d = %.3f * %.3f + %.3f = %.3f (P*M chain)\n", rd, a, b, c, result);
+        }
+        if (rd >= 28 && rd <= 35) {
+            fprintf(stderr, "DEBUG MAD: R%d = %.3f * %.3f + %.3f = %.3f (M/V chain)\n", rd, a, b, c, result);
+        }
     }
     void ExSEL() {
         uint8_t rd = inst_.GetRd(), ra = inst_.GetRa(), rb = inst_.GetRb();
@@ -572,12 +590,20 @@ inline void Interpreter::SetAttrTable(const std::vector<size_t>& t) {
 inline void Interpreter::Fetch() {
     if (!run_) return;
 
-    // Fetch word2 of dual-word (second cycle)
+    // Skip Format-E word2 (already consumed as data word)
+    if (after_format_e_) {
+        // Format-E word2 is data, not opcode - skip to next instruction
+        pc_ += 8;  // skip past word1+word2 to next instruction
+        after_format_e_ = false;
+        // fall through to fetch next instruction at new pc_
+    }
+
+    // Fetch word2 of Format-B dual-word (second word is also opcode)
     if (idw_ && !idf_) {
         uint32_t a2 = pc_ + 4;
         if (a2 / 4 < prog_.size()) inst_.word2 = prog_[a2 / 4];
         idf_ = true;
-        return;
+        return;  // word2 fetched, will Execute in next cycle
     }
 
     // Fetch word1
@@ -767,8 +793,8 @@ inline void Interpreter::Execute() {
             break;
         case Opcode::VSTORE:
             ExVSTORE();
-            word2_is_data_ = true;  // next uint32_t is data (immediate), skip Decode/Execute
-            break;
+            after_format_e_ = true;  // signal: next word is Format-E data, skip its Execute
+            return;  // terminate (Format-E word2 is data, not opcode)
         case Opcode::OUTPUT_VS:
             ExOUTPUT_VS();
             break;
