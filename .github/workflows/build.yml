@@ -46,6 +46,10 @@ jobs:
       - name: Run test_e2e
         run: ./build/bin/test_e2e --gtest_output=xml:./build/test_results_e2e.xml
 
+      - name: Regenerate golden files for Ubuntu (GCC)
+        run: |
+          ./build/bin/SoftGPU --headless --scene Triangle-Cubes-100 --output tests/e2e/golden/scene009_triangle_cubes100_gcc.ppm
+
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
@@ -54,6 +58,7 @@ jobs:
           path: |
             build/test_results*.xml
             build/*.ppm
+            tests/e2e/golden/*.ppm
           retention-days: 7
 
   # ============================================================================
