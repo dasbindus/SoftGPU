@@ -64,6 +64,7 @@ constexpr float CLEAR_COLOR[] = { 0.1f, 0.1f, 0.15f, 1.0f };
 struct CmdArgs {
     bool headless = false;
     bool use_tbr = true;  // 默认使用TBR
+    bool vs_cpp = false;   // 强制 VS 使用 C++ 路径（调试用）
     const char* output_dir = ".";
     const char* output_filename = nullptr;  // 自定义输出文件名
     const char* scene_name = "Triangle-1Tri";  // 默认场景
@@ -114,6 +115,8 @@ CmdArgs parseArgs(int argc, char* argv[]) {
             args.texture_file = argv[++i];
         } else if (strcmp(argv[i], "--texture-shader") == 0) {
             args.use_texture_shader = true;
+        } else if (strcmp(argv[i], "--vs-cpp") == 0) {
+            args.vs_cpp = true;
         }
     }
     return args;
@@ -149,6 +152,12 @@ int runHeadless(const CmdArgs& args) {
     if (!args.use_tbr) {
         pipeline.setTBREnabled(false);
         printf("[INFO] TBR mode disabled\n");
+    }
+
+    // 可选：强制 VS 使用 C++ 路径（调试用）
+    if (args.vs_cpp) {
+        const_cast<SoftGPU::VertexShader&>(pipeline.getVertexShader()).SetExecutionMode(SoftGPU::VSExecutionMode::CPP);
+        printf("[INFO] VS C++ mode enabled\n");
     }
 
     // 可选：加载PNG纹理

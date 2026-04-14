@@ -97,6 +97,9 @@ public:
             for (int i = 0; i < 16; ++i) m_projection_matrix[i] = proj[i];
             for (int i = 0; i < 16; ++i) rf_.Write(40 + i, proj[i]);
         }
+        // Debug: print projection matrix P[15] (should be 1.0)
+        fprintf(stderr, "DEBUG SetUniforms: P[15] (R55) = %.3f, M[15] (R23) = %.3f, V[15] (R39) = %.3f\n",
+                rf_.Read(55), rf_.Read(23), rf_.Read(39));
     }
 
     // Set viewport dimensions: writes to R56 (width), R57 (height)
@@ -159,6 +162,7 @@ public:
         vobuf_.assign(64, 0.0f);
         vabuf_.assign(64, 0.0f);
         vcnt_ = curvtx_ = 0;
+        after_word1_ = false;  // Critical: reset to prevent instruction skip on next vertex
     }
 
     // VATTR buffer accessors
@@ -200,15 +204,6 @@ private:
     void ExMUL() {
         uint8_t rd = inst_.GetRd(), ra = inst_.GetRa(), rb = inst_.GetRb();
         rf_.Write(rd, rf_.Read(ra) * rf_.Read(rb));
-        // Debug: trace MVP intermediate results
-        if (rd >= 28 && rd <= 31) {
-            fprintf(stderr, "DEBUG M MUL: R%d = %.3f * %.3f = %.3f\n",
-                    rd, rf_.Read(ra), rf_.Read(rb), rf_.Read(rd));
-        }
-        if (rd >= 32 && rd <= 35) {
-            fprintf(stderr, "DEBUG V MUL: R%d = %.3f * %.3f = %.3f\n",
-                    rd, rf_.Read(ra), rf_.Read(rb), rf_.Read(rd));
-        }
     }
 
     void CheckReg33() {
@@ -471,10 +466,6 @@ private:
         // Writes rf_[rd+i] → vabuf_[(attr_byte_offset/4)+i]
         uint8_t rd = inst_.GetRd();
         uint16_t attr_boff = inst_.GetWord2() & 0x3FF;  // byte offset
-        fprintf(stderr, "DEBUG VSTORE: rd=%u attr_boff=%u R%d=%.1f R%d=%.1f R%d=%.1f R%d=%.1f\n",
-                (unsigned)rd, (unsigned)attr_boff,
-                rd, rf_.Read(rd), rd+1, rf_.Read(rd+1),
-                rd+2, rf_.Read(rd+2), rd+3, rf_.Read(rd+3));
         for (int i = 0; i < 4; ++i) {
             size_t attr_idx = (attr_boff / 4) + i;
             if (attr_idx < vabuf_.size()) vabuf_[attr_idx] = rf_.Read(rd + i);
@@ -488,8 +479,11 @@ private:
         uint8_t rd = inst_.GetRd();
         uint32_t base = curvtx_ * 4;
         float cx = rf_.Read(rd), cy = rf_.Read(rd+1), cz = rf_.Read(rd+2), cw = rf_.Read(rd+3);
-        fprintf(stderr, "DEBUG OUTPUT_VS: vtx=%u rd=%u clip=(%.3f, %.3f, %.3f, %.3f)\n",
-                (unsigned)curvtx_, (unsigned)rd, cx, cy, cz, cw);
+        // Debug: check u.w and clip.w values, plus R60 (t.w), R61 (V[3,3])
+        if (curvtx_ == 1 && vcnt_ == 1) {
+            fprintf(stderr, "VS_OUTPUT: clip=(%.3f, %.3f, %.3f, %.3f) u.w=R35=%.3f t.w=R60=%.3f V[3,3]=R61=%.3f ndc=(%.3f, %.3f, %.3f)\n",
+                    cx, cy, cz, cw, rf_.Read(35), rf_.Read(60), rf_.Read(61), cx/cw, cy/cw, cz/cw);
+        }
         if (base + 3 < vobuf_.size()) for (int i = 0; i < 4; ++i) vobuf_[base + i] = rf_.Read(rd + i);
         curvtx_++; vcnt_++;
     }

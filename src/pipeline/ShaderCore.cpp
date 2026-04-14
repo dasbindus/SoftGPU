@@ -352,32 +352,47 @@ ShaderFunction ShaderCore::getDefaultVertexShader() {
     // Model transform: t = M * v
     // M is column-major: col0=R8..R11, col1=R12..R15, col2=R16..R19, col3=R20..R23
     // t.x = M[0]*x + M[4]*y + M[8]*z + M[12]*w
-    // Using MUL+MAD chain: t.x = ((M[0]*x + M[4]*y) + M[8]*z) + M[12]*w
+    //
+    // NOTE: MAD instruction has encoding bug (Rc = Rb[6:2] = 0 when rb < 32),
+    // so we use MUL + ADD chain instead.
+    // Use temp registers R56-R59 for intermediate products.
     // =========================================================================
 
     // t.x = M[0]*x + M[4]*y + M[8]*z + M[12]*w
     shader.code.push_back(Instruction::MakeA(Opcode::MUL, 28, 8,  4).word1);   // R28 = M[0]*x
-    shader.code.push_back(Instruction::MakeA(Opcode::MAD, 28, 12, 5).word1);   // R28 += M[4]*y
-    shader.code.push_back(Instruction::MakeA(Opcode::MAD, 28, 16, 6).word1);   // R28 += M[8]*z
-    shader.code.push_back(Instruction::MakeA(Opcode::MAD, 28, 20, 7).word1);   // R28 += M[12]*w
+    shader.code.push_back(Instruction::MakeA(Opcode::MUL, 56, 12, 5).word1);   // R56 = M[4]*y (temp)
+    shader.code.push_back(Instruction::MakeA(Opcode::ADD, 28, 28, 56).word1); // R28 = R28 + R56
+    shader.code.push_back(Instruction::MakeA(Opcode::MUL, 56, 16, 6).word1);   // R56 = M[8]*z (temp)
+    shader.code.push_back(Instruction::MakeA(Opcode::ADD, 28, 28, 56).word1); // R28 = R28 + R56
+    shader.code.push_back(Instruction::MakeA(Opcode::MUL, 56, 20, 7).word1);   // R56 = M[12]*w (temp)
+    shader.code.push_back(Instruction::MakeA(Opcode::ADD, 28, 28, 56).word1); // R28 = R28 + R56
 
     // t.y = M[1]*x + M[5]*y + M[9]*z + M[13]*w
     shader.code.push_back(Instruction::MakeA(Opcode::MUL, 29, 9,  4).word1);   // R29 = M[1]*x
-    shader.code.push_back(Instruction::MakeA(Opcode::MAD, 29, 13, 5).word1);   // R29 += M[5]*y
-    shader.code.push_back(Instruction::MakeA(Opcode::MAD, 29, 17, 6).word1);   // R29 += M[9]*z
-    shader.code.push_back(Instruction::MakeA(Opcode::MAD, 29, 21, 7).word1);   // R29 += M[13]*w
+    shader.code.push_back(Instruction::MakeA(Opcode::MUL, 56, 13, 5).word1);   // R56 = M[5]*y (temp)
+    shader.code.push_back(Instruction::MakeA(Opcode::ADD, 29, 29, 56).word1); // R29 = R29 + R56
+    shader.code.push_back(Instruction::MakeA(Opcode::MUL, 56, 17, 6).word1);   // R56 = M[9]*z (temp)
+    shader.code.push_back(Instruction::MakeA(Opcode::ADD, 29, 29, 56).word1); // R29 = R29 + R56
+    shader.code.push_back(Instruction::MakeA(Opcode::MUL, 56, 21, 7).word1);   // R56 = M[13]*w (temp)
+    shader.code.push_back(Instruction::MakeA(Opcode::ADD, 29, 29, 56).word1); // R29 = R29 + R56
 
     // t.z = M[2]*x + M[6]*y + M[10]*z + M[14]*w
     shader.code.push_back(Instruction::MakeA(Opcode::MUL, 30, 10, 4).word1);   // R30 = M[2]*x
-    shader.code.push_back(Instruction::MakeA(Opcode::MAD, 30, 14, 5).word1);   // R30 += M[6]*y
-    shader.code.push_back(Instruction::MakeA(Opcode::MAD, 30, 18, 6).word1);   // R30 += M[10]*z
-    shader.code.push_back(Instruction::MakeA(Opcode::MAD, 30, 22, 7).word1);   // R30 += M[14]*w
+    shader.code.push_back(Instruction::MakeA(Opcode::MUL, 56, 14, 5).word1);   // R56 = M[6]*y (temp)
+    shader.code.push_back(Instruction::MakeA(Opcode::ADD, 30, 30, 56).word1); // R30 = R30 + R56
+    shader.code.push_back(Instruction::MakeA(Opcode::MUL, 56, 18, 6).word1);   // R56 = M[10]*z (temp)
+    shader.code.push_back(Instruction::MakeA(Opcode::ADD, 30, 30, 56).word1); // R30 = R30 + R56
+    shader.code.push_back(Instruction::MakeA(Opcode::MUL, 56, 22, 7).word1);   // R56 = M[14]*w (temp)
+    shader.code.push_back(Instruction::MakeA(Opcode::ADD, 30, 30, 56).word1); // R30 = R30 + R56
 
     // t.w = M[3]*x + M[7]*y + M[11]*z + M[15]*w
     shader.code.push_back(Instruction::MakeA(Opcode::MUL, 31, 11, 4).word1);   // R31 = M[3]*x
-    shader.code.push_back(Instruction::MakeA(Opcode::MAD, 31, 15, 5).word1);   // R31 += M[7]*y
-    shader.code.push_back(Instruction::MakeA(Opcode::MAD, 31, 19, 6).word1);   // R31 += M[11]*z
-    shader.code.push_back(Instruction::MakeA(Opcode::MAD, 31, 23, 7).word1);   // R31 += M[15]*w
+    shader.code.push_back(Instruction::MakeA(Opcode::MUL, 56, 15, 5).word1);   // R56 = M[7]*y (temp)
+    shader.code.push_back(Instruction::MakeA(Opcode::ADD, 31, 31, 56).word1); // R31 = R31 + R56
+    shader.code.push_back(Instruction::MakeA(Opcode::MUL, 56, 19, 6).word1);   // R56 = M[11]*z (temp)
+    shader.code.push_back(Instruction::MakeA(Opcode::ADD, 31, 31, 56).word1); // R31 = R31 + R56
+    shader.code.push_back(Instruction::MakeA(Opcode::MUL, 56, 23, 7).word1);   // R56 = M[15]*w (temp)
+    shader.code.push_back(Instruction::MakeA(Opcode::ADD, 31, 31, 56).word1); // R31 = R31 + R56
     // R28=t.x, R29=t.y, R30=t.z, R31=t.w
 
     // =========================================================================
@@ -459,31 +474,45 @@ ShaderFunction ShaderCore::getDefaultVertexShader() {
     // Projection transform: clip = P * u
     // P is column-major: col0=R40..R43, col1=R44..R47, col2=R48..R51, col3=R52..R55
     // Result clip goes to R12-R15
+    //
+    // NOTE: MAD has encoding bug, use MUL + ADD instead.
     // =========================================================================
 
     // clip.x = P[0]*u.x + P[4]*u.y + P[8]*u.z + P[12]*u.w
     shader.code.push_back(Instruction::MakeA(Opcode::MUL, 12, 40, 32).word1);   // R12 = P[0]*u.x
-    shader.code.push_back(Instruction::MakeA(Opcode::MAD, 12, 44, 33).word1);   // R12 += P[4]*u.y
-    shader.code.push_back(Instruction::MakeA(Opcode::MAD, 12, 48, 34).word1);   // R12 += P[8]*u.z
-    shader.code.push_back(Instruction::MakeA(Opcode::MAD, 12, 52, 35).word1);   // R12 += P[12]*u.w
+    shader.code.push_back(Instruction::MakeA(Opcode::MUL, 56, 44, 33).word1);   // R56 = P[4]*u.y (temp)
+    shader.code.push_back(Instruction::MakeA(Opcode::ADD, 12, 12, 56).word1);   // R12 += R56
+    shader.code.push_back(Instruction::MakeA(Opcode::MUL, 56, 48, 34).word1);   // R56 = P[8]*u.z (temp)
+    shader.code.push_back(Instruction::MakeA(Opcode::ADD, 12, 12, 56).word1);   // R12 += R56
+    shader.code.push_back(Instruction::MakeA(Opcode::MUL, 56, 52, 35).word1);   // R56 = P[12]*u.w (temp)
+    shader.code.push_back(Instruction::MakeA(Opcode::ADD, 12, 12, 56).word1);   // R12 += R56
 
     // clip.y = P[1]*u.x + P[5]*u.y + P[9]*u.z + P[13]*u.w
     shader.code.push_back(Instruction::MakeA(Opcode::MUL, 13, 41, 32).word1);   // R13 = P[1]*u.x
-    shader.code.push_back(Instruction::MakeA(Opcode::MAD, 13, 45, 33).word1);   // R13 += P[5]*u.y
-    shader.code.push_back(Instruction::MakeA(Opcode::MAD, 13, 49, 34).word1);   // R13 += P[9]*u.z
-    shader.code.push_back(Instruction::MakeA(Opcode::MAD, 13, 53, 35).word1);   // R13 += P[13]*u.w
+    shader.code.push_back(Instruction::MakeA(Opcode::MUL, 56, 45, 33).word1);   // R56 = P[5]*u.y (temp)
+    shader.code.push_back(Instruction::MakeA(Opcode::ADD, 13, 13, 56).word1);   // R13 += R56
+    shader.code.push_back(Instruction::MakeA(Opcode::MUL, 56, 49, 34).word1);   // R56 = P[9]*u.z (temp)
+    shader.code.push_back(Instruction::MakeA(Opcode::ADD, 13, 13, 56).word1);   // R13 += R56
+    shader.code.push_back(Instruction::MakeA(Opcode::MUL, 56, 53, 35).word1);   // R56 = P[13]*u.w (temp)
+    shader.code.push_back(Instruction::MakeA(Opcode::ADD, 13, 13, 56).word1);   // R13 += R56
 
     // clip.z = P[2]*u.x + P[6]*u.y + P[10]*u.z + P[14]*u.w
     shader.code.push_back(Instruction::MakeA(Opcode::MUL, 14, 42, 32).word1);   // R14 = P[2]*u.x
-    shader.code.push_back(Instruction::MakeA(Opcode::MAD, 14, 46, 33).word1);   // R14 += P[6]*u.y
-    shader.code.push_back(Instruction::MakeA(Opcode::MAD, 14, 50, 34).word1);   // R14 += P[10]*u.z
-    shader.code.push_back(Instruction::MakeA(Opcode::MAD, 14, 54, 35).word1);   // R14 += P[14]*u.w
+    shader.code.push_back(Instruction::MakeA(Opcode::MUL, 56, 46, 33).word1);   // R56 = P[6]*u.y (temp)
+    shader.code.push_back(Instruction::MakeA(Opcode::ADD, 14, 14, 56).word1);   // R14 += R56
+    shader.code.push_back(Instruction::MakeA(Opcode::MUL, 56, 50, 34).word1);   // R56 = P[10]*u.z (temp)
+    shader.code.push_back(Instruction::MakeA(Opcode::ADD, 14, 14, 56).word1);   // R14 += R56
+    shader.code.push_back(Instruction::MakeA(Opcode::MUL, 56, 54, 35).word1);   // R56 = P[14]*u.w (temp)
+    shader.code.push_back(Instruction::MakeA(Opcode::ADD, 14, 14, 56).word1);   // R14 += R56
 
     // clip.w = P[3]*u.x + P[7]*u.y + P[11]*u.z + P[15]*u.w
     shader.code.push_back(Instruction::MakeA(Opcode::MUL, 15, 43, 32).word1);   // R15 = P[3]*u.x
-    shader.code.push_back(Instruction::MakeA(Opcode::MAD, 15, 47, 33).word1);   // R15 += P[7]*u.y
-    shader.code.push_back(Instruction::MakeA(Opcode::MAD, 15, 51, 34).word1);   // R15 += P[11]*u.z
-    shader.code.push_back(Instruction::MakeA(Opcode::MAD, 15, 55, 35).word1);   // R15 += P[15]*u.w
+    shader.code.push_back(Instruction::MakeA(Opcode::MUL, 56, 47, 33).word1);   // R56 = P[7]*u.y (temp)
+    shader.code.push_back(Instruction::MakeA(Opcode::ADD, 15, 15, 56).word1);   // R15 += R56
+    shader.code.push_back(Instruction::MakeA(Opcode::MUL, 56, 51, 34).word1);   // R56 = P[11]*u.z (temp)
+    shader.code.push_back(Instruction::MakeA(Opcode::ADD, 15, 15, 56).word1);   // R15 += R56
+    shader.code.push_back(Instruction::MakeA(Opcode::MUL, 56, 55, 35).word1);   // R56 = P[15]*u.w (temp)
+    shader.code.push_back(Instruction::MakeA(Opcode::ADD, 15, 15, 56).word1);   // R15 += R56
     // R12=clip.x, R13=clip.y, R14=clip.z, R15=clip.w
 
     // === Output clip coordinates ===

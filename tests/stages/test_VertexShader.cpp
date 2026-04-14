@@ -218,7 +218,7 @@ TEST_F(VertexShaderTest, ISA_IdentityVert_Passthrough) {
     PackV25Instruction(Instruction::MakeB(Opcode::ATTR,  9, 0, 0, 5), program);     // ATTR  R9, #5 (color.g)
     PackV25Instruction(Instruction::MakeB(Opcode::ATTR,  10, 0, 0, 6), program);     // ATTR  R10, #6 (color.b)
     PackV25Instruction(Instruction::MakeB(Opcode::ATTR,  11, 0, 0, 7), program);     // ATTR  R11, #7 (color.a)
-    PackV25Instruction(Instruction::MakeB(Opcode::VSTORE, 0, 0, 8, 0), program);    // VSTORE R8, #0 (color to vabuf_)
+    PackV25Instruction(Instruction::MakeE(Opcode::VSTORE, 8, uint16_t(0)), program);    // VSTORE R8, #0 (color to vabuf_)
     PackV25Instruction(Instruction::MakeB(Opcode::OUTPUT_VS, 4, 0, 0, 0), program); // OUTPUT_VS R4, #0
     PackV25Instruction(Instruction::MakeD(Opcode::HALT), program);                 // HALT
 
@@ -352,7 +352,7 @@ TEST_F(VertexShaderTest, ISA_vs_CPP_Consistency) {
     PackV25Instruction(Instruction::MakeB(Opcode::ATTR,  9, 0, 0, 5), program);     // ATTR  R9, #5 (color.g)
     PackV25Instruction(Instruction::MakeB(Opcode::ATTR,  10, 0, 0, 6), program);     // ATTR  R10, #6 (color.b)
     PackV25Instruction(Instruction::MakeB(Opcode::ATTR,  11, 0, 0, 7), program);     // ATTR  R11, #7 (color.a)
-    PackV25Instruction(Instruction::MakeB(Opcode::VSTORE, 0, 0, 8, 0), program);    // VSTORE R8, #0 (color to vabuf_)
+    PackV25Instruction(Instruction::MakeE(Opcode::VSTORE, 8, uint16_t(0)), program);    // VSTORE R8, #0 (color to vabuf_)
     PackV25Instruction(Instruction::MakeB(Opcode::OUTPUT_VS, 4, 0, 0, 0), program); // OUTPUT_VS R4, #0
     PackV25Instruction(Instruction::MakeD(Opcode::HALT), program);                 // HALT
 
