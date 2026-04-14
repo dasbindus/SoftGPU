@@ -3,8 +3,8 @@
 **版本：** 2.5  
 **作者：** 陈二虎（SoftGPU Architect Agent）  
 **日期：** 2026-04-10  
-**文档刷新：** 2026-04-14（小钻风，对照 isa_v2_5.hpp + interpreter_v2_5.hpp 代码核实后修订）  
-**状态：** **核实版 v2.5**（修正 6 处与实际代码的不符：RET/CALL link register R63、分支描述、VSTORE format/cycle、MOV opcode 0x63 补录、SEL/SMOOTHSTEP 语义对照代码修正；ATTR 格式以代码为准：Format-B，非 Format-E）  
+**文档刷新：** 2026-04-14（小钻风，对照 isa_v2_5.hpp + interpreter_v2_5.hpp 代码核实后修订）；2026-04-14（修正 header/chapter7 中关于 ATTR/SEL/SMOOTHSTEP 的虚假"历史修正"描述）  
+**状态：** **核实版 v2.5**（对照 isa_v2_5.hpp + interpreter_v2_5.hpp 核实；ATTR 自始为 Format-B（从未改变），SEL/SMOOTHSTEP 条件/x 参数自始来自 rd；修正 6 处历史遗留与代码不符：RET/CALL link register R63、分支描述、VSTORE format/cycle、MOV opcode 0x63 补录）  
 
 ---
 
@@ -1284,7 +1284,7 @@ IF1 → IF2 → ID → EX → MEM → WB
 | **VSTORE format** | Format-B, 2-cycle | **Format-E, 1-cycle（2026-04-14 修正）** |
 | **VLOAD cycles** | 2 | **1（2026-04-14 修正）** |
 | **MOV opcode** | 未定义 | **0x63, Format-C, 1-cycle（2026-04-14 新增）** |
-| **ATTR format** | Format-B | Format-B（代码即为 Format-B，文档原声称"已修正为 Format-E"有误）|
+| **ATTR format** | Format-B | Format-B |
 
 ---
 
@@ -1319,4 +1319,4 @@ IF1 → IF2 → ID → EX → MEM → WB
 ---
 
 *— 陈二虎，Architect Agent，SoftGPU，2026-04-10*  
-*— 小钻风，2026-04-14（代码核实后修正 7 处与代码不符的描述）*
+*— 小钻风，2026-04-14（代码核实后修正 6 处与代码不符的描述；撤销 2 处虚假"历史修正"描述：ATTR/SEL/SMOOTHSTEP 相关）*
