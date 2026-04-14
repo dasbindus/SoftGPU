@@ -284,8 +284,10 @@ private:
     // Format-A R4-type
     void ExMAD() {
         uint8_t rd = inst_.GetRd(), ra = inst_.GetRa(), rb = inst_.GetRb();
-        // MAD: Rd = Ra * Rb + Rd (accumulate into destination register)
-        float a = rf_.Read(ra), b = rf_.Read(rb), c = rf_.Read(rd);
+        // MAD: Rd = Ra * Rb + Rc (accumulate via Rc)
+        // v2.5 Format-A encoding: Rc overlaps with Rb bits [9:5] = Rb[6:2]
+        // Due to encoding overlap, Rc reads as Rb[6:2] (e.g., Rb=2 → Rc=0)
+        float a = rf_.Read(ra), b = rf_.Read(rb), c = rf_.Read(inst_.GetRc());
         float result = a * b + c;
         rf_.Write(rd, result);
         // Debug: trace MVP intermediate results
