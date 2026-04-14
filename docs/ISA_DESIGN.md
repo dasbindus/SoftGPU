@@ -4,7 +4,7 @@
 **作者：** 陈二虎（SoftGPU Architect Agent）  
 **日期：** 2026-04-10  
 **文档刷新：** 2026-04-14（小钻风，对照 isa_v2_5.hpp + interpreter_v2_5.hpp 代码核实后修订）  
-**状态：** **核实版 v2.5**（修正 7 处与实际代码的不符：RET/CALL link register R63、分支描述、VSTORE format/cycle、MOV opcode 0x63 补录、Format-E 描述澄清、SEL/SMOOTHSTEP R4-type 语义对照代码修正）  
+**状态：** **核实版 v2.5**（修正 6 处与实际代码的不符：RET/CALL link register R63、分支描述、VSTORE format/cycle、MOV opcode 0x63 补录、SEL/SMOOTHSTEP 语义对照代码修正；ATTR 格式以代码为准：Format-B，非 Format-E）  
 
 ---
 
@@ -107,7 +107,7 @@
 
 适用于：ADD, SUB, MUL, DIV, MAD, CMP, MIN, MAX, AND, OR, DOT3, DOT4, CROSS, NORMALIZE, SEL, SMOOTHSTEP, SAMPLE, TEX, POW 等。
 
-> **R4-type 说明（SEL/SMOOTHSTEP/MAD）**：Format-A 原本只有 Rd/Ra/Rb 三个寄存器字段。R4-type 指令需要第四个寄存器 Rc，编码方式为**将 Rc 打包到 bits[9:5]**（5-bit，与 Rb 的 bits[9:3] 低位重叠）。因此 Rc 实际只能取 Rb 的低 5 位值（0–31），编译期必须确保所需 Rc 在此范围内。
+> **R4-type 说明（MAD）**：Format-A 原本只有 Rd/Ra/Rb 三个寄存器字段。MAD 需要第四个寄存器 Rc，编码方式为**将 Rc 打包到 bits[9:5]**（5-bit，与 Rb 的 bits[9:3] 低位重叠）。因此 Rc 实际只能取 Rb 的低 5 位值（0–31），编译期必须确保所需 Rc 在此范围内。
 
 ### 3.3 Format-B：RI-type（双字，二寄存器 + 立即数）
 
@@ -132,7 +132,7 @@ Word 2:
 - **Fetch 周期**：2 个周期（连续取两字）
 - **执行时机**：Word 2 fetch 完成后才能开始 EX
 
-适用于：LD, ST, LDC, BRA, JUMP, CALL, VLOAD, MOV_IMM, OUTPUT, OUTPUT_VS, ATTR 等。
+适用于：LD, ST, LDC, BRA, JUMP, CALL, VLOAD, MOV_IMM, OUTPUT, OUTPUT_VS 等。
 
 > **10-bit Immediate 范围**：
 > - 无符号：0 – 1023（适用于内存字节偏移）
@@ -186,7 +186,7 @@ Word 2:
 - **Word 2**：10-bit 立即数（字节偏移量，零扩展）+ Reserved
 - **Fetch 周期**：2 个周期
 
-适用于：VSTORE（将顶点属性存入 VATTR buffer）、ATTR（按 float index 单分量加载）、OUTPUT_VS（VS 统一输出，与 Format-B OUTPUT 等价但用于明确区分 VS 上下文）。
+适用于：VSTORE（将顶点属性存入 VATTR buffer）、OUTPUT_VS（VS 统一输出，与 Format-B OUTPUT 等价但用于明确区分 VS 上下文）。
 
 ---
 
@@ -245,8 +245,8 @@ Word 2:
 | 0x1A | XOR | A | R | 1 | Rd = Ra ^ Rb（按位异或）|
 | 0x1B | SHL | A | R | 1 | Rd = Ra << Rb（按位左移）|
 | 0x1C | SHR | A | R | 1 | Rd = Ra >> Rb（按位右移）|
-| 0x1D | SEL | A | R | 1 | Rd = (Rc != 0) ? Ra : Rb（R4-type，Rc=bits[9:5]）|
-| 0x1E | SMOOTHSTEP | A | R | 1 | Rd = smoothstep(Ra, Rb, Rc)（R4-type，Rc=bits[9:5]）|
+| 0x1D | SEL | A | R | 1 | Rd = (rd != 0) ? Ra : Rb（条件来自 rd）|
+| 0x1E | SMOOTHSTEP | A | R | 1 | Rd = smoothstep(Ra, Rb, rd)（x 参数来自 rd）|
 | 0x1F | SETP | A | R | 1 | 设置谓词寄存器 |
 
 #### 统一特殊功能 SFU（0x20 – 0x2F，VS/FS 共用）
@@ -304,7 +304,7 @@ Word 2:
 | 0x4A | VSTORE | **E(双字)** | — | **1** | 存储顶点属性到 VATTR buffer（word2=byte_offset，rd=源寄存器）|
 | 0x4B | OUTPUT_VS | B(双字) | I | 2 | 输出裁剪坐标到 Rasterizer（VS 终结指令，与 0x34 OUTPUT 等价）|
 | 0x4C | LDC | B(双字) | I | 2 | VS 常量数据加载（Rd = const_data[imm]）|
-| 0x4D | ATTR | **E(双字)** | — | 2 | 顶点属性提取（从 VBO 按 float index 加载单个分量到 Rd，word2=float_index）|
+| 0x4D | ATTR | B(双字) | I | 2 | 顶点属性提取（从 VBO 按 float index 加载单个分量到 Rd，word2=float_index）|
 | 0x4E | DOT3 | A | R | 1 | 3D 点积：Rd = Ra·Rb（dot product of 3-component vectors，低 3 分量参与计算）|
 | 0x4F | DOT4 | A | R | 1 | 4D 点积：Rd = Ra·Rb（dot product of 4-component vectors，4 分量全部参与计算）|
 | 0x50 – 0x5F | — | — | — | — | **保留（Phase 2 扩展）** |
@@ -581,20 +581,19 @@ SHR:
 | 字段 | 值 |
 |------|------|
 | Opcode | 0x1D（VS/FS 统一）|
-| Format | A（R-type，R4-type 语义）|
-| 操作数 | Rd（结果写入目标）, Ra（true-value）, Rb（false-value）, Rc（条件，编码于 bits[9:5]）|
+| Format | A（R-type）|
+| 操作数 | Rd（条件，同时也是结果写入目标）, Ra（true-value）, Rb（false-value）|
 | 执行周期 | 1 |
-| 功能 | Rd = (Rc != 0) ? Ra : Rb |
+| 功能 | Rd = (Rd != 0) ? Ra : Rb（条件取自 Rd 自身） |
 
-> **R4-type 编码说明**：SEL 需要四个寄存器字段。Format-A 中 Rc 打包到 bits[9:5]（= Rb[4:0]），因此 Rc 实际值被约束为 Rb 的低 5 位。语义上：Rd = 条件选择结果写入目标（同时也参与 Rc 读取，因为 Rc 的编码值取自 Rb），Ra = true-value，Rb = false-value。**注意**：由于 Rc 编码依赖 Rb，若需任意条件寄存器，Rc 必须通过 Rb 传递（将 Rb 设为条件寄存器，然后 Ra=true-value，Rb=false-value 的设计会冲突）。编译器在生成 SEL 前应先将条件寄存器移至 Rb 的低 5 位范围内。
+> **语义说明**：SEL 读取 Rd 作为条件值。若 Rd ≠ 0 则结果为 Ra，否则为 Rb。Rd 同时也是结果写入目标寄存器（即条件寄存器必须和目标寄存器为同一物理寄存器）。此设计下编译器需确保将条件值置于 Rd，再以 Rd 作为目标寄存器写入结果。
 >
-> **硬件 ordering 保证**：同一指令周期内先读条件（Rc），再写结果（Rd），硬件保证先读后写语义，即使 Rd == Ra 或 Rd == Rb 也安全。
+> **硬件 ordering 保证**：同一指令周期内先读条件（Rd），再写结果（Rd），硬件保证先读后写语义，即使 Rd == Ra 或 Rd == Rb 也安全。
 
 ```
 SEL:
-    // Rc 从 bits[9:5] 读取（= Rb[4:0]）
-    // Ra = true-value, Rb = false-value, Rd = 结果写入目标（同时也是 Rc 的编码基底 Rb）
-    cond_val = reg_file_.Read(inst_.GetRc())  // Rc = bits[9:5] = Rb[4:0]
+    // 条件取自 Rd（同时也是结果写入目标）
+    cond_val = reg_file_.Read(rd)
     true_val = reg_file_.Read(ra)
     false_val = reg_file_.Read(rb)
     result = (cond_val != 0.0f) ? true_val : false_val
@@ -609,21 +608,21 @@ SEL:
 | 字段 | 值 |
 |------|------|
 | Opcode | 0x1E（VS/FS 统一）|
-| Format | A（R-type，R4-type 语义）|
-| 操作数 | Rd（结果写入目标）, Ra（edge0）, Rb（edge1）, Rc（x，编码于 bits[9:5]）|
+| Format | A（R-type）|
+| 操作数 | Rd（x 参数，同时也是结果写入目标）, Ra（edge0）, Rb（edge1）|
 | 执行周期 | 1 |
-| 功能 | Hermite 平滑插值：Rd = smoothstep(edge0, edge1, x) |
+| 功能 | Hermite 平滑插值：Rd = smoothstep(edge0, edge1, Rd)（x 取自 Rd 自身） |
 
-> **R4-type 编码说明**：同 SEL，Rc 通过 bits[9:5] 编码（= Rb[4:0]）。语义上：Ra = edge0，Rb = edge1，Rc（= Rb[4:0]）= x。**注意**：与 SEL 类似，Rc 的编码约束要求 x 必须在 Rb 的低 5 位范围内。
+> **语义说明**：SMOOTHSTEP 的 x 参数取自 Rd（即 Rd 同时也是结果写入目标），edge0 取自 Ra，edge1 取自 Rb。此设计与 SEL 类似：x/条件值必须放在与目标寄存器相同的寄存器中。
 >
-> **硬件 ordering 保证**：同一指令周期内先读 x（Rc）和 edge 值，再写 result，硬件保证先读后写语义。
+> **硬件 ordering 保证**：同一指令周期内先读 x（Rd）和 edge 值，再写 result，硬件保证先读后写语义。
 
 ```
 SMOOTHSTEP:
-    // Rc = bits[9:5] = Rb[4:0]
+    // x 取自 Rd（同时也是结果写入目标）
     edge0 = reg_file_.Read(ra)     // Ra = edge0
     edge1 = reg_file_.Read(rb)     // Rb = edge1
-    x = reg_file_.Read(inst_.GetRc())  // Rc = x
+    x = reg_file_.Read(rd)         // Rd = x
     t = clamp((x - edge0) / (edge1 - edge0), 0.0f, 1.0f)
     result = t * t * (3.0f - 2.0f * t)
     reg_file_.Write(rd, result)
@@ -915,18 +914,16 @@ LDC(Rd, const_offset):
 | 字段 | 值 |
 |------|------|
 | Opcode | 0x4D |
-| Format | **E（双字）** |
+| Format | **B（双字）** |
 | 操作数 | Rd, word2=float_index（10-bit，VBO float 数组下标）|
 | 执行周期 | **2** |
 | 功能 | 从 VBO 按 float index 加载**单个**分量到 Rd（不同于 VLOAD 的一次性加载 4 分量）|
 
-> **Format-E 双字格式**：Word2 为 10-bit float index（零扩展），直接用作 vbodata_ 数组下标。Ra 字段在 Word1 中被忽略。
->
-> **与旧版文档的差异**：旧版文档将 ATTR 描述为 Format-B，实际代码使用 Format-E。
+> **Format-B 双字格式**：Word2 为 10-bit float index（零扩展），直接用作 vbodata_ 数组下标。Ra 字段在 Word1 中被忽略（填 0）。
 
 **Word 1**：[Opcode=0x4D | Rd(7) | 0000000(7) | 0000000000(10)]
 
-**Word 2**：[0000000000000000000000(22) | float_index(10)]
+**Word 2**：[0000000 | 0000000 | float_index(10)]
 
 ```
 ATTR(Rd, float_index):
@@ -1287,7 +1284,7 @@ IF1 → IF2 → ID → EX → MEM → WB
 | **VSTORE format** | Format-B, 2-cycle | **Format-E, 1-cycle（2026-04-14 修正）** |
 | **VLOAD cycles** | 2 | **1（2026-04-14 修正）** |
 | **MOV opcode** | 未定义 | **0x63, Format-C, 1-cycle（2026-04-14 新增）** |
-| **ATTR format** | Format-B | **Format-E（2026-04-14 修正）** |
+| **ATTR format** | Format-B | Format-B（代码即为 Format-B，文档原声称"已修正为 Format-E"有误）|
 
 ---
 
