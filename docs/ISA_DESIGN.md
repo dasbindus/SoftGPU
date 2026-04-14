@@ -3,8 +3,8 @@
 **版本：** 2.5  
 **作者：** 陈二虎（SoftGPU Architect Agent）  
 **日期：** 2026-04-10  
-**状态：** **修订版 v2.5**（Chapter 5 补 DOT3/DOT4 详细规格；SEL pseudocode 先读后写语义注释补全）  
-**变更性质：** 小修补（v2.4 review 后的两个遗漏项）  
+**文档刷新：** 2026-04-14（小钻风，对照 isa_v2_5.hpp + interpreter_v2_5.hpp 代码核实后修订）  
+**状态：** **核实版 v2.5**（修正 7 处与实际代码的不符：RET/CALL link register R63、分支描述、VSTORE format/cycle、MOV opcode 0x63 补录、Format-E 描述澄清、SEL/SMOOTHSTEP R4-type 语义对照代码修正）  
 
 ---
 
@@ -105,7 +105,9 @@
 - **Rb**：7-bit，源寄存器 B
 - **Reserved**：必须置 0
 
-适用于：ADD, SUB, MUL, DIV, MAD, CMP, MIN, MAX, AND, OR, DOT3, DOT4, CROSS, NORMALIZE, SEL, SMOOTHSTEP, SAMPLE, TEX 等。
+适用于：ADD, SUB, MUL, DIV, MAD, CMP, MIN, MAX, AND, OR, DOT3, DOT4, CROSS, NORMALIZE, SEL, SMOOTHSTEP, SAMPLE, TEX, POW 等。
+
+> **R4-type 说明（SEL/SMOOTHSTEP/MAD）**：Format-A 原本只有 Rd/Ra/Rb 三个寄存器字段。R4-type 指令需要第四个寄存器 Rc，编码方式为**将 Rc 打包到 bits[9:5]**（5-bit，与 Rb 的 bits[9:3] 低位重叠）。因此 Rc 实际只能取 Rb 的低 5 位值（0–31），编译期必须确保所需 Rc 在此范围内。
 
 ### 3.3 Format-B：RI-type（双字，二寄存器 + 立即数）
 
@@ -130,13 +132,13 @@ Word 2:
 - **Fetch 周期**：2 个周期（连续取两字）
 - **执行时机**：Word 2 fetch 完成后才能开始 EX
 
-适用于：LD, ST, LDC, BRA, JUMP, CALL, VLOAD, VSTORE, ATTR, MOV_IMM, OUTPUT, OUTPUT_VS 等。
+适用于：LD, ST, LDC, BRA, JUMP, CALL, VLOAD, MOV_IMM, OUTPUT, OUTPUT_VS, ATTR 等。
 
 > **10-bit Immediate 范围**：
 > - 无符号：0 – 1023（适用于内存字节偏移）
 > - 符号扩展：-512 – +511（适用于分支 offset，单位：4 字节，即 ±2KB）
 
-### 3.4 Format-C：U-type（单字，单寄存器 + 功能码）
+### 3.4 Format-C：U-type（单字，单寄存器 + func）
 
 ```
 31       24 23    17 16          8 7               0
@@ -146,9 +148,9 @@ Word 2:
 +--------+--------+--------+--------+----------------+
 ```
 
-适用于：ABS, NEG, FLOOR, CEIL, FRACT, SQRT, RSQ, RCP, SIN, COS, EXPD2, LOGD2, F2I, I2F, NOT 等单目操作（Func 字段当前未使用，为 Phase 2 CVT 族扩展预留）。
+适用于：ABS, NEG, FLOOR, CEIL, FRACT, SQRT, RSQ, RCP, SIN, COS, EXPD2, LOGD2, F2I, I2F, NOT, MOV 等单目操作（Func 字段当前未使用，为 Phase 2 CVT 族扩展预留）。
 
-> **Func 字段**：当前设计（v2.4）中 U-type 指令（如 ABS/NEG/FLOOR/CEIL 等单目操作）不使用 Func 子操作码，每条指令有独立 opcode。若未来需要同一 opcode 下的多子操作（如 CVT 族的 signed/unsigned 变体），可在 Func 字段中编码，高 5-bit 填 0 保留给扩展。
+> **Func 字段**：当前设计（v2.5）中 U-type 指令（如 ABS/NEG/FLOOR/CEIL/MOV 等单目操作）不使用 Func 子操作码，每条指令有独立 opcode。若未来需要同一 opcode 下的多子操作（如 CVT 族的 signed/unsigned 变体），可在 Func 字段中编码，高 5-bit 填 0 保留给扩展。
 
 ### 3.5 Format-D：J-type（单字，无操作数控制流）
 
@@ -160,19 +162,31 @@ Word 2:
 +--------+-------------------------------------------+
 ```
 
-适用于：NOP, RET, HALT, BAR, VOUTPUT 等。
+适用于：NOP, RET, HALT, BAR 等。
 
-### 3.6 Format-E：I-type（单字，二寄存器）
+### 3.6 Format-E：特殊双字格式（单寄存器 + word2 立即数）
 
 ```
-31       24 23    17 16    10 9                      0
-+--------+--------+--------+-------------------------+
-| Opcode |   Rd  |   Ra  |         Reserved          |
-| 8 bit  | 7 bit | 7 bit |         (10 bit)         |
-+--------+--------+--------+-------------------------+
+Word 1:
+31       24 23    17 16                                 0
++--------+--------+-------------------------------------+
+| Opcode |   Rd  |           Reserved (17 bit)         |
+| 8 bit  | 7 bit |              (17 bit)              |
++--------+--------+-------------------------------------+
+
+Word 2:
+31                                           10 9      0
++------------------------------------------+-----------+
+|              Immediate (10 bit)           | Reserved |
+|                                          | (22 bit)  |
++------------------------------------------+-----------+
 ```
 
-适用于：VOUTPUT（统一输出）、MOV_IMM（立即数移动）等二操作数指令。SEL/SMOOTHSTEP 使用 Format-A R4-type，不是 Format-E。
+- **Word 1**：Opcode + Rd（目标/源寄存器）+ Reserved
+- **Word 2**：10-bit 立即数（字节偏移量，零扩展）+ Reserved
+- **Fetch 周期**：2 个周期
+
+适用于：VSTORE（将顶点属性存入 VATTR buffer）、ATTR（按 float index 单分量加载）、OUTPUT_VS（VS 统一输出，与 Format-B OUTPUT 等价但用于明确区分 VS 上下文）。
 
 ---
 
@@ -207,8 +221,8 @@ Word 2:
 |--------|------|--------|------|------|------|
 | 0x00 | NOP | D | J | 1 | 空操作 |
 | 0x01 | BRA | B(双字) | B | 1 | 条件分支：Ra≠0 则跳转（VS/FS 通用，原 CBR 废除）|
-| 0x02 | CALL | B(双字) | J | 1 | 调用：保存返回地址到 R1，跳转 |
-| 0x03 | RET | D | J | 1 | 返回：从 R1 恢复 PC |
+| 0x02 | CALL | B(双字) | J | 1 | 调用：保存返回地址到 **R63**，跳转 |
+| 0x03 | RET | D | J | 1 | 返回：从 **R63** 恢复 PC |
 | 0x04 | JMP | B(双字) | J | 1 | 无条件跳转 |
 | 0x05 | BAR | D | J | 1 | Warp 内线程同步 |
 | 0x06 – 0x0E | — | — | — | — | **保留** |
@@ -222,7 +236,7 @@ Word 2:
 | 0x11 | SUB | A | R | 1 | Rd = Ra - Rb |
 | 0x12 | MUL | A | R | 1 | Rd = Ra × Rb |
 | 0x13 | DIV | A | R | **7** | Rd = Ra / Rb（长延迟）|
-| 0x14 | MAD | A | R | 1 | Rd = Ra × Rb + Rc（R4-type，Rc=Rb，隐含）|
+| 0x14 | MAD | A | R | 1 | Rd = Ra × Rb + Rc（R4-type，Rc 编码于 bits[9:5]，= Rb[4:0]）|
 | 0x15 | CMP | A | R | 1 | Rd = (Ra < Rb) ? 1.0f : 0.0f |
 | 0x16 | MIN | A | R | 1 | Rd = min(Ra, Rb) |
 | 0x17 | MAX | A | R | 1 | Rd = max(Ra, Rb) |
@@ -231,8 +245,8 @@ Word 2:
 | 0x1A | XOR | A | R | 1 | Rd = Ra ^ Rb（按位异或）|
 | 0x1B | SHL | A | R | 1 | Rd = Ra << Rb（按位左移）|
 | 0x1C | SHR | A | R | 1 | Rd = Ra >> Rb（按位右移）|
-| 0x1D | SEL | A | R | 1 | Rd = (Rc != 0) ? Ra : Rb（R4-type）|
-| 0x1E | SMOOTHSTEP | A | R | 1 | Rd = smoothstep(Ra, Rb, Rc) |
+| 0x1D | SEL | A | R | 1 | Rd = (Rc != 0) ? Ra : Rb（R4-type，Rc=bits[9:5]）|
+| 0x1E | SMOOTHSTEP | A | R | 1 | Rd = smoothstep(Ra, Rb, Rc)（R4-type，Rc=bits[9:5]）|
 | 0x1F | SETP | A | R | 1 | 设置谓词寄存器 |
 
 #### 统一特殊功能 SFU（0x20 – 0x2F，VS/FS 共用）
@@ -286,22 +300,25 @@ Word 2:
 | 0x46 | — | — | — | — | **保留（Phase 2 扩展）** |
 | 0x47 | — | — | — | — | **保留（Phase 2 扩展）** |
 | 0x48 | MOV_IMM | B(双字) | I | 2 | 将 10-bit 立即数（零扩展）写入 Rd |
-| 0x49 | VLOAD | B(双字) | I | 2 | 从 VBO 加载顶点属性到 Rd–Rd+3（addr 4-byte aligned）|
-| 0x4A | VSTORE | B(双字) | I | 2 | 存储顶点属性到 VBO（addr 4-byte aligned）|
+| 0x49 | VLOAD | B(双字) | I | **1** | 从 VBO 加载顶点属性到 Rd–Rd+3（addr 4-byte aligned）|
+| 0x4A | VSTORE | **E(双字)** | — | **1** | 存储顶点属性到 VATTR buffer（word2=byte_offset，rd=源寄存器）|
 | 0x4B | OUTPUT_VS | B(双字) | I | 2 | 输出裁剪坐标到 Rasterizer（VS 终结指令，与 0x34 OUTPUT 等价）|
 | 0x4C | LDC | B(双字) | I | 2 | VS 常量数据加载（Rd = const_data[imm]）|
-| 0x4D | ATTR | B(双字) | I | 2 | 顶点属性提取（从 VBO 偏移加载单个属性分量）|
+| 0x4D | ATTR | **E(双字)** | — | 2 | 顶点属性提取（从 VBO 按 float index 加载单个分量到 Rd，word2=float_index）|
 | 0x4E | DOT3 | A | R | 1 | 3D 点积：Rd = Ra·Rb（dot product of 3-component vectors，低 3 分量参与计算）|
 | 0x4F | DOT4 | A | R | 1 | 4D 点积：Rd = Ra·Rb（dot product of 4-component vectors，4 分量全部参与计算）|
 | 0x50 – 0x5F | — | — | — | — | **保留（Phase 2 扩展）** |
+| **0x63** | **MOV** | **C** | **U** | **1** | **寄存器移动：Rd = Ra（Format-C 单字，v2.5 新增）** |
+| 0x64 – 0xBF | — | — | — | — | **保留（Phase 2 扩展）** |
 
-#### 扩展空间（0x60 – 0xBF，保留）
+#### 特殊扩展（0xC0 – 0xFF）
 
-| 区间 | 用途 |
-|------|------|
-| 0x60 – 0x6F | 保留（Phase 2 扩展算术）|
-| 0x70 – 0x7F | 保留（Phase 2 扩展内存/纹理）|
-| 0x80 – 0xBF | 保留（Phase 2+ 扩展，64 个 opcode）|
+| Opcode | 用途 |
+|--------|------|
+| 0xC0 | DEBUG_BREAK（调试断点）|
+| 0xC1 | CYCLE_COUNT（读取 stats_.cycles 到寄存器）|
+| 0xFE | EXTENDED（扩展指令前缀，secondary opcode 在 immediate 中）|
+| 0xFF | RESERVED（保留）|
 
 **Phase 2 候选扩展指令：**
 - 0x40: 保留（原 MAT_MUL，已删除）
@@ -313,19 +330,10 @@ Word 2:
 - 0x60: CVT_F32_S32
 - 0x61: CVT_F32_U32
 - 0x62: CVT_S32_F32
-- 0x63: CVT_U32_F32
+- 0x63: CVT_U32_F32（注意：v2.5 此处为 MOV，别名）
 - 0x70: TEX_LOD（带细节层级参数的纹理采样）
 - 0x80: FMA（Fused Multiply-Add，精确版）
 - 0xC0 – 0xFF: 未来扩展（协处理器接口、调试指令等）
-
-#### 特殊扩展（0xC0 – 0xFF）
-
-| Opcode | 用途 |
-|--------|------|
-| 0xC0 | DEBUG_BREAK（调试断点）|
-| 0xC1 | CYCLE_COUNT（读取 stats_.cycles 到寄存器）|
-| 0xFE | EXTENDED（扩展指令前缀，secondary opcode 在 immediate 中）|
-| 0xFF | RESERVED（保留）|
 
 ---
 
@@ -343,6 +351,7 @@ Word 2:
 
 ```
 NOP:
+    // no-op
     pc_.addr += 4
 ```
 
@@ -452,18 +461,18 @@ MUL:
 |------|------|
 | Opcode | 0x14（VS/FS 统一）|
 | Format | A（R-type，R4-type 语义）|
-| 操作数 | Rd, Ra, Rb, Rc（Rc 隐含 = Rb）|
+| 操作数 | Rd, Ra, Rb, Rc（Rc 编码于 bits[9:5]，= Rb[4:0]）|
 | 执行周期 | 1 |
-| 功能 | Rd = Ra × Rb + Rb（即 (Ra + 1) × Rb）|
+| 功能 | Rd = Ra × Rb + Rc |
 
-> **R4-type 说明**：MAD 的语义是三操作数 multiply-add，但编码为标准 R-type 三寄存器格式时 Rc 字段被隐含为 Rb（即 a×b + b = b×(a+1)）。若需要完整的三操作数 FMA，请参见 Phase 2 扩展 FMA（0x80）。
+> **R4-type 编码说明**：MAD 需要四个寄存器字段（Rd/Ra/Rb/Rc）。Format-A 编码中 Rb 占用 bits[9:3]（7-bit），Rc 打包到 bits[9:5]（5-bit），两者在 bits[9:5] 重叠。因此 Rc 实际值被约束为 Rb 的低 5 位（0–31）。编译期必须确保所需 Rc 在此范围内。若 Rc 需要超出此范围，请参见 Phase 2 扩展 FMA（0x80）。
 
 ```
 MAD:
     val_a = reg_file_.Read(ra)
     val_b = reg_file_.Read(rb)
-    // Rc 隐含 = Rb
-    result = val_a * val_b + val_b
+    val_c = reg_file_.Read(inst_.GetRc())  // Rc = bits[9:5] = Rb[4:0]
+    result = val_a * val_b + val_c
     reg_file_.Write(rd, result)
     pc_.addr += 4
 ```
@@ -573,24 +582,23 @@ SHR:
 |------|------|
 | Opcode | 0x1D（VS/FS 统一）|
 | Format | A（R-type，R4-type 语义）|
-| 操作数 | Rd（谓词寄存器）, Ra（true-value）, Rb（false-value）, Rc（条件，隐含 = Rb）|
+| 操作数 | Rd（结果写入目标）, Ra（true-value）, Rb（false-value）, Rc（条件，编码于 bits[9:5]）|
 | 执行周期 | 1 |
 | 功能 | Rd = (Rc != 0) ? Ra : Rb |
 
-> **R4-type 编码说明**：SEL 需要三个寄存器 + 一个条件选择输入。标准 Format-A R-type 只有 Rd/Ra/Rb 三个字段。R4-type 的 Rc 字段通过"将 Rc 编码为 Rd"来实现——即 Rd 字段同时承担"结果写入目标"和"条件选择输入"两个角色，Ra = true-value，Rb = false-value，Rd = 条件寄存器（Rc 语义）。
+> **R4-type 编码说明**：SEL 需要四个寄存器字段。Format-A 中 Rc 打包到 bits[9:5]（= Rb[4:0]），因此 Rc 实际值被约束为 Rb 的低 5 位。语义上：Rd = 条件选择结果写入目标（同时也参与 Rc 读取，因为 Rc 的编码值取自 Rb），Ra = true-value，Rb = false-value。**注意**：由于 Rc 编码依赖 Rb，若需任意条件寄存器，Rc 必须通过 Rb 传递（将 Rb 设为条件寄存器，然后 Ra=true-value，Rb=false-value 的设计会冲突）。编译器在生成 SEL 前应先将条件寄存器移至 Rb 的低 5 位范围内。
 >
-> **硬件 ordering 保证**：Rd 字段在同一指令周期内先作为条件读取（Rc），再写入结果。硬件保证先读后写语义，即使 Rd == Ra 或 Rd == Rb 也安全。测试时需注意此 ordering——不要在条件计算中使用被同一 SEL 指令写入的目标寄存器。
+> **硬件 ordering 保证**：同一指令周期内先读条件（Rc），再写结果（Rd），硬件保证先读后写语义，即使 Rd == Ra 或 Rd == Rb 也安全。
 
 ```
 SEL:
-    // Rd 字段同时是：(1) 条件选择输入 (Rc)，(2) 结果写入目标
-    // Ra = true-value, Rb = false-value
-    cond_val = reg_file_.Read(rd)  // Rd 字段用作 Rc（条件）
+    // Rc 从 bits[9:5] 读取（= Rb[4:0]）
+    // Ra = true-value, Rb = false-value, Rd = 结果写入目标（同时也是 Rc 的编码基底 Rb）
+    cond_val = reg_file_.Read(inst_.GetRc())  // Rc = bits[9:5] = Rb[4:0]
     true_val = reg_file_.Read(ra)
     false_val = reg_file_.Read(rb)
     result = (cond_val != 0.0f) ? true_val : false_val
-    // 注意：写回 rd 的动作在读取条件值之后执行，硬件保证先读后写语义。
-    reg_file_.Write(rd, result)  // 写回 Rd
+    reg_file_.Write(rd, result)
     pc_.addr += 4
 ```
 
@@ -602,24 +610,23 @@ SEL:
 |------|------|
 | Opcode | 0x1E（VS/FS 统一）|
 | Format | A（R-type，R4-type 语义）|
-| 操作数 | Rd（edge0）, Ra（edge1）, Rb（x）, Rc（隐含 = Rb）|
+| 操作数 | Rd（结果写入目标）, Ra（edge0）, Rb（edge1）, Rc（x，编码于 bits[9:5]）|
 | 执行周期 | 1 |
 | 功能 | Hermite 平滑插值：Rd = smoothstep(edge0, edge1, x) |
 
-> **R4-type 编码说明**：同 SEL，Rc 通过 Rd 字段编码。Rd = edge0，Ra = edge1，Rb = x。
+> **R4-type 编码说明**：同 SEL，Rc 通过 bits[9:5] 编码（= Rb[4:0]）。语义上：Ra = edge0，Rb = edge1，Rc（= Rb[4:0]）= x。**注意**：与 SEL 类似，Rc 的编码约束要求 x 必须在 Rb 的低 5 位范围内。
 >
-> **硬件 ordering 保证**：Rd 字段在同一指令周期内先作为 edge0 读取，再写入 result。硬件保证先读后写语义。测试时需注意此 ordering。
+> **硬件 ordering 保证**：同一指令周期内先读 x（Rc）和 edge 值，再写 result，硬件保证先读后写语义。
 
 ```
 SMOOTHSTEP:
-    edge0 = reg_file_.Read(rd)  // Rd = edge0
-    edge1 = reg_file_.Read(ra)   // Ra = edge1
-    x = reg_file_.Read(rb)       // Rb = x
-    // t = clamp((x - edge0) / (edge1 - edge0), 0, 1)
-    // result = t * t * (3 - 2 * t)
+    // Rc = bits[9:5] = Rb[4:0]
+    edge0 = reg_file_.Read(ra)     // Ra = edge0
+    edge1 = reg_file_.Read(rb)     // Rb = edge1
+    x = reg_file_.Read(inst_.GetRc())  // Rc = x
     t = clamp((x - edge0) / (edge1 - edge0), 0.0f, 1.0f)
     result = t * t * (3.0f - 2.0f * t)
-    reg_file_.Write(rd, result)  // 写回 Rd
+    reg_file_.Write(rd, result)
     pc_.addr += 4
 ```
 
@@ -631,7 +638,7 @@ SMOOTHSTEP:
 |------|------|
 | Opcode | 0x1F（VS/FS 统一）|
 | Format | A（R-type）|
-| 操作数 | Rd（谓词结果）, Ra, Rb |
+| 操作数 | Rd（谓词结果）, Ra |
 | 执行周期 | 1 |
 | 功能 | 设置谓词寄存器：Rd = (Ra != 0) ? 1.0f : 0.0f（类似 CMP 但无条件，仅 Ra≠0 即为 true）|
 
@@ -820,7 +827,7 @@ BAR:
 | 执行周期 | 1 |
 | 功能 | 无条件跳转、调用、返回 |
 
-> **CALL/RET 约定**：调用约定中，R1 保留用于存储返回地址（CALL 自动将 PC+8 写入 R1，RET 从 R1 恢复）。此为软约定，编译器负责维护调用栈。
+> **CALL/RET 约定（已修正）**：调用约定中，**R63** 保留用于存储返回地址（CALL 自动将 PC+8 写入 R63，RET 从 R63 恢复）。此为软约定，编译器负责维护调用栈。R63 相比 R1 更安全（R1 在 VS/FS 混合程序中可能被用作通用寄存器）。
 
 > **JMP/CALL/BRA 统一说明**：Format-B 双字指令即使在 fall-through（不跳转/offset=0）时，PC 也应 +8 以跳过 immediate word。此行为与 BRA 的 fall-through 处理一致。
 
@@ -834,15 +841,15 @@ JMP(Ra, signed_offset):
         pc_.addr += 8  // fall-through：跳过 immediate word（双字）
 
 CALL(Ra, signed_offset):
-    // R1 = PC + 8（双字，跳过紧跟的 immediate word）
+    // R63 = PC + 8（双字，跳过紧跟的 immediate word）
     ret_addr = pc_.addr + 8
-    reg_file_.Write(1, ret_addr)  // R1 = 返回地址
+    reg_file_.Write(63, ret_addr)  // R63 = 返回地址
     offset = sign_extend(word2.immediate, 10)
     pc_.addr += static_cast<uint32_t>(offset * 4)
     stats_.calls++
 
 RET:
-    ret_addr = reg_file_.Read(1)  // R1 = 返回地址
+    ret_addr = reg_file_.Read(63)  // R63 = 返回地址
     pc_.addr = ret_addr
     stats_.returns++
 ```
@@ -854,24 +861,24 @@ RET:
 | 字段 | 值 |
 |------|------|
 | Opcode | 0x4A |
-| Format | B（双字）|
-| 操作数 | Ra（VBO base, 隐含）, Rb（源数据，4-aligned）, #byte_offset |
-| 执行周期 | **2** |
-| 功能 | 将 Rd–Rd+3 存储到 VBO（Rd 为数据源，Ra 隐含为 VBO base）|
+| Format | **E（双字）** |
+| 操作数 | Rd（源寄存器，4-aligned）, word2=byte_offset |
+| 执行周期 | **1** |
+| 功能 | 将 R[rd]–R[rd+3] 存储到 VATTR buffer（偏移 = word2 imm10 / 4 的 float index）|
 
-> **说明**：VSTORE 的 Ra 字段被忽略，实际基址由 EU_MEM 单元的 VBO_base 寄存器提供。Rd 必须 4-aligned（Rd % 4 == 0）。
+> **Format-E 双字格式**：与 Format-B 不同，Format-E 的 Word2 全部为立即数（10-bit byte_offset），不包含寄存器字段。VSTORE 将 Rd（源寄存器，4-aligned）的 4 个 float 值写入 `vabuf_[(word2/4) + i]`。
+>
+> **与旧版文档的差异**：旧版文档将 VSTORE 描述为 Format-B（2 cycles），实际代码使用 Format-E（1 cycle）。
 
-**Word 1**：[Opcode=0x4A | 0000000(7) | 0000000(7) | 0000000000(10)]
+**Word 1**：[Opcode=0x4A | Rd(7) | 0000000(7) | 00000000000000000000000(24)]
 
-**Word 2**：[0000000 | Rb(7) | byte_offset(10)]
+**Word 2**：[0000000000000000000000(22) | byte_offset(10)]
 
 ```
-VSTORE(Rb, byte_offset):
-    vbo_base = get_vbo_base()
+VSTORE(Rd, byte_offset):
+    attr_base = byte_offset / 4
     for i in 0..3:
-        addr = vbo_base + byte_offset + i * 4
-        value = reg_file_.Read(rb + i)
-        memory_.Store32(addr, value)
+        vabuf_[attr_base + i] = reg_file_.Read(rd + i)
     stats_.stores++
     pc_.addr += 8  // 双字
 ```
@@ -908,24 +915,26 @@ LDC(Rd, const_offset):
 | 字段 | 值 |
 |------|------|
 | Opcode | 0x4D |
-| Format | B（双字）|
-| 操作数 | Rd, #attr_byte_offset |
+| Format | **E（双字）** |
+| 操作数 | Rd, word2=float_index（10-bit，VBO float 数组下标）|
 | 执行周期 | **2** |
-| 功能 | 从当前 VBO 顶点偏移加载单个属性分量到 Rd（常用于顶点着色器属性解压）|
+| 功能 | 从 VBO 按 float index 加载**单个**分量到 Rd（不同于 VLOAD 的一次性加载 4 分量）|
 
-> **说明**：ATTR 与 VLOAD 的区别在于——VLOAD 一次加载 4 个分量（Rd–Rd+3），ATTR 每次只加载 1 个分量到 Rd。适用于稀疏属性访问场景（如只读取纹理坐标分量）。
+> **Format-E 双字格式**：Word2 为 10-bit float index（零扩展），直接用作 vbodata_ 数组下标。Ra 字段在 Word1 中被忽略。
+>
+> **与旧版文档的差异**：旧版文档将 ATTR 描述为 Format-B，实际代码使用 Format-E。
 
 **Word 1**：[Opcode=0x4D | Rd(7) | 0000000(7) | 0000000000(10)]
 
-**Word 2**：[0000000 | 0000000 | attr_offset(10)]
+**Word 2**：[0000000000000000000000(22) | float_index(10)]
 
 ```
-ATTR(Rd, attr_offset):
-    vbo_base = get_vbo_base()
-    vertex_offset = get_current_vertex_offset()
-    addr = vbo_base + vertex_offset + attr_offset
-    value = memory_.Load32(addr)
-    reg_file_.Write(rd, value)
+ATTR(Rd, float_index):
+    if (float_index < vcount_)
+        reg_file_.Write(rd, vbodata_[float_index])
+    else
+        reg_file_.Write(rd, 0.0f)
+    stats_.loads++
     pc_.addr += 8
 ```
 
@@ -957,34 +966,58 @@ MOV_IMM(Rd, imm10):
 
 ---
 
-### 5.24 MAT_MUL（已删除，v2.2）
+### 5.24 MOV（寄存器移动）
+
+| 字段 | 值 |
+|------|------|
+| Opcode | **0x63** |
+| Format | **C（U-type，单字）** |
+| 操作数 | Rd, Ra |
+| 执行周期 | **1** |
+| 功能 | Rd = Ra（寄存器值复制，Format-C 单字）|
+
+> **v2.5 新增指令**：MOV 在 opcode 0x63，原 Phase 2 CVT 槽位上实现为单字寄存器移动指令。若 Phase 2 引入 CVT 指令，需使用独立 opcode（如 0x60–0x62）。
+
+```
+MOV:
+    reg_file_.Write(rd, reg_file_.Read(ra))
+    pc_.addr += 4
+```
+
+---
+
+### 5.25 MAT_MUL（已删除，v2.2）
 
 > **已删除。** MAT_MUL（0x40） opcode 于 v2.2 删除，矩阵乘法统一由编译器 lower 为 4×DOT4 指令序列，不再作为独立硬件指令实现。
 
-### 5.25 VLOAD
+---
+
+### 5.26 VLOAD
 
 | 字段 | 值 |
 |------|------|
 | Opcode | 0x49 |
 | Format | B（双字）|
 | 操作数 | Rd, #byte_offset（Ra 隐含为 VBO base pointer）|
-| 执行周期 | **2** |
+| 执行周期 | **1** |
 | 功能 | 从 VBO 按偏移加载顶点属性到 Rd, Rd+1, Rd+2, Rd+3 |
 
 **Word 1**：[Opcode=0x49 | Rd(7) | Ra=ignored(7) | 0000000000(10)]
 
 **Word 2**：[0000000 | 0000000 | byte_offset(10)]
 
-> **说明**：VLOAD 的 Ra 字段被忽略，实际基址由 EU_MEM 单元的 VBO_base 寄存器提供。这与旧版 VS_ISA_DESIGN.md 约定（Rb 隐含为 R0）等价，但通过双字格式提供了更大的偏移范围（0-1023 字节）。
+> **说明**：VLOAD 的 Ra 字段被忽略，实际基址由 EU_MEM 单元的 VBO_base 寄存器提供。byte_offset 为字节偏移（0-1023），按 4-byte 对齐访问。
+>
+> **与旧版文档的差异**：旧版文档说 VLOAD 执行周期为 2，实际代码为 **1** 周期。
 
 **操作数约束**：Rd 必须 4-aligned（Rd % 4 == 0）。
 
 ```
 VLOAD(Rd, byte_offset):
-    vbo_base = get_vbo_base()
+    fi = byte_offset / 4  // 转换为 float index
     for i in 0..3:
-        addr = vbo_base + byte_offset + i * 4
-        value = memory_.Load32(addr)
+        addr = vbo_base + (fi + i) * 4
+        value = memory_.Load32(addr)  // 或直接从 vbodata_[fi+i] 读取
         reg_file_.Write(rd + i, value)
     stats_.loads++
     pc_.addr += 8  // 双字，下一条指令在 +8
@@ -992,7 +1025,7 @@ VLOAD(Rd, byte_offset):
 
 ---
 
-### 5.26 OUTPUT / OUTPUT_VS（统一输出指令）
+### 5.27 OUTPUT / OUTPUT_VS（统一输出指令）
 
 | 字段 | 值 |
 |------|------|
@@ -1017,16 +1050,18 @@ VLOAD(Rd, byte_offset):
 
 ```
 OUTPUT/OUTPUT_VS(Rd, offset):
+    base = curvtx_ * 4
     for i in 0..3:
-        OUTPUT_BUF[current_stage][vertex_idx * 16 + offset + i * 4] = Rd.f[i]
+        OUTPUT_BUF[current_stage][base + offset + i * 4] = Rd.f[i]
     if is_vs_context:
-        vertex_idx += 1
+        curvtx_ += 1
+        vcnt_ += 1
     pc_.addr += 8  // 双字
 ```
 
 ---
 
-### 5.27 BRA（条件分支）
+### 5.28 BRA（条件分支）
 
 | 字段 | 值 |
 |------|------|
@@ -1044,16 +1079,17 @@ OUTPUT/OUTPUT_VS(Rd, offset):
 BRA(Ra, signed_offset):
     cond = reg_file_.Read(ra)
     offset = sign_extend(signed_offset, 10)
+    next = pc_.addr + 8  // 跳过 immediate word
     if (cond != 0.0f) {
-        pc_.addr += static_cast<uint32_t>(offset * 4)
+        pc_.addr = next + static_cast<uint32_t>(offset * 4)
         stats_.branches_taken++
     } else:
-        pc_.addr += 8  // 双字，即使 fall-through 也跳过 immediate word
+        pc_.addr = next
 ```
 
 ---
 
-### 5.28 LD / ST（通用内存访问）
+### 5.29 LD / ST（通用内存访问）
 
 | 字段 | 值 |
 |------|------|
@@ -1086,25 +1122,25 @@ ST(Ra, byte_offset, Rb):
 
 ---
 
-### 5.29 TEX / SAMPLE（纹理采样）
+### 5.30 TEX / SAMPLE（纹理采样）
 
 | 字段 | 值 |
 |------|------|
 | TEX Opcode | 0x32 |
 | SAMPLE Opcode | 0x33 |
 | Format | A（R-type）|
-| 操作数 | TEX: Rd, Rd+1, Rd+2, Rd+3, Ra(u), Rb(v), Rc(tex_id)；SAMPLE: 同上（简化版）|
+| 操作数 | TEX: Rd, Ra(u), Rb(v)（Rc 隐含为 tex_id=0）|
 | 执行周期 | **10+**（SFU 级别延迟）|
 | 功能 | 纹理采样，返回 (r, g, b, a) 到 Rd – Rd+3 |
 
 **操作数约束**：
 - Rd 必须 4-aligned
 - Ra, Rb 为纹理坐标（float）
-- Rc 为纹理 ID（解释器根据 Rc 的整数值选择对应纹理单元）
+- Rc 在实际代码中未使用（tex_id 硬编码为 0），保留给 Phase 2 扩展
 
 ```
-TEX(Rd, Ra, Rb, Rc):
-    tex_id = static_cast<int>(reg_file_.Read(rc))
+TEX(Rd, Ra, Rb):
+    tex_id = 0  // 当前实现：固定纹理单元 0
     u = reg_file_.Read(ra)
     v = reg_file_.Read(rb)
     rgba = texture_sample(tex_id, u, v)
@@ -1118,7 +1154,7 @@ TEX(Rd, Ra, Rb, Rc):
 
 ---
 
-### 5.30 DOT3（3D 点积）
+### 5.31 DOT3（3D 点积）
 
 | 字段 | 值 |
 |------|------|
@@ -1153,7 +1189,7 @@ DOT3(Rd, Ra, Rb):
 
 ---
 
-### 5.31 DOT4（4D 点积）
+### 5.32 DOT4（4D 点积）
 
 | 字段 | 值 |
 |------|------|
@@ -1247,6 +1283,11 @@ IF1 → IF2 → ID → EX → MEM → WB
 | 分支跳转范围 | ±512 指令（10-bit offset）| ±512 指令（10-bit signed offset）|
 | 内存偏移范围 | 0-1023 字节 | 0-1023 字节（双字格式）|
 | 扩展空间 | 0x1D-0x6F（保留少）| **0x40-0x5F（VS 专属）+ 0x60-0xFF（192 个 opcode 保留）** |
+| **CALL/RET link register** | R1 | **R63（2026-04-14 修正）** |
+| **VSTORE format** | Format-B, 2-cycle | **Format-E, 1-cycle（2026-04-14 修正）** |
+| **VLOAD cycles** | 2 | **1（2026-04-14 修正）** |
+| **MOV opcode** | 未定义 | **0x63, Format-C, 1-cycle（2026-04-14 新增）** |
+| **ATTR format** | Format-B | **Format-E（2026-04-14 修正）** |
 
 ---
 
@@ -1280,4 +1321,5 @@ IF1 → IF2 → ID → EX → MEM → WB
 
 ---
 
-*— 陈二虎，Architect Agent，SoftGPU，2026-04-10*
+*— 陈二虎，Architect Agent，SoftGPU，2026-04-10*  
+*— 小钻风，2026-04-14（代码核实后修正 7 处与代码不符的描述）*
