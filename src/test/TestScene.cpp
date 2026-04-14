@@ -144,15 +144,15 @@ public:
         outCommand.drawParams.firstVertex = 0;
         outCommand.drawParams.indexed = false;
 
-        // 单位矩阵 (和 E2E 测试一样)
+        // 单位矩阵 (column-major: col0=R24-R27, col1=R28-R31, col2=R32-R35, col3=R36-R39)
         outCommand.viewMatrix = std::array<float, 16>{
-            1.0f, 0.0f, 0.0f, 0.0f,
-            0.0f, 1.0f, 0.0f, 0.0f,
-            0.0f, 0.0f, 1.0f, 0.0f,
-            0.0f, 0.0f, 0.0f, 1.0f
+            1.0f, 0.0f, 0.0f, 0.0f,  // col 0: R24=M[0,0], R25=M[1,0], R26=M[2,0], R27=M[3,0]
+            0.0f, 1.0f, 0.0f, 0.0f,  // col 1: R28=M[0,1], R29=M[1,1], R30=M[2,1], R31=M[3,1]
+            0.0f, 0.0f, 1.0f, 0.0f,  // col 2: R32=M[0,2], R33=M[1,2], R34=M[2,2], R35=M[3,2]
+            0.0f, 0.0f, 0.0f, 1.0f   // col 3: R36=M[0,3], R37=M[1,3], R38=M[2,3], R39=M[3,3]
         };
 
-        // 单位投影矩阵
+        // 单位投影矩阵 (column-major)
         outCommand.projectionMatrix = std::array<float, 16>{
             1.0f, 0.0f, 0.0f, 0.0f,
             0.0f, 1.0f, 0.0f, 0.0f,
@@ -160,7 +160,7 @@ public:
             0.0f, 0.0f, 0.0f, 1.0f
         };
 
-        // 单位模型矩阵
+        // 单位模型矩阵 (column-major)
         outCommand.modelMatrix = std::array<float, 16>{
             1.0f, 0.0f, 0.0f, 0.0f,
             0.0f, 1.0f, 0.0f, 0.0f,

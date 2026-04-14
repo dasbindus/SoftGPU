@@ -91,14 +91,13 @@ void VertexShader::executeISA() {
         for (size_t i = 0; i < m_vertexCount; ++i) {
             // Per-vertex VBO data pointer
             const float* vertex_data = m_vertexBuffer.data() + i * stride;
-            size_t vertex_floats = stride; // floats per vertex
 
             // Reset interpreter per-vertex
             m_interpreter.Reset();
             m_interpreter.ResetVS();
 
             // Set VBO for this vertex (VLOAD reads from here)
-            m_interpreter.SetVBO(vertex_data, vertex_floats);
+            m_interpreter.SetVBO(vertex_data, stride);
 
             // NOTE: Uniforms are loaded in RunVertexProgram after Reset()
             // Run VS program until HALT

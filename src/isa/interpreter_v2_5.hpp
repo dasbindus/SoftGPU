@@ -97,9 +97,6 @@ public:
             for (int i = 0; i < 16; ++i) m_projection_matrix[i] = proj[i];
             for (int i = 0; i < 16; ++i) rf_.Write(40 + i, proj[i]);
         }
-        // Debug: print projection matrix P[15] (should be 1.0)
-        fprintf(stderr, "DEBUG SetUniforms: P[15] (R55) = %.3f, M[15] (R23) = %.3f, V[15] (R39) = %.3f\n",
-                rf_.Read(55), rf_.Read(23), rf_.Read(39));
     }
 
     // Set viewport dimensions: writes to R56 (width), R57 (height)
@@ -131,7 +128,7 @@ public:
         cached_prog_.assign(program, program + program_size);
 
         for (size_t v = 0; v < vertex_count; ++v) {
-            // Reset per-vertex state
+            // Reset per-vertex state (but preserve vbodata_ which is set externally)
             rf_.Reset();
             pc_ = link_ = 0;
             st_.Reset();
@@ -141,6 +138,8 @@ public:
             vobuf_.assign(64, 0.0f);
             vabuf_.assign(64, 0.0f);
             vcnt_ = curvtx_ = 0;
+            // Note: do NOT clear vbodata_ here - it contains per-vertex VBO data set externally
+            // vcount_ should be set by SetVBO() before RunVertexProgram is called
 
             // Reload uniforms from cached matrices (R8-R57)
             for (int i = 0; i < 16; ++i) rf_.Write(8 + i, m_model_matrix[i]);
@@ -157,7 +156,8 @@ public:
 
     // Reset VS state (VBO, VOUTPUT buffer, VATTR buffer, vertex count)
     void ResetVS() {
-        vbodata_.clear();
+        // Note: do NOT clear vbodata_ here - it contains per-vertex VBO data set externally via SetVBO
+        // Just reset counters and buffers that are internal
         vcount_ = 0;
         vobuf_.assign(64, 0.0f);
         vabuf_.assign(64, 0.0f);
@@ -479,11 +479,6 @@ private:
         uint8_t rd = inst_.GetRd();
         uint32_t base = curvtx_ * 4;
         float cx = rf_.Read(rd), cy = rf_.Read(rd+1), cz = rf_.Read(rd+2), cw = rf_.Read(rd+3);
-        // Debug: check u.w and clip.w values, plus R60 (t.w), R61 (V[3,3])
-        if (curvtx_ == 1 && vcnt_ == 1) {
-            fprintf(stderr, "VS_OUTPUT: clip=(%.3f, %.3f, %.3f, %.3f) u.w=R35=%.3f t.w=R60=%.3f V[3,3]=R61=%.3f ndc=(%.3f, %.3f, %.3f)\n",
-                    cx, cy, cz, cw, rf_.Read(35), rf_.Read(60), rf_.Read(61), cx/cw, cy/cw, cz/cw);
-        }
         if (base + 3 < vobuf_.size()) for (int i = 0; i < 4; ++i) vobuf_[base + i] = rf_.Read(rd + i);
         curvtx_++; vcnt_++;
     }
