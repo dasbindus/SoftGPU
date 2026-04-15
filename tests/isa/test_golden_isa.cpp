@@ -579,21 +579,40 @@ TEST_F(GoldenISATest, MAD_Chained) {
 // ============================================================================
 
 TEST_F(GoldenISATest, XOR_WithZero) {
-    // X xor 0 = X (passes even with wrong Rb because shift is by 0)
+    // X xor 0 = X
     Instruction xor_i = Instruction::MakeA(Opcode::XOR, 3, 1, 2);
     Instruction halt = Instruction::MakeD(Opcode::HALT);
     auto prog = MakeProgram({xor_i, halt});
     Interpreter interp;
     interp.LoadProgram(prog.data(), prog.size());
-    
-    uint32_t v1 = 0xDEADBEEFu, v2 = 0x00000000u;
+
+    uint32_t v1 = 0xDEADBEEFu;
+    float zero = 0.0f;
     interp.SetRegister(1, reinterpret_cast<float&>(v1));
-    interp.SetRegister(2, reinterpret_cast<float&>(v2));
+    interp.SetRegister(2, zero);  // 0.0f XOR operand
     interp.Run(100);
-    
+
     float r3f = interp.GetRegister(3);
     uint32_t r3bits = reinterpret_cast<uint32_t&>(r3f);
     EXPECT_EQ(r3bits, 0xDEADBEEFu);
+}
+
+TEST_F(GoldenISATest, XOR_NonZero) {
+    // 0xDEADBEEF xor 0x12345678 = 0xCC99E897
+    Instruction xor_i = Instruction::MakeA(Opcode::XOR, 3, 1, 2);
+    Instruction halt = Instruction::MakeD(Opcode::HALT);
+    auto prog = MakeProgram({xor_i, halt});
+    Interpreter interp;
+    interp.LoadProgram(prog.data(), prog.size());
+
+    uint32_t v1 = 0xDEADBEEFu, v2 = 0x12345678u;
+    interp.SetRegister(1, reinterpret_cast<float&>(v1));
+    interp.SetRegister(2, reinterpret_cast<float&>(v2));
+    interp.Run(100);
+
+    float r3f = interp.GetRegister(3);
+    uint32_t r3bits = reinterpret_cast<uint32_t&>(r3f);
+    EXPECT_EQ(r3bits, 0xCC99E897u);  // DEADBEEF ^ 12345678 = CC99E897
 }
 
 TEST_F(GoldenISATest, SHL_ZeroShift) {
@@ -603,12 +622,12 @@ TEST_F(GoldenISATest, SHL_ZeroShift) {
     auto prog = MakeProgram({shl_i, halt});
     Interpreter interp;
     interp.LoadProgram(prog.data(), prog.size());
-    
-    uint32_t v1 = 0x12345678u, v2 = 0u;
+
+    uint32_t v1 = 0x12345678u;
     interp.SetRegister(1, reinterpret_cast<float&>(v1));
-    interp.SetRegister(2, reinterpret_cast<float&>(v2));
+    interp.SetRegister(2, 0.0f);  // shift = 0
     interp.Run(100);
-    
+
     float r3f = interp.GetRegister(3);
     uint32_t r3bits = reinterpret_cast<uint32_t&>(r3f);
     EXPECT_EQ(r3bits, 0x12345678u);
@@ -621,15 +640,53 @@ TEST_F(GoldenISATest, SHR_ZeroShift) {
     auto prog = MakeProgram({shr_i, halt});
     Interpreter interp;
     interp.LoadProgram(prog.data(), prog.size());
-    
-    uint32_t v1 = 0xABCDEF00u, v2 = 0u;
+
+    uint32_t v1 = 0xABCDEF00u;
     interp.SetRegister(1, reinterpret_cast<float&>(v1));
-    interp.SetRegister(2, reinterpret_cast<float&>(v2));
+    interp.SetRegister(2, 0.0f);  // shift = 0
     interp.Run(100);
-    
+
     float r3f = interp.GetRegister(3);
     uint32_t r3bits = reinterpret_cast<uint32_t&>(r3f);
     EXPECT_EQ(r3bits, 0xABCDEF00u);
+}
+
+TEST_F(GoldenISATest, SHL_NonZeroShift) {
+    // X << 4 = 0x12345678 << 4 = 0x23456780
+    Instruction shl_i = Instruction::MakeA(Opcode::SHL, 3, 1, 2);
+    Instruction halt = Instruction::MakeD(Opcode::HALT);
+    auto prog = MakeProgram({shl_i, halt});
+    Interpreter interp;
+    interp.LoadProgram(prog.data(), prog.size());
+
+    uint32_t v1 = 0x12345678u;
+    float shift_amount = 4.0f;
+    interp.SetRegister(1, reinterpret_cast<float&>(v1));
+    interp.SetRegister(2, shift_amount);
+    interp.Run(100);
+
+    float r3f = interp.GetRegister(3);
+    uint32_t r3bits = reinterpret_cast<uint32_t&>(r3f);
+    EXPECT_EQ(r3bits, 0x23456780u);  // 0x12345678 << 4
+}
+
+TEST_F(GoldenISATest, SHR_NonZeroShift) {
+    // X >> 8 = 0xABCDEF00 >> 8 = 0x00ABCDEF
+    Instruction shr_i = Instruction::MakeA(Opcode::SHR, 3, 1, 2);
+    Instruction halt = Instruction::MakeD(Opcode::HALT);
+    auto prog = MakeProgram({shr_i, halt});
+    Interpreter interp;
+    interp.LoadProgram(prog.data(), prog.size());
+
+    uint32_t v1 = 0xABCDEF00u;
+    float shift_amount = 8.0f;
+    interp.SetRegister(1, reinterpret_cast<float&>(v1));
+    interp.SetRegister(2, shift_amount);
+    interp.Run(100);
+
+    float r3f = interp.GetRegister(3);
+    uint32_t r3bits = reinterpret_cast<uint32_t&>(r3f);
+    EXPECT_EQ(r3bits, 0x00ABCDEFu);  // 0xABCDEF00 >> 8
 }
 
 // ============================================================================
@@ -727,6 +784,379 @@ TEST_F(GoldenISATest, COS_Basic) {
     interp.Run(100);
     
     EXPECT_NEAR(interp.GetRegister(3), 1.0f, 1e-5f);
+}
+
+// ============================================================================
+// SETP Tests (Format-C: Rd = (Ra != 0 ? 1.0f : 0.0f))
+// ============================================================================
+
+TEST_F(GoldenISATest, SETP_True) {
+    // SETP R3 = (R1 != 0 ? 1.0 : 0.0) → R1=5.0 → R3=1.0
+    Instruction setp_i = Instruction::MakeC(Opcode::SETP, 3, 1);
+    Instruction halt = Instruction::MakeD(Opcode::HALT);
+    auto prog = MakeProgram({setp_i, halt});
+    Interpreter interp;
+    interp.LoadProgram(prog.data(), prog.size());
+    interp.SetRegister(1, 5.0f);
+    interp.Run(100);
+    EXPECT_FLOAT_EQ(interp.GetRegister(3), 1.0f);
+}
+
+TEST_F(GoldenISATest, SETP_False) {
+    // SETP R3 = (R1 != 0 ? 1.0 : 0.0) → R1=0.0 → R3=0.0
+    Instruction setp_i = Instruction::MakeC(Opcode::SETP, 3, 1);
+    Instruction halt = Instruction::MakeD(Opcode::HALT);
+    auto prog = MakeProgram({setp_i, halt});
+    Interpreter interp;
+    interp.LoadProgram(prog.data(), prog.size());
+    interp.SetRegister(1, 0.0f);
+    interp.Run(100);
+    EXPECT_FLOAT_EQ(interp.GetRegister(3), 0.0f);
+}
+
+TEST_F(GoldenISATest, SETP_Negative) {
+    // SETP R3 = (R1 != 0 ? 1.0 : 0.0) → R1=-3.0 → R3=1.0 (non-zero)
+    Instruction setp_i = Instruction::MakeC(Opcode::SETP, 3, 1);
+    Instruction halt = Instruction::MakeD(Opcode::HALT);
+    auto prog = MakeProgram({setp_i, halt});
+    Interpreter interp;
+    interp.LoadProgram(prog.data(), prog.size());
+    interp.SetRegister(1, -3.0f);
+    interp.Run(100);
+    EXPECT_FLOAT_EQ(interp.GetRegister(3), 1.0f);
+}
+
+// ============================================================================
+// POW Tests (Format-A: Rd = powf(Ra, Rb))
+// ============================================================================
+
+TEST_F(GoldenISATest, POW_Basic) {
+    // POW R3 = R1 ^ R2 = 2.0 ^ 3.0 = 8.0
+    Instruction pow_i = Instruction::MakeA(Opcode::POW, 3, 1, 2);
+    Instruction halt = Instruction::MakeD(Opcode::HALT);
+    auto prog = MakeProgram({pow_i, halt});
+    Interpreter interp;
+    interp.LoadProgram(prog.data(), prog.size());
+    interp.SetRegister(1, 2.0f);
+    interp.SetRegister(2, 3.0f);
+    interp.Run(100);
+    EXPECT_FLOAT_EQ(interp.GetRegister(3), 8.0f);
+}
+
+TEST_F(GoldenISATest, POW_One) {
+    // POW R3 = R1 ^ R2 = 5.0 ^ 0.0 = 1.0
+    Instruction pow_i = Instruction::MakeA(Opcode::POW, 3, 1, 2);
+    Instruction halt = Instruction::MakeD(Opcode::HALT);
+    auto prog = MakeProgram({pow_i, halt});
+    Interpreter interp;
+    interp.LoadProgram(prog.data(), prog.size());
+    interp.SetRegister(1, 5.0f);
+    interp.SetRegister(2, 0.0f);
+    interp.Run(100);
+    EXPECT_FLOAT_EQ(interp.GetRegister(3), 1.0f);
+}
+
+TEST_F(GoldenISATest, POW_Square) {
+    // POW R3 = R1 ^ R2 = 4.0 ^ 2.0 = 16.0
+    Instruction pow_i = Instruction::MakeA(Opcode::POW, 3, 1, 2);
+    Instruction halt = Instruction::MakeD(Opcode::HALT);
+    auto prog = MakeProgram({pow_i, halt});
+    Interpreter interp;
+    interp.LoadProgram(prog.data(), prog.size());
+    interp.SetRegister(1, 4.0f);
+    interp.SetRegister(2, 2.0f);
+    interp.Run(100);
+    EXPECT_FLOAT_EQ(interp.GetRegister(3), 16.0f);
+}
+
+// ============================================================================
+// EXPD2/LOGD2 Tests (Format-C: Rd = exp2f(Ra) / log2f(Ra))
+// ============================================================================
+
+TEST_F(GoldenISATest, EXPD2_Basic) {
+    // EXPD2 R3 = exp2f(3.0) = 8.0
+    Instruction exp_i = Instruction::MakeC(Opcode::EXPD2, 3, 1);
+    Instruction halt = Instruction::MakeD(Opcode::HALT);
+    auto prog = MakeProgram({exp_i, halt});
+    Interpreter interp;
+    interp.LoadProgram(prog.data(), prog.size());
+    interp.SetRegister(1, 3.0f);
+    interp.Run(100);
+    EXPECT_FLOAT_EQ(interp.GetRegister(3), 8.0f);
+}
+
+TEST_F(GoldenISATest, EXPD2_Zero) {
+    // EXPD2 R3 = exp2f(0.0) = 1.0
+    Instruction exp_i = Instruction::MakeC(Opcode::EXPD2, 3, 1);
+    Instruction halt = Instruction::MakeD(Opcode::HALT);
+    auto prog = MakeProgram({exp_i, halt});
+    Interpreter interp;
+    interp.LoadProgram(prog.data(), prog.size());
+    interp.SetRegister(1, 0.0f);
+    interp.Run(100);
+    EXPECT_FLOAT_EQ(interp.GetRegister(3), 1.0f);
+}
+
+TEST_F(GoldenISATest, LOGD2_Basic) {
+    // LOGD2 R3 = log2f(8.0) = 3.0
+    Instruction log_i = Instruction::MakeC(Opcode::LOGD2, 3, 1);
+    Instruction halt = Instruction::MakeD(Opcode::HALT);
+    auto prog = MakeProgram({log_i, halt});
+    Interpreter interp;
+    interp.LoadProgram(prog.data(), prog.size());
+    interp.SetRegister(1, 8.0f);
+    interp.Run(100);
+    EXPECT_FLOAT_EQ(interp.GetRegister(3), 3.0f);
+}
+
+TEST_F(GoldenISATest, LOGD2_One) {
+    // LOGD2 R3 = log2f(1.0) = 0.0
+    Instruction log_i = Instruction::MakeC(Opcode::LOGD2, 3, 1);
+    Instruction halt = Instruction::MakeD(Opcode::HALT);
+    auto prog = MakeProgram({log_i, halt});
+    Interpreter interp;
+    interp.LoadProgram(prog.data(), prog.size());
+    interp.SetRegister(1, 1.0f);
+    interp.Run(100);
+    EXPECT_FLOAT_EQ(interp.GetRegister(3), 0.0f);
+}
+
+TEST_F(GoldenISATest, LOGD2_Negative) {
+    // LOGD2 R3 = log2f(-1.0) = NaN
+    Instruction log_i = Instruction::MakeC(Opcode::LOGD2, 3, 1);
+    Instruction halt = Instruction::MakeD(Opcode::HALT);
+    auto prog = MakeProgram({log_i, halt});
+    Interpreter interp;
+    interp.LoadProgram(prog.data(), prog.size());
+    interp.SetRegister(1, -1.0f);
+    interp.Run(100);
+    EXPECT_TRUE(std::isnan(interp.GetRegister(3)));
+}
+
+// ============================================================================
+// ABS/NEG Tests (Format-C: Rd = fabsf(Ra) / -Ra)
+// ============================================================================
+
+TEST_F(GoldenISATest, ABS_Basic) {
+    // ABS R3 = fabsf(-5.0) = 5.0
+    Instruction abs_i = Instruction::MakeC(Opcode::ABS, 3, 1);
+    Instruction halt = Instruction::MakeD(Opcode::HALT);
+    auto prog = MakeProgram({abs_i, halt});
+    Interpreter interp;
+    interp.LoadProgram(prog.data(), prog.size());
+    interp.SetRegister(1, -5.0f);
+    interp.Run(100);
+    EXPECT_FLOAT_EQ(interp.GetRegister(3), 5.0f);
+}
+
+TEST_F(GoldenISATest, ABS_Positive) {
+    // ABS R3 = fabsf(3.0) = 3.0
+    Instruction abs_i = Instruction::MakeC(Opcode::ABS, 3, 1);
+    Instruction halt = Instruction::MakeD(Opcode::HALT);
+    auto prog = MakeProgram({abs_i, halt});
+    Interpreter interp;
+    interp.LoadProgram(prog.data(), prog.size());
+    interp.SetRegister(1, 3.0f);
+    interp.Run(100);
+    EXPECT_FLOAT_EQ(interp.GetRegister(3), 3.0f);
+}
+
+TEST_F(GoldenISATest, NEG_Basic) {
+    // NEG R3 = -(-7.0) = 7.0
+    Instruction neg_i = Instruction::MakeC(Opcode::NEG, 3, 1);
+    Instruction halt = Instruction::MakeD(Opcode::HALT);
+    auto prog = MakeProgram({neg_i, halt});
+    Interpreter interp;
+    interp.LoadProgram(prog.data(), prog.size());
+    interp.SetRegister(1, -7.0f);
+    interp.Run(100);
+    EXPECT_FLOAT_EQ(interp.GetRegister(3), 7.0f);
+}
+
+TEST_F(GoldenISATest, NEG_Positive) {
+    // NEG R3 = -(4.0) = -4.0
+    Instruction neg_i = Instruction::MakeC(Opcode::NEG, 3, 1);
+    Instruction halt = Instruction::MakeD(Opcode::HALT);
+    auto prog = MakeProgram({neg_i, halt});
+    Interpreter interp;
+    interp.LoadProgram(prog.data(), prog.size());
+    interp.SetRegister(1, 4.0f);
+    interp.Run(100);
+    EXPECT_FLOAT_EQ(interp.GetRegister(3), -4.0f);
+}
+
+// ============================================================================
+// FLOOR/CEIL/FRACT Tests (Format-C)
+// ============================================================================
+
+TEST_F(GoldenISATest, FLOOR_Basic) {
+    // FLOOR R3 = floorf(3.7) = 3.0
+    Instruction floor_i = Instruction::MakeC(Opcode::FLOOR, 3, 1);
+    Instruction halt = Instruction::MakeD(Opcode::HALT);
+    auto prog = MakeProgram({floor_i, halt});
+    Interpreter interp;
+    interp.LoadProgram(prog.data(), prog.size());
+    interp.SetRegister(1, 3.7f);
+    interp.Run(100);
+    EXPECT_FLOAT_EQ(interp.GetRegister(3), 3.0f);
+}
+
+TEST_F(GoldenISATest, FLOOR_Negative) {
+    // FLOOR R3 = floorf(-2.3) = -3.0
+    Instruction floor_i = Instruction::MakeC(Opcode::FLOOR, 3, 1);
+    Instruction halt = Instruction::MakeD(Opcode::HALT);
+    auto prog = MakeProgram({floor_i, halt});
+    Interpreter interp;
+    interp.LoadProgram(prog.data(), prog.size());
+    interp.SetRegister(1, -2.3f);
+    interp.Run(100);
+    EXPECT_FLOAT_EQ(interp.GetRegister(3), -3.0f);
+}
+
+TEST_F(GoldenISATest, CEIL_Basic) {
+    // CEIL R3 = ceilf(2.3) = 3.0
+    Instruction ceil_i = Instruction::MakeC(Opcode::CEIL, 3, 1);
+    Instruction halt = Instruction::MakeD(Opcode::HALT);
+    auto prog = MakeProgram({ceil_i, halt});
+    Interpreter interp;
+    interp.LoadProgram(prog.data(), prog.size());
+    interp.SetRegister(1, 2.3f);
+    interp.Run(100);
+    EXPECT_FLOAT_EQ(interp.GetRegister(3), 3.0f);
+}
+
+TEST_F(GoldenISATest, CEIL_Negative) {
+    // CEIL R3 = ceilf(-4.7) = -4.0
+    Instruction ceil_i = Instruction::MakeC(Opcode::CEIL, 3, 1);
+    Instruction halt = Instruction::MakeD(Opcode::HALT);
+    auto prog = MakeProgram({ceil_i, halt});
+    Interpreter interp;
+    interp.LoadProgram(prog.data(), prog.size());
+    interp.SetRegister(1, -4.7f);
+    interp.Run(100);
+    EXPECT_FLOAT_EQ(interp.GetRegister(3), -4.0f);
+}
+
+TEST_F(GoldenISATest, FRACT_Basic) {
+    // FRACT R3 = 3.7 - floorf(3.7) = 0.7
+    Instruction fract_i = Instruction::MakeC(Opcode::FRACT, 3, 1);
+    Instruction halt = Instruction::MakeD(Opcode::HALT);
+    auto prog = MakeProgram({fract_i, halt});
+    Interpreter interp;
+    interp.LoadProgram(prog.data(), prog.size());
+    interp.SetRegister(1, 3.7f);
+    interp.Run(100);
+    EXPECT_NEAR(interp.GetRegister(3), 0.7f, 1e-6f);
+}
+
+TEST_F(GoldenISATest, FRACT_Integer) {
+    // FRACT R3 = 5.0 - floorf(5.0) = 0.0
+    Instruction fract_i = Instruction::MakeC(Opcode::FRACT, 3, 1);
+    Instruction halt = Instruction::MakeD(Opcode::HALT);
+    auto prog = MakeProgram({fract_i, halt});
+    Interpreter interp;
+    interp.LoadProgram(prog.data(), prog.size());
+    interp.SetRegister(1, 5.0f);
+    interp.Run(100);
+    EXPECT_FLOAT_EQ(interp.GetRegister(3), 0.0f);
+}
+
+// ============================================================================
+// F2I/I2F Tests (Format-C: bit-cast float <-> uint32)
+// ============================================================================
+
+TEST_F(GoldenISATest, F2I_Positive) {
+    // F2I R3 = bit-cast of 1.5f as uint32
+    // 1.5f bits = 0x3FC00000
+    Instruction f2i_i = Instruction::MakeC(Opcode::F2I, 3, 1);
+    Instruction halt = Instruction::MakeD(Opcode::HALT);
+    auto prog = MakeProgram({f2i_i, halt});
+    Interpreter interp;
+    interp.LoadProgram(prog.data(), prog.size());
+    interp.SetRegister(1, 1.5f);
+    interp.Run(100);
+    float r3 = interp.GetRegister(3);
+    EXPECT_EQ(reinterpret_cast<uint32_t&>(r3), 0x3FC00000u);
+}
+
+TEST_F(GoldenISATest, I2F_Positive) {
+    // I2F R3 = bit-cast of uint32 0x3FC00000 as float = 1.5
+    uint32_t bits = 0x3FC00000u;
+    Instruction i2f_i = Instruction::MakeC(Opcode::I2F, 3, 1);
+    Instruction halt = Instruction::MakeD(Opcode::HALT);
+    auto prog = MakeProgram({i2f_i, halt});
+    Interpreter interp;
+    interp.LoadProgram(prog.data(), prog.size());
+    interp.SetRegister(1, reinterpret_cast<float&>(bits));
+    interp.Run(100);
+    EXPECT_FLOAT_EQ(interp.GetRegister(3), 1.5f);
+}
+
+// ============================================================================
+// NOT Tests (Format-C: Rd = ~Ra as bitwise NOT of float bits)
+// ============================================================================
+
+TEST_F(GoldenISATest, NOT_Basic) {
+    // NOT R3 = ~0xDEADBEEF = 0x21524110
+    Instruction not_i = Instruction::MakeC(Opcode::NOT, 3, 1);
+    Instruction halt = Instruction::MakeD(Opcode::HALT);
+    auto prog = MakeProgram({not_i, halt});
+    Interpreter interp;
+    interp.LoadProgram(prog.data(), prog.size());
+    uint32_t v1 = 0xDEADBEEFu;
+    interp.SetRegister(1, reinterpret_cast<float&>(v1));
+    interp.Run(100);
+    float r3 = interp.GetRegister(3);
+    EXPECT_EQ(reinterpret_cast<uint32_t&>(r3), 0x21524110u);  // ~DEADBEEF
+}
+
+// ============================================================================
+// SMOOTHSTEP Tests (Format-A: R[rd] = smoothstep(R[ra], R[rb], R[rd]))
+// Note: x is read from Rd (existing value), output written to Rd
+// ============================================================================
+
+TEST_F(GoldenISATest, SMOOTHSTEP_Middle) {
+    // smoothstep(0.0, 1.0, 0.5) = 0.5 (Hermite interpolation at midpoint)
+    // Pre-load R3=0.5 (x value), Ra=0.0 (edge0), Rb=1.0 (edge1)
+    Instruction mov_x = Instruction::MakeC(Opcode::MOV, 3, 0);  // R3 = R0 = 0 (will set to 0.5 below)
+    Instruction smooth_i = Instruction::MakeA(Opcode::SMOOTHSTEP, 3, 1, 2); // Rd=3, Ra=1, Rb=2
+    Instruction halt = Instruction::MakeD(Opcode::HALT);
+    auto prog = MakeProgram({smooth_i, halt});  // smoothstep reads R3 first, so init R3 before
+    Interpreter interp;
+    interp.LoadProgram(prog.data(), prog.size());
+    interp.SetRegister(1, 0.0f);  // edge0
+    interp.SetRegister(2, 1.0f);  // edge1
+    interp.SetRegister(3, 0.5f);  // x value (pre-loaded since smoothstep reads Rd)
+    interp.Run(100);
+    EXPECT_NEAR(interp.GetRegister(3), 0.5f, 1e-6f);  // smoothstep(0,1,0.5) = 0.5
+}
+
+TEST_F(GoldenISATest, SMOOTHSTEP_Zero) {
+    // smoothstep(0.0, 1.0, 0.0) = 0.0 (below range)
+    Instruction smooth_i = Instruction::MakeA(Opcode::SMOOTHSTEP, 3, 1, 2);
+    Instruction halt = Instruction::MakeD(Opcode::HALT);
+    auto prog = MakeProgram({smooth_i, halt});
+    Interpreter interp;
+    interp.LoadProgram(prog.data(), prog.size());
+    interp.SetRegister(1, 0.0f);  // edge0
+    interp.SetRegister(2, 1.0f);  // edge1
+    interp.SetRegister(3, 0.0f);  // x below range
+    interp.Run(100);
+    EXPECT_NEAR(interp.GetRegister(3), 0.0f, 1e-6f);
+}
+
+TEST_F(GoldenISATest, SMOOTHSTEP_One) {
+    // smoothstep(0.0, 1.0, 1.0) = 1.0 (above range)
+    Instruction smooth_i = Instruction::MakeA(Opcode::SMOOTHSTEP, 3, 1, 2);
+    Instruction halt = Instruction::MakeD(Opcode::HALT);
+    auto prog = MakeProgram({smooth_i, halt});
+    Interpreter interp;
+    interp.LoadProgram(prog.data(), prog.size());
+    interp.SetRegister(1, 0.0f);  // edge0
+    interp.SetRegister(2, 1.0f);  // edge1
+    interp.SetRegister(3, 1.0f);  // x above range
+    interp.Run(100);
+    EXPECT_NEAR(interp.GetRegister(3), 1.0f, 1e-6f);
 }
 
 // ============================================================================
@@ -1037,24 +1467,40 @@ TEST(TestCoverageReport, P0OpcodeCoverageSummary) {
     std::cout << "  Bitwise:\n";
     std::cout << "    AND  (0x18) - tested\n";
     std::cout << "    OR   (0x19) - tested\n";
-    std::cout << "    XOR  (0x1A) - partial (Phase 2, shift-by-non-zero broken: Format-C decoder bug)\n";
-    std::cout << "    SHL  (0x1B) - partial (Phase 2, shift-by-non-zero broken: Format-C decoder bug)\n";
-    std::cout << "    SHR  (0x1C) - partial (Phase 2, shift-by-non-zero broken: Format-C decoder bug)\n";
-    std::cout << "    SEL  (0x1D) - tested (Phase 2)\n";
-    std::cout << "    SMOOTHSTEP (0x1E) - not yet tested\n";
-    
+    std::cout << "    XOR  (0x1A) - tested\n";
+    std::cout << "    SHL  (0x1B) - tested\n";
+    std::cout << "    SHR  (0x1C) - tested\n";
+    std::cout << "    SEL  (0x1D) - tested\n";
+    std::cout << "    SMOOTHSTEP (0x1E) - tested\n";
+
     std::cout << "  SFU:\n";
-    std::cout << "    RCP  (0x20) - tested (Phase 2, + by-zero)\n";
-    std::cout << "    SQRT (0x21) - tested (Phase 2, + negative)\n";
-    std::cout << "    RSQ  (0x22) - tested (Phase 2)\n";
-    std::cout << "    SIN  (0x23) - tested (Phase 2)\n";
-    std::cout << "    COS  (0x24) - tested (Phase 2)\n";
+    std::cout << "    RCP  (0x20) - tested\n";
+    std::cout << "    SQRT (0x21) - tested\n";
+    std::cout << "    RSQ  (0x22) - tested\n";
+    std::cout << "    SIN  (0x23) - tested\n";
+    std::cout << "    COS  (0x24) - tested\n";
+    std::cout << "    EXPD2 (0x25) - tested\n";
+    std::cout << "    LOGD2 (0x26) - tested\n";
+    std::cout << "    POW  (0x27) - tested\n";
+    std::cout << "    ABS  (0x28) - tested\n";
+    std::cout << "    NEG  (0x29) - tested\n";
+    std::cout << "    FLOOR (0x2A) - tested\n";
+    std::cout << "    CEIL (0x2B) - tested\n";
+    std::cout << "    FRACT (0x2C) - tested\n";
+    std::cout << "    F2I  (0x2D) - tested\n";
+    std::cout << "    I2F  (0x2E) - tested\n";
+    std::cout << "    NOT  (0x2F) - tested\n";
+
+    std::cout << "  Control:\n";
+    std::cout << "    SETP (0x1F) - tested\n";
     
     std::cout << "\nTotal P0 opcodes defined: " << p0_list.size() << "\n";
-    std::cout << "Phase 1 tested: NOP, ADD, SUB, MUL, CMP, MIN, MAX, AND, OR (9)\n";
-    std::cout << "Phase 2 added: BRA, JMP, DIV, MAD, XOR*, SHL*, SHR*, SEL,\n";
-    std::cout << "               RCP, SQRT, RSQ, SIN, COS, R0-verification\n";
-    std::cout << "  (* = limited by interpreter bugs: Format-C decoder, dual-word PC)\n";
+    std::cout << "Tested opcodes: NOP, ADD, SUB, MUL, DIV, MAD, CMP, MIN, MAX,\n";
+    std::cout << "  AND, OR, XOR, SHL, SHR, SEL, SMOOTHSTEP, SETP,\n";
+    std::cout << "  RCP, SQRT, RSQ, SIN, COS, EXPD2, LOGD2, POW,\n";
+    std::cout << "  ABS, NEG, FLOOR, CEIL, FRACT, F2I, I2F, NOT,\n";
+    std::cout << "  BRA, JMP + R0 verification\n";
+    std::cout << "Skipped: CALL, RET (link register issue)\n";
     std::cout << "========================================\n";
     
     EXPECT_TRUE(true);
