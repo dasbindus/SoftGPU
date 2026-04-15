@@ -1313,6 +1313,33 @@ TEST_F(GoldenISATest, JMP_Backward) {
     // the test assertion is satisfied by the first ADD execution.
     EXPECT_GT(interp.GetRegister(2), 0.0f); // At least one ADD executed
 }
+
+// ============================================================================
+// CALL/RET Tests (Format-B dual-word / Format-D)
+// ISA v2.5: CALL saves pc_+8 to R63, RET reads from R63
+// ============================================================================
+
+TEST_F(GoldenISATest, CALL_RET_Basic) {
+    // Simple test: verify CALL sets R63 correctly
+    // Layout: ADD at pc=0, CALL+2 at pc=4, HALT at pc=12
+    // CALL+2: pc_ = 4+8+2*4 = 20 (jump past end), R63 should be 12
+    Instruction add1 = Instruction::MakeA(Opcode::ADD, 3, 1, 2);     // R3 = R1+R2 = 8, at pc=0
+    Instruction call_i = Instruction::MakeB(Opcode::CALL, 0, 0, 0, 2); // CALL +2, at pc=4
+    Instruction halt1 = Instruction::MakeD(Opcode::HALT);              // at pc=12 (shouldn't be reached)
+    auto prog = MakeProgram({add1, call_i, halt1});
+
+    Interpreter interp;
+    interp.LoadProgram(prog.data(), prog.size());
+    interp.SetRegister(1, 5.0f);
+    interp.SetRegister(2, 3.0f);
+    interp.Run(10);  // Limited cycles
+
+    // R63 should contain 12 (return address after CALL, as float bits)
+    float r63 = interp.GetRegister(63);
+    uint32_t r63_bits = reinterpret_cast<uint32_t&>(r63);
+    EXPECT_EQ(r63_bits, 12u);
+}
+
 // ============================================================================
 // MOV_IMM Tests (Format-B dual-word: load immediate into register)
 // ============================================================================

@@ -206,9 +206,6 @@ private:
         rf_.Write(rd, rf_.Read(ra) * rf_.Read(rb));
     }
 
-    void CheckReg33() {
-        fprintf(stderr, "DEBUG CheckReg33: R33=%.3f (before Model)\n", rf_.Read(33));
-    }
     void ExDIV() {
         uint8_t rd = inst_.GetRd(), ra = inst_.GetRa(), rb = inst_.GetRb();
         float b = rf_.Read(rb);
@@ -285,15 +282,6 @@ private:
         float a = rf_.Read(ra), b = rf_.Read(rb), c = rf_.Read(inst_.GetRc());
         float result = a * b + c;
         rf_.Write(rd, result);
-        // Debug: trace MVP intermediate results
-        if (rd >= 28 && rd <= 31) {
-            fprintf(stderr, "DEBUG M MAD: R%d = %.3f * %.3f + %.3f = %.3f\n",
-                    rd, a, b, c, result);
-        }
-        if (rd >= 32 && rd <= 35) {
-            fprintf(stderr, "DEBUG V MAD: R%d = %.3f * %.3f + %.3f = %.3f\n",
-                    rd, a, b, c, result);
-        }
     }
     void ExSEL() {
         uint8_t rd = inst_.GetRd(), ra = inst_.GetRa(), rb = inst_.GetRb();
@@ -598,10 +586,14 @@ inline void Interpreter::Fetch() {
     }
 
     // Fetch word2 of Format-B dual-word (second word is also opcode)
+    // NOTE: idw_ may be true from previous cycle if we exited Execute early after
+    // a dual-word instruction. Reset it here - if we need word2 of a NEW dual-word
+    // instruction, idw_ will be set to true again after we fetch word1.
     if (idw_ && !idf_) {
         uint32_t a2 = pc_ + 4;
         if (a2 / 4 < prog_.size()) inst_.word2 = prog_[a2 / 4];
         idf_ = true;
+        idw_ = false;  // reset - we've fetched word2 for the PREVIOUS dual-word instruction
         return;  // word2 fetched, will Execute in next cycle
     }
 
@@ -780,6 +772,7 @@ inline void Interpreter::Execute() {
             return;
         case Opcode::CALL:
             ExCALL();
+            idw_ = false;  // clear dual-word flag after Execute returns early
             return;
         case Opcode::LD:
             ExLD();
