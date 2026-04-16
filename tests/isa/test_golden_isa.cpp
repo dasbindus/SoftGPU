@@ -42,7 +42,9 @@ inline std::vector<uint32_t> MakeProgram(const std::vector<Instruction>& instrs)
     std::vector<uint32_t> prog;
     for (const auto& inst : instrs) {
         prog.push_back(inst.word1);
-        if (inst.GetFormat() == Format::B) {
+        // Include word2 for dual-word formats (B, and VSTORE which is Format-E with data)
+        Opcode op = inst.GetOpcode();
+        if (inst.GetFormat() == Format::B || op == Opcode::VSTORE) {
             prog.push_back(inst.word2);
         }
     }
@@ -1558,6 +1560,191 @@ TEST_F(GoldenISATest, ST_InvalidAddress) {
     interp.Run(100); // should not crash
     // No way to verify ST didn't write without memory access, but at least verify no crash
     SUCCEED();
+}
+
+// ============================================================================
+// LDC Tests (Format-B dual-word: load from constant buffer)
+// LDC: R[rd] = constant_buffer[cbbase_ + imm*4]
+// ============================================================================
+
+TEST_F(GoldenISATest, LDC_Basic) {
+    // LDC: load from constant buffer at cbbase_ + imm*4
+    // Set memory at address 0 with value 42.0f
+    // LDC R3, offset=0 → loads memory[0+0] = 42.0f
+    Instruction ldc = Instruction::MakeB(Opcode::LDC, 3, 0, 0, 0); // R3 = mem[cbbase_ + 0]
+    Instruction halt = Instruction::MakeD(Opcode::HALT);
+    auto prog = MakeProgram({ldc, halt});
+    Interpreter interp;
+    interp.LoadProgram(prog.data(), prog.size());
+    interp.SetLDCBase(0);
+    interp.SetMemory32(0, 42.0f);
+    interp.Run(100);
+    EXPECT_FLOAT_EQ(interp.GetRegister(3), 42.0f);
+}
+
+TEST_F(GoldenISATest, LDC_WithOffset) {
+    // LDC: load from constant buffer at cbbase_ + imm*4 (imm is float count, not byte offset)
+    // Set memory at address 32 (imm=8 → 8*4=32 bytes) with value 99.0f
+    // LDC R3, imm=8 → loads memory[0 + 8*4] = memory[32]
+    Instruction ldc = Instruction::MakeB(Opcode::LDC, 3, 0, 0, 8); // R3 = mem[cbbase_ + 8*4]
+    Instruction halt = Instruction::MakeD(Opcode::HALT);
+    auto prog = MakeProgram({ldc, halt});
+    Interpreter interp;
+    interp.LoadProgram(prog.data(), prog.size());
+    interp.SetLDCBase(0);
+    interp.SetMemory32(32, 99.0f);  // Store at byte address 32
+    interp.Run(100);
+    EXPECT_FLOAT_EQ(interp.GetRegister(3), 99.0f);
+}
+
+// ============================================================================
+// VSTORE Tests (Format-E dual-word: store to vertex attribute buffer)
+// VSTORE: vabuf_[(attr_offset/4)+i] = R[rd+i] for i=0..3
+// ============================================================================
+
+TEST_F(GoldenISATest, VSTORE_Basic) {
+    // VSTORE: store R4-R7 to vabuf_ at attr_offset=0
+    // R4=1.0, R5=2.0, R6=3.0, R7=4.0 → vabuf_[0..3]
+    Instruction vstore = Instruction::MakeE(Opcode::VSTORE, 4, static_cast<uint16_t>(0));  // attr_offset=0
+    Instruction halt = Instruction::MakeD(Opcode::HALT);
+    auto prog = MakeProgram({vstore, halt});
+    Interpreter interp;
+    interp.LoadProgram(prog.data(), prog.size());
+    interp.SetRegister(4, 1.0f);  // R4 = 1.0
+    interp.SetRegister(5, 2.0f);  // R5 = 2.0
+    interp.SetRegister(6, 3.0f);  // R6 = 3.0
+    interp.SetRegister(7, 4.0f);  // R7 = 4.0
+    interp.Run(100);
+    // Check vabuf_ contents
+    ASSERT_GE(interp.GetVAttrBufSize(), 4u);
+    EXPECT_FLOAT_EQ(interp.GetVAttrBufData()[0], 1.0f);
+    EXPECT_FLOAT_EQ(interp.GetVAttrBufData()[1], 2.0f);
+    EXPECT_FLOAT_EQ(interp.GetVAttrBufData()[2], 3.0f);
+    EXPECT_FLOAT_EQ(interp.GetVAttrBufData()[3], 4.0f);
+}
+
+TEST_F(GoldenISATest, VSTORE_WithOffset) {
+    // VSTORE: store R4-R7 to vabuf_ at attr_offset=8 (byte offset → float index 2)
+    // R4=10.0, R5=20.0, R6=30.0, R7=40.0 → vabuf_[2..5]
+    Instruction vstore = Instruction::MakeE(Opcode::VSTORE, 4, static_cast<uint16_t>(8));  // attr_offset=8 → float idx 2
+    Instruction halt = Instruction::MakeD(Opcode::HALT);
+    auto prog = MakeProgram({vstore, halt});
+    Interpreter interp;
+    interp.LoadProgram(prog.data(), prog.size());
+    interp.SetRegister(4, 10.0f);  // R4 = 10.0
+    interp.SetRegister(5, 20.0f);  // R5 = 20.0
+    interp.SetRegister(6, 30.0f);  // R6 = 30.0
+    interp.SetRegister(7, 40.0f);  // R7 = 40.0
+    interp.Run(100);
+    // Check vabuf_ contents
+    ASSERT_GE(interp.GetVAttrBufSize(), 6u);
+    EXPECT_FLOAT_EQ(interp.GetVAttrBufData()[0], 0.0f);  // vabuf_[0] untouched
+    EXPECT_FLOAT_EQ(interp.GetVAttrBufData()[1], 0.0f);  // vabuf_[1] untouched
+    EXPECT_FLOAT_EQ(interp.GetVAttrBufData()[2], 10.0f); // vabuf_[2] = R4
+    EXPECT_FLOAT_EQ(interp.GetVAttrBufData()[3], 20.0f); // vabuf_[3] = R5
+    EXPECT_FLOAT_EQ(interp.GetVAttrBufData()[4], 30.0f); // vabuf_[4] = R6
+    EXPECT_FLOAT_EQ(interp.GetVAttrBufData()[5], 40.0f); // vabuf_[5] = R7
+}
+
+// ============================================================================
+// OUTPUT_VS Tests (Format-B dual-word: output vertex to rasterizer)
+// OUTPUT_VS: vobuf_[curvtx_*4 + i] = R[rd+i] for i=0..3
+// ============================================================================
+
+TEST_F(GoldenISATest, OUTPUT_VS_Basic) {
+    // OUTPUT_VS: output R4-R7 as clip coordinates (x,y,z,w)
+    // R4=1.0, R5=2.0, R6=3.0, R7=4.0 → vobuf_[0..3] for vertex 0
+    Instruction output = Instruction::MakeB(Opcode::OUTPUT_VS, 4, 0, 0, 0); // Rd=4, offset unused
+    Instruction halt = Instruction::MakeD(Opcode::HALT);
+    auto prog = MakeProgram({output, halt});
+    Interpreter interp;
+    interp.LoadProgram(prog.data(), prog.size());
+    interp.SetRegister(4, 1.0f);  // R4 = 1.0 (x)
+    interp.SetRegister(5, 2.0f);  // R5 = 2.0 (y)
+    interp.SetRegister(6, 3.0f);  // R6 = 3.0 (z)
+    interp.SetRegister(7, 4.0f);  // R7 = 4.0 (w)
+    interp.Run(100);
+    // Check vobuf_ contents for vertex 0
+    ASSERT_GE(interp.GetVOutputBufSize(), 4u);
+    EXPECT_FLOAT_EQ(interp.GetVOutputFloat(0, 0), 1.0f);  // x
+    EXPECT_FLOAT_EQ(interp.GetVOutputFloat(0, 1), 2.0f);  // y
+    EXPECT_FLOAT_EQ(interp.GetVOutputFloat(0, 2), 3.0f);  // z
+    EXPECT_FLOAT_EQ(interp.GetVOutputFloat(0, 3), 4.0f);  // w
+}
+
+// ============================================================================
+// MOV Tests (Format-A: register move)
+// MOV: R[rd] = R[ra]
+// ============================================================================
+
+TEST_F(GoldenISATest, MOV_Basic) {
+    // MOV: copy R1 to R3
+    Instruction mov = Instruction::MakeC(Opcode::MOV, 3, 1);  // R3 = R1
+    Instruction halt = Instruction::MakeD(Opcode::HALT);
+    auto prog = MakeProgram({mov, halt});
+    Interpreter interp;
+    interp.LoadProgram(prog.data(), prog.size());
+    interp.SetRegister(1, 99.0f);
+    interp.Run(100);
+    EXPECT_FLOAT_EQ(interp.GetRegister(3), 99.0f);
+}
+
+TEST_F(GoldenISATest, MOV_R0) {
+    // MOV: copy R0 (which is always 0) to R3
+    Instruction mov = Instruction::MakeC(Opcode::MOV, 3, 0);  // R3 = R0 = 0
+    Instruction halt = Instruction::MakeD(Opcode::HALT);
+    auto prog = MakeProgram({mov, halt});
+    Interpreter interp;
+    interp.LoadProgram(prog.data(), prog.size());
+    interp.Run(100);
+    EXPECT_FLOAT_EQ(interp.GetRegister(3), 0.0f);
+}
+
+// ============================================================================
+// DOT3/DOT4 Tests (Format-A: dot product)
+// DOT3: R[rd] = R[ra]*R[rb] + R[ra+1]*R[rb+1] + R[ra+2]*R[rb+2]
+// DOT4: R[rd] = R[ra]*R[rb] + R[ra+1]*R[rb+1] + R[ra+2]*R[rb+2] + R[ra+3]*R[rb+3]
+// ============================================================================
+
+TEST_F(GoldenISATest, DOT3_Basic) {
+    // DOT3: a=(1,2,3), b=(4,5,6) → 1*4 + 2*5 + 3*6 = 32
+    // Use SetRegister to set up registers directly
+    Instruction dot3 = Instruction::MakeA(Opcode::DOT3, 8, 0, 4);  // R8 = dot3(R0-R2, R4-R6)
+    Instruction halt = Instruction::MakeD(Opcode::HALT);
+    auto prog = MakeProgram({dot3, halt});
+    Interpreter interp;
+    interp.LoadProgram(prog.data(), prog.size());
+    // Set up registers using SetRegister
+    interp.SetRegister(0, 1.0f);  // R0 = 1.0
+    interp.SetRegister(1, 2.0f);  // R1 = 2.0
+    interp.SetRegister(2, 3.0f);  // R2 = 3.0
+    interp.SetRegister(4, 4.0f);  // R4 = 4.0
+    interp.SetRegister(5, 5.0f);  // R5 = 5.0
+    interp.SetRegister(6, 6.0f);  // R6 = 6.0
+    interp.Run(100);
+    // 1*4 + 2*5 + 3*6 = 4 + 10 + 18 = 32
+    EXPECT_FLOAT_EQ(interp.GetRegister(8), 32.0f);
+}
+
+TEST_F(GoldenISATest, DOT4_Basic) {
+    // DOT4: a=(1,2,3,4), b=(5,6,7,8) → 1*5 + 2*6 + 3*7 + 4*8 = 70
+    Instruction dot4 = Instruction::MakeA(Opcode::DOT4, 8, 0, 4);  // R8 = dot4(R0-R3, R4-R7)
+    Instruction halt = Instruction::MakeD(Opcode::HALT);
+    auto prog = MakeProgram({dot4, halt});
+    Interpreter interp;
+    interp.LoadProgram(prog.data(), prog.size());
+    // Set up registers using SetRegister
+    interp.SetRegister(0, 1.0f);  // R0 = 1.0
+    interp.SetRegister(1, 2.0f);  // R1 = 2.0
+    interp.SetRegister(2, 3.0f);  // R2 = 3.0
+    interp.SetRegister(3, 4.0f);  // R3 = 4.0
+    interp.SetRegister(4, 5.0f);  // R4 = 5.0
+    interp.SetRegister(5, 6.0f);  // R5 = 6.0
+    interp.SetRegister(6, 7.0f);  // R6 = 7.0
+    interp.SetRegister(7, 8.0f);  // R7 = 8.0
+    interp.Run(100);
+    // 1*5 + 2*6 + 3*7 + 4*8 = 5 + 12 + 21 + 32 = 70
+    EXPECT_FLOAT_EQ(interp.GetRegister(8), 70.0f);
 }
 
 // ============================================================================

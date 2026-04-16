@@ -75,6 +75,8 @@ public:
     float GetVOutputFloat(int vi, int off) const;
     const float* GetVOutputBufData() const { return vobuf_.data(); }
     size_t GetVOutputBufSize() const { return vobuf_.size(); }
+    void SetLDCBase(uint32_t base) { cbbase_ = base; }
+    void SetMemory32(uint32_t addr, float v) { mem_.Store32(addr, v); }
     void Reset();
     std::string DumpState() const;
 
@@ -582,6 +584,8 @@ inline void Interpreter::Fetch() {
         // Format-E word2 is data, not opcode - skip to next instruction
         pc_ += 8;  // skip past word1+word2 to next instruction
         after_format_e_ = false;
+        idw_ = false;  // clear dual-word flag - we're at a new instruction boundary
+        idf_ = true;    // word1 of next instruction, not expecting word2
         // fall through to fetch next instruction at new pc_
     }
 
@@ -784,8 +788,10 @@ inline void Interpreter::Execute() {
             ExVLOAD();
             break;
         case Opcode::VSTORE:
+            // Fetch word2 (data word) before ExVSTORE uses it
+            inst_.word2 = prog_[pc_ / 4];
             ExVSTORE();
-            after_format_e_ = true;  // signal: next word is Format-E data, skip its Execute
+            after_format_e_ = true;  // signal: skip word2 in next Fetch
             return;  // terminate (Format-E word2 is data, not opcode)
         case Opcode::OUTPUT_VS:
             ExOUTPUT_VS();
