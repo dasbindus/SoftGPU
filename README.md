@@ -207,7 +207,7 @@ FrameProfiler + BottleneckDetector 提供完整的性能分析能力：
 
 CommandProcessor     ▓▓▓░░░░░░░ 50%  [部分实现]
        ↓
-VertexShader        ░░░░░░░░░░░  0%  [待改造-功能完整非ISA]
+VertexShader        ▓▓▓▓░░░░░░ 40%  [部分实现-ISA模式]
        ↓
 PrimitiveAssembly   ▓▓▓▓▓░░░░░ 60%  [部分实现]
        ↓
@@ -235,11 +235,11 @@ TileWriteBack      ▓▓▓▓▓▓▓░░░ 80%  [部分实现]
 | 阶段 | 状态 | 已实现 | 待实现 |
 |------|------|--------|--------|
 | **CommandProcessor** | ⚠️ | VB/IB 复制、uniform 设置 | 预取队列、并行解码 |
-| **VertexShader** | ❌ | MVP 变换、功能完整 | **ISA 指令化**、SIMD 矢量单元 |
+| **VertexShader** | ⚠️ | MVP 变换、**ISA 执行模式** | SIMD 矢量单元 |
 | **PrimitiveAssembly** | ⚠️ | 三角形装配、**AABB 视锥剔除** | **背面剔除**、**完整裁剪** |
 | **TilingStage** | ⚠️ | 三角形 binning (300 tiles) | **深度排序** |
 | **Rasterizer** | ⚠️ | 边缘函数 DDA、viewport 裁剪 | **MSAA 多样品采样** |
-| **FragmentShader** | ⚠️ | ISA 解释器、36 指令、Warp 调度、PNG 纹理采样（NEAREST） | **Bilinear/mipmap 滤波** |
+| **FragmentShader** | ⚠️ | ISA v2.5 解释器、50+ 指令、Warp 调度、PNG 纹理采样（NEAREST） | **Bilinear/mipmap 滤波** |
 | **EarlyZ** | ✅ | 管线已集成，FragmentShader 前过滤 | 无 |
 | **Framebuffer** | ⚠️ | Z-buffer、颜色缓冲 | **Stencil**、**Blend/Alpha** |
 | **TileWriteBack** | ⚠️ | GMEM ↔ LMEM 同步 | **压缩回写** |
@@ -251,10 +251,11 @@ TileWriteBack      ▓▓▓▓▓▓▓░░░ 80%  [部分实现]
 - ❌ 待实现: 预取队列、并行解码
 - ⚠️ 说明: viewport 处理在 Rasterizer 中，CommandProcessor 仅做数据搬运
 
-#### VertexShader (0% ISA)
+#### VertexShader (40% ISA)
 - ✅ 已实现: MVP 变换、齐次除法、裁剪
-- ❌ 待实现: **ISA 指令化**（当前是 C++ 函数，非可编程微架构）
-- ⚠️ 说明: 功能完整但微架构不符合 CModel 要求
+- ✅ 已实现: **ISA 执行模式**（executeISA 使用 Interpreter，SetProgram 加载 VS 程序）
+- ⚠️ 待实现: SIMD 矢量单元
+- ⚠️ 说明: 有两种执行模式 CPP (C++ 参考实现) 和 ISA (Interpreter)，Auto 模式自动选择
 
 #### PrimitiveAssembly (60%)
 - ✅ 已实现: 三角形装配、顶点属性插值、**AABB 视锥剔除** (PrimitiveAssembly.cpp L106-L124)
@@ -269,7 +270,7 @@ TileWriteBack      ▓▓▓▓▓▓▓░░░ 80%  [部分实现]
 - ❌ 待实现: **MSAA 2×/4×** 多样品抗锯齿
 
 #### FragmentShader (90%)
-- ✅ 已实现: ISA 解释器、36 指令、4 种着色器类型、Warp 调度
+- ✅ 已实现: ISA v2.5 解释器、50+ 指令、4 种着色器类型、Warp 调度
 - ✅ 已实现: PNG 纹理加载（NEAREST 采样），可通过 `--texture` 参数使用 (ShaderCore.cpp, TextureBuffer.cpp)
 - ⚠️ 待实现: **Bilinear/mipmap 滤波**
 
@@ -289,6 +290,7 @@ TileWriteBack      ▓▓▓▓▓▓▓░░░ 80%  [部分实现]
 
 | 版本 | 主题 | 目标 |
 |------|------|------|
+| **v1.4.2** ✅ | ISA v2.5 指令集升级 | 50+ 指令、103 ISA 测试、CALL/RET 修复、Known Issues (2026-04-16) |
 | **v1.4.1** ✅ | PNG 纹理加载增强 | 自动启用 shader、新增 Triangle-1Tri-Textured 场景、scene014 E2E (2026-04-07) |
 | **v1.5** | 前端管线并行化 | CommandProcessor 预取/解码、VertexShader SIMD/流水线 |
 | **v1.6** | 几何处理优化 | PrimitiveAssembly 并行剔除、TilingStage 原子化 |
