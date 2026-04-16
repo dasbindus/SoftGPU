@@ -788,8 +788,8 @@ inline void Interpreter::Execute() {
             ExVLOAD();
             break;
         case Opcode::VSTORE:
-            // Fetch word2 (data word) before ExVSTORE uses it
-            inst_.word2 = prog_[pc_ / 4];
+            // Fetch word2 (data word at pc_+4) before ExVSTORE uses it
+            inst_.word2 = prog_[(pc_ + 4) / 4];
             ExVSTORE();
             after_format_e_ = true;  // signal: skip word2 in next Fetch
             return;  // terminate (Format-E word2 is data, not opcode)

@@ -1708,43 +1708,44 @@ TEST_F(GoldenISATest, MOV_R0) {
 
 TEST_F(GoldenISATest, DOT3_Basic) {
     // DOT3: a=(1,2,3), b=(4,5,6) → 1*4 + 2*5 + 3*6 = 32
-    // Use SetRegister to set up registers directly
-    Instruction dot3 = Instruction::MakeA(Opcode::DOT3, 8, 0, 4);  // R8 = dot3(R0-R2, R4-R6)
+    // Note: R0 is hardwired to 0, so we use R8-R10 and R12-R14
+    Instruction dot3 = Instruction::MakeA(Opcode::DOT3, 16, 8, 12);  // R16 = dot3(R8-R10, R12-R14)
     Instruction halt = Instruction::MakeD(Opcode::HALT);
     auto prog = MakeProgram({dot3, halt});
     Interpreter interp;
     interp.LoadProgram(prog.data(), prog.size());
-    // Set up registers using SetRegister
-    interp.SetRegister(0, 1.0f);  // R0 = 1.0
-    interp.SetRegister(1, 2.0f);  // R1 = 2.0
-    interp.SetRegister(2, 3.0f);  // R2 = 3.0
-    interp.SetRegister(4, 4.0f);  // R4 = 4.0
-    interp.SetRegister(5, 5.0f);  // R5 = 5.0
-    interp.SetRegister(6, 6.0f);  // R6 = 6.0
+    // Set up registers (avoid R0 which is hardwired to 0)
+    interp.SetRegister(8, 1.0f);   // R8 = 1.0
+    interp.SetRegister(9, 2.0f);   // R9 = 2.0
+    interp.SetRegister(10, 3.0f);  // R10 = 3.0
+    interp.SetRegister(12, 4.0f);  // R12 = 4.0
+    interp.SetRegister(13, 5.0f);  // R13 = 5.0
+    interp.SetRegister(14, 6.0f); // R14 = 6.0
     interp.Run(100);
     // 1*4 + 2*5 + 3*6 = 4 + 10 + 18 = 32
-    EXPECT_FLOAT_EQ(interp.GetRegister(8), 32.0f);
+    EXPECT_FLOAT_EQ(interp.GetRegister(16), 32.0f);
 }
 
 TEST_F(GoldenISATest, DOT4_Basic) {
     // DOT4: a=(1,2,3,4), b=(5,6,7,8) → 1*5 + 2*6 + 3*7 + 4*8 = 70
-    Instruction dot4 = Instruction::MakeA(Opcode::DOT4, 8, 0, 4);  // R8 = dot4(R0-R3, R4-R7)
+    // Note: R0 is hardwired to 0, so we use R8-R11 and R12-R15
+    Instruction dot4 = Instruction::MakeA(Opcode::DOT4, 16, 8, 12);  // R16 = dot4(R8-R11, R12-R15)
     Instruction halt = Instruction::MakeD(Opcode::HALT);
     auto prog = MakeProgram({dot4, halt});
     Interpreter interp;
     interp.LoadProgram(prog.data(), prog.size());
-    // Set up registers using SetRegister
-    interp.SetRegister(0, 1.0f);  // R0 = 1.0
-    interp.SetRegister(1, 2.0f);  // R1 = 2.0
-    interp.SetRegister(2, 3.0f);  // R2 = 3.0
-    interp.SetRegister(3, 4.0f);  // R3 = 4.0
-    interp.SetRegister(4, 5.0f);  // R4 = 5.0
-    interp.SetRegister(5, 6.0f);  // R5 = 6.0
-    interp.SetRegister(6, 7.0f);  // R6 = 7.0
-    interp.SetRegister(7, 8.0f);  // R7 = 8.0
+    // Set up registers (avoid R0 which is hardwired to 0)
+    interp.SetRegister(8, 1.0f);   // R8 = 1.0
+    interp.SetRegister(9, 2.0f);   // R9 = 2.0
+    interp.SetRegister(10, 3.0f);  // R10 = 3.0
+    interp.SetRegister(11, 4.0f);  // R11 = 4.0
+    interp.SetRegister(12, 5.0f);  // R12 = 5.0
+    interp.SetRegister(13, 6.0f);  // R13 = 6.0
+    interp.SetRegister(14, 7.0f);  // R14 = 7.0
+    interp.SetRegister(15, 8.0f);  // R15 = 8.0
     interp.Run(100);
     // 1*5 + 2*6 + 3*7 + 4*8 = 5 + 12 + 21 + 32 = 70
-    EXPECT_FLOAT_EQ(interp.GetRegister(8), 70.0f);
+    EXPECT_FLOAT_EQ(interp.GetRegister(16), 70.0f);
 }
 
 // ============================================================================
