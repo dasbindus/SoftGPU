@@ -1402,6 +1402,165 @@ TEST_F(GoldenISATest, MOV_IMM_TruncatedAbove1023) {
 }
 
 // ============================================================================
+// VLOAD Tests (Format-B dual-word: load 4 floats from VBO into consecutive registers)
+// VLOAD: Rd must be 4-aligned, loads vbodata_[imm/4 + i] into R[rd+i] for i=0..3
+// ============================================================================
+
+TEST_F(GoldenISATest, VLOAD_Basic) {
+    // VLOAD: load 4 floats from VBO starting at float index 0 into R4-R7
+    // VBO: [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]
+    float vbo[] = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f, 7.0f, 8.0f};
+    // VLOAD Rd=4, imm=0 → loads vbodata_[0..3] = 1.0,2.0,3.0,4.0 into R4,R5,R6,R7
+    Instruction vload = Instruction::MakeB(Opcode::VLOAD, 4, 0, 0, 0); // Rd=4, byte_offset=0
+    Instruction halt = Instruction::MakeD(Opcode::HALT);
+    auto prog = MakeProgram({vload, halt});
+    Interpreter interp;
+    interp.LoadProgram(prog.data(), prog.size());
+    interp.SetVBO(vbo, 8);
+    interp.Run(100);
+    EXPECT_FLOAT_EQ(interp.GetRegister(4), 1.0f);
+    EXPECT_FLOAT_EQ(interp.GetRegister(5), 2.0f);
+    EXPECT_FLOAT_EQ(interp.GetRegister(6), 3.0f);
+    EXPECT_FLOAT_EQ(interp.GetRegister(7), 4.0f);
+}
+
+TEST_F(GoldenISATest, VLOAD_WithOffset) {
+    // VLOAD: load 4 floats from VBO starting at float index 2 into R4-R7
+    // VBO: [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]
+    // imm=8 (byte_offset=8 → float index=2), loads vbodata_[2..5] = 3.0,4.0,5.0,6.0
+    float vbo[] = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f, 7.0f, 8.0f};
+    Instruction vload = Instruction::MakeB(Opcode::VLOAD, 4, 0, 0, 8); // Rd=4, byte_offset=8
+    Instruction halt = Instruction::MakeD(Opcode::HALT);
+    auto prog = MakeProgram({vload, halt});
+    Interpreter interp;
+    interp.LoadProgram(prog.data(), prog.size());
+    interp.SetVBO(vbo, 8);
+    interp.Run(100);
+    EXPECT_FLOAT_EQ(interp.GetRegister(4), 3.0f);
+    EXPECT_FLOAT_EQ(interp.GetRegister(5), 4.0f);
+    EXPECT_FLOAT_EQ(interp.GetRegister(6), 5.0f);
+    EXPECT_FLOAT_EQ(interp.GetRegister(7), 6.0f);
+}
+
+TEST_F(GoldenISATest, VLOAD_OutOfBounds) {
+    // VLOAD: when float index exceeds VBO count, load 0.0f
+    // VBO: [1.0, 2.0] (only 2 floats)
+    // imm=0 → float_index=0, loads vbodata_[0..3], but only indices 0,1 are valid
+    float vbo[] = {1.0f, 2.0f};
+    Instruction vload = Instruction::MakeB(Opcode::VLOAD, 4, 0, 0, 0); // Rd=4, byte_offset=0
+    Instruction halt = Instruction::MakeD(Opcode::HALT);
+    auto prog = MakeProgram({vload, halt});
+    Interpreter interp;
+    interp.LoadProgram(prog.data(), prog.size());
+    interp.SetVBO(vbo, 2);
+    interp.Run(100);
+    EXPECT_FLOAT_EQ(interp.GetRegister(4), 1.0f);  // vbodata_[0]
+    EXPECT_FLOAT_EQ(interp.GetRegister(5), 2.0f);  // vbodata_[1]
+    EXPECT_FLOAT_EQ(interp.GetRegister(6), 0.0f);  // out of bounds → 0
+    EXPECT_FLOAT_EQ(interp.GetRegister(7), 0.0f);  // out of bounds → 0
+}
+
+// ============================================================================
+// ATTR Tests (Format-B dual-word: load single float attribute from VBO)
+// ATTR: loads vbodata_[imm] into Rd (imm is float index, not byte offset)
+// ============================================================================
+
+TEST_F(GoldenISATest, ATTR_Basic) {
+    // ATTR: load single float from VBO at float index 2 into R3
+    // VBO: [1.0, 2.0, 3.0, 4.0, 5.0]
+    float vbo[] = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f};
+    Instruction attr = Instruction::MakeB(Opcode::ATTR, 3, 0, 0, 2); // Rd=3, float_index=2
+    Instruction halt = Instruction::MakeD(Opcode::HALT);
+    auto prog = MakeProgram({attr, halt});
+    Interpreter interp;
+    interp.LoadProgram(prog.data(), prog.size());
+    interp.SetVBO(vbo, 5);
+    interp.Run(100);
+    EXPECT_FLOAT_EQ(interp.GetRegister(3), 3.0f); // vbodata_[2]
+}
+
+TEST_F(GoldenISATest, ATTR_OutOfBounds) {
+    // ATTR: when float index exceeds VBO count, load 0.0f
+    float vbo[] = {1.0f, 2.0f};
+    Instruction attr = Instruction::MakeB(Opcode::ATTR, 3, 0, 0, 5); // Rd=3, float_index=5 (OOB)
+    Instruction halt = Instruction::MakeD(Opcode::HALT);
+    auto prog = MakeProgram({attr, halt});
+    Interpreter interp;
+    interp.LoadProgram(prog.data(), prog.size());
+    interp.SetVBO(vbo, 2);
+    interp.Run(100);
+    EXPECT_FLOAT_EQ(interp.GetRegister(3), 0.0f); // out of bounds → 0
+}
+
+// ============================================================================
+// BAR Tests (Format-D: barrier - no-op in scalar interpreter)
+// ============================================================================
+
+TEST_F(GoldenISATest, BAR_NoOp) {
+    // BAR is a no-op in scalar interpreter - execution continues
+    Instruction add1 = Instruction::MakeA(Opcode::ADD, 3, 1, 2); // R3 = R1 + R2
+    Instruction bar = Instruction::MakeD(Opcode::BAR);
+    Instruction add2 = Instruction::MakeA(Opcode::ADD, 4, 1, 2); // R4 = R1 + R2
+    Instruction halt = Instruction::MakeD(Opcode::HALT);
+    auto prog = MakeProgram({add1, bar, add2, halt});
+    Interpreter interp;
+    interp.LoadProgram(prog.data(), prog.size());
+    interp.SetRegister(1, 5.0f);
+    interp.SetRegister(2, 3.0f);
+    interp.Run(100);
+    EXPECT_FLOAT_EQ(interp.GetRegister(3), 8.0f); // ADD executed
+    EXPECT_FLOAT_EQ(interp.GetRegister(4), 8.0f); // ADD after BAR also executed
+}
+
+// ============================================================================
+// LD Tests (Format-B dual-word: memory load)
+// LD: R[rd] = memory[R[ra] + imm]
+// ============================================================================
+
+TEST_F(GoldenISATest, LD_InvalidAddress) {
+    // LD with NaN or negative base address returns 0.0f
+    Instruction ld = Instruction::MakeB(Opcode::LD, 3, 1, 0, 0); // R3 = memory[R1 + 0]
+    Instruction halt = Instruction::MakeD(Opcode::HALT);
+    auto prog = MakeProgram({ld, halt});
+    Interpreter interp;
+    interp.LoadProgram(prog.data(), prog.size());
+    interp.SetRegister(1, NAN); // NaN address → returns 0
+    interp.Run(100);
+    EXPECT_FLOAT_EQ(interp.GetRegister(3), 0.0f);
+}
+
+TEST_F(GoldenISATest, LD_NegativeAddress) {
+    // LD with negative base address returns 0.0f
+    Instruction ld = Instruction::MakeB(Opcode::LD, 3, 1, 0, 0); // R3 = memory[R1 + 0]
+    Instruction halt = Instruction::MakeD(Opcode::HALT);
+    auto prog = MakeProgram({ld, halt});
+    Interpreter interp;
+    interp.LoadProgram(prog.data(), prog.size());
+    interp.SetRegister(1, -100.0f); // negative address → returns 0
+    interp.Run(100);
+    EXPECT_FLOAT_EQ(interp.GetRegister(3), 0.0f);
+}
+
+// ============================================================================
+// ST Tests (Format-B dual-word: memory store)
+// ST: memory[R[ra] + imm] = R[rb]
+// ============================================================================
+
+TEST_F(GoldenISATest, ST_InvalidAddress) {
+    // ST with NaN or negative address does nothing (no crash)
+    Instruction st = Instruction::MakeB(Opcode::ST, 1, 0, 2, 0); // memory[R1 + 0] = R2
+    Instruction halt = Instruction::MakeD(Opcode::HALT);
+    auto prog = MakeProgram({st, halt});
+    Interpreter interp;
+    interp.LoadProgram(prog.data(), prog.size());
+    interp.SetRegister(1, NAN); // NaN address → ST does nothing
+    interp.SetRegister(2, 42.0f);
+    interp.Run(100); // should not crash
+    // No way to verify ST didn't write without memory access, but at least verify no crash
+    SUCCEED();
+}
+
+// ============================================================================
 // R0 Read-Only Verification
 // ============================================================================
 
@@ -1476,11 +1635,13 @@ TEST(TestCoverageReport, P0OpcodeCoverageSummary) {
     std::cout << "P0 Opcodes (ISA v2.5) - Phase 2:\n";
     std::cout << "  Control Flow:\n";
     std::cout << "    NOP  (0x00) - tested\n";
-    std::cout << "    BRA  (0x01) - tested (Phase 2, BRA_NotTaken skipped: dual-word PC bug)\n";
-    std::cout << "    CALL (0x02) - SKIPPED: R1 link reg corrupted by subroutines using R1 as operand\n";
+    std::cout << "    BRA  (0x01) - tested (Phase 2)\n";
+    std::cout << "    CALL (0x02) - SKIPPED: dual-word PC management issue\n";
     std::cout << "    RET  (0x03) - see CALL\n";
     std::cout << "    JMP  (0x04) - tested (Phase 2)\n";
-    
+    std::cout << "    BAR  (0x05) - tested (no-op)\n";
+    std::cout << "    HALT (0x0F) - tested\n";
+
     std::cout << "  Arithmetic:\n";
     std::cout << "    ADD  (0x10) - tested\n";
     std::cout << "    SUB  (0x11) - tested\n";
@@ -1490,7 +1651,7 @@ TEST(TestCoverageReport, P0OpcodeCoverageSummary) {
     std::cout << "    CMP  (0x15) - tested\n";
     std::cout << "    MIN  (0x16) - tested\n";
     std::cout << "    MAX  (0x17) - tested\n";
-    
+
     std::cout << "  Bitwise:\n";
     std::cout << "    AND  (0x18) - tested\n";
     std::cout << "    OR   (0x19) - tested\n";
@@ -1520,14 +1681,21 @@ TEST(TestCoverageReport, P0OpcodeCoverageSummary) {
 
     std::cout << "  Control:\n";
     std::cout << "    SETP (0x1F) - tested\n";
-    
+
+    std::cout << "  Memory (Format-B dual-word):\n";
+    std::cout << "    LD   (0x30) - tested (invalid address handling)\n";
+    std::cout << "    ST   (0x31) - tested (invalid address handling)\n";
+    std::cout << "    VLOAD (0x49) - tested (VBO loading)\n";
+    std::cout << "    ATTR  (0x4D) - tested (VBO attribute loading)\n";
+
     std::cout << "\nTotal P0 opcodes defined: " << p0_list.size() << "\n";
     std::cout << "Tested opcodes: NOP, ADD, SUB, MUL, DIV, MAD, CMP, MIN, MAX,\n";
     std::cout << "  AND, OR, XOR, SHL, SHR, SEL, SMOOTHSTEP, SETP,\n";
     std::cout << "  RCP, SQRT, RSQ, SIN, COS, EXPD2, LOGD2, POW,\n";
     std::cout << "  ABS, NEG, FLOOR, CEIL, FRACT, F2I, I2F, NOT,\n";
-    std::cout << "  BRA, JMP + R0 verification\n";
-    std::cout << "Skipped: CALL, RET (link register issue)\n";
+    std::cout << "  BRA, JMP, BAR, HALT, LD, ST, VLOAD, ATTR,\n";
+    std::cout << "  MOV_IMM + R0 verification\n";
+    std::cout << "Skipped: CALL, RET (dual-word PC management issue)\n";
     std::cout << "========================================\n";
     
     EXPECT_TRUE(true);
