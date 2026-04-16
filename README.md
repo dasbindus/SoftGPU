@@ -12,12 +12,12 @@
 
 - **Tile-Based Rendering (TBR)** - 真正的 TBR 架构，支持 binning
 - **8 级渲染管线** - CommandProcessor → VertexShader → PrimitiveAssembly → TilingStage → Rasterizer → FragmentShader → Framebuffer → TileWriteBack
-- **ISA 解释器** - 36 条指令，支持可编程片元着色器
+- **ISA v2.5 解释器** - 50+ 条指令，支持可编程片元着色器
 - **4 种 ISA 着色器类型** - Flat Color、Barycentric Color、Depth Test、Multi-Triangle
 - **内存子系统** - Token bucket 带宽模型 + L2 缓存模拟（256KB）
 - **Warp 调度器** - 批处理，8 线程 warps
 - **性能分析器** - 实时各级阶段耗时与瓶颈检测
-- **189 个测试** - 90 个 E2E + 99 个单元/集成测试，CI 覆盖率门禁
+- **231 个测试** - 103 ISA + 90 E2E + 20 集成 + 18 场景测试
 - **ImGui 可视化** - 架构图与利用率着色
 
 ---
@@ -31,13 +31,13 @@ RenderPipeline (8 级管线)
 ├── PrimitiveAssembly   # 视锥体裁剪
 ├── TilingStage        # 三角形 binning（300 tiles）
 ├── Rasterizer         # 边缘函数 DDA
-├── FragmentShader      # ISA 解释器，36 条指令
+├── FragmentShader      # ISA v2.5 解释器，50+ 指令
 ├── Framebuffer        # Z-buffer 深度测试
 └── TileWriteBack       # GMEM 回写
 
 支持模块:
 ├── ShaderCore          # ISA 执行单元
-├── Interpreter         # 36 指令 ISA 解释器
+├── Interpreter         # ISA v2.5 解释器
 ├── MemorySubsystem     # 带宽模型 + 256KB L2 缓存
 ├── FrameProfiler       # 性能数据采集
 ├── BottleneckDetector  # 瓶颈检测
@@ -89,8 +89,9 @@ ctest --output-on-failure
 
 # 直接运行各测试可执行文件
 ./bin/test_e2e              # 90 个 E2E 测试，含 golden reference
-./bin/test_Integration       # 6 个集成测试
+./bin/test_Integration       # 20 个集成测试（6 IntegrationTest + 14 EarlyZTest）
 ./bin/test_test_scenarios   # 18 个 TestScene 单元测试
+./bin/test_golden_isa       # 103 个 ISA 指令测试
 
 # 基准测试
 ./bin/SoftGPU --headless --scene Triangle-Cube
@@ -197,7 +198,7 @@ FrameProfiler + BottleneckDetector 提供完整的性能分析能力：
 
 ## 路线图 (v1.3+)
 
-**当前版本: v1.4.1** - PNG 纹理加载增强
+**当前版本: v1.4.1** - ISA v2.5 指令集升级（50+ 指令）、231 测试
 
 ### 管线微架构改造状态
 
@@ -306,6 +307,7 @@ TileWriteBack      ▓▓▓▓▓▓▓░░░ 80%  [部分实现]
 
 ## 发布历史
 
+- **v1.4.2** - ISA v2.5 指令集升级：50+ 指令、103 ISA 测试、CALL/RET link register 修复、DOT3/DOT4/VSTORE bug 修复、ISA_DESIGN.md Known Issues (2026-04-16)
 - **v1.4.1** - PNG 纹理加载增强：自动启用纹理采样 shader、新增 Triangle-1Tri-Textured 场景、E2E golden 对比测试 scene014 (2026-04-07)
 - **v1.4** - Early-Z 深度预测试、PNG 纹理加载（NEAREST）、DP3 指令、DIV stall 周期精度、TokenBucket 带宽限制、L2 Cache 256KB + tile-aware、CI 分级覆盖率门禁、189 tests (2026-04-07)
 - **v1.3.1** - CI 改进、中文 README、微架构路线图 (2026-03-30)
