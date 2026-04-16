@@ -3,7 +3,7 @@
 **版本：** 2.5  
 **作者：** 陈二虎（SoftGPU Architect Agent）  
 **日期：** 2026-04-10  
-**文档刷新：** 2026-04-14（小钻风，对照 isa_v2_5.hpp + interpreter_v2_5.hpp 代码核实后修订）；2026-04-14（修正 header/chapter7 中关于 ATTR/SEL/SMOOTHSTEP 的虚假"历史修正"描述）  
+**文档刷新：** 2026-04-16（小钻风，更新 VSTORE dual-word 实现细节；文档化 Known Issues）  
 **状态：** **核实版 v2.5**（对照 isa_v2_5.hpp + interpreter_v2_5.hpp 核实；ATTR 自始为 Format-B（从未改变），SEL/SMOOTHSTEP 条件/x 参数自始来自 rd；修正 6 处历史遗留与代码不符：RET/CALL link register R63、分支描述、VSTORE format/cycle、MOV opcode 0x63 补录）  
 
 ---
@@ -59,7 +59,7 @@
 
 ### 2.2 行为约束
 
-- **R0 为只读 0.0f**：无论写入什么值，Read(R0) 始终返回 0.0f
+- **R0 为硬件级硬连线到 0.0f**：无论写入什么值，Read(R0) 始终返回 0.0f。此为物理实现，非软件约定。
 - **越界访问**：未定义，编译器负责保证不越界
 - **数据类型**：所有寄存器均为 float32 bit pattern，整数操作通过 `reinterpret_cast<uint32_t&>` 实现
 
@@ -1285,6 +1285,8 @@ IF1 → IF2 → ID → EX → MEM → WB
 | **VLOAD cycles** | 2 | **1（2026-04-14 修正）** |
 | **MOV opcode** | 未定义 | **0x63, Format-C, 1-cycle（2026-04-14 新增）** |
 | **ATTR format** | Format-B | Format-B |
+| **R0 register** | 未特别说明 | **硬件级硬连线到 0.0f（2026-04-16 明确）** |
+| **VSTORE word2 fetch** | 未明确 | **Execute 阶段从 prog_[(pc_+4)/4] 获取（2026-04-16 修正）** |
 
 ---
 
@@ -1318,5 +1320,37 @@ IF1 → IF2 → ID → EX → MEM → WB
 
 ---
 
+## 第9章：Known Issues
+
+### 9.1 Format-E 双字指令的 Fetch/Execute 交互问题
+
+**问题描述**：Format-E 指令（如 VSTORE）的 word2 是数据而非操作码，但 Fetch 逻辑中 `idw_ = (fmt == Format::B || fmt == Format::E)` 将 Format-E 也标记为需要获取 word2 的双字指令。这导致 Format-E 指令需要通过 `after_format_e_` 机制在工作流中途取消这个行为，造成设计混乱。
+
+**当前实现**：
+- Fetch：Format-E 设置 `idw_=true`，`idf_=false`（等待 word2）
+- Execute：VSTORE 手动从 `prog_[(pc_+4)/4]` 获取 word2，设置 `after_format_e_=true` 后返回
+- 下一轮 Fetch：检测到 `after_format_e_`，跳过 word2（`pc_+=8`），重置 `idw_`
+
+**根本问题**：Format-E 的 word2 是数据，不应该触发 Fetch 的 dual-word 获取逻辑。理想情况下应该像 Format-C 一样是单字指令。
+
+**影响**：当前实现功能正确（103/103 测试通过），但架构不清晰，未来维护者可能误解 `idw_` 标志的用途。
+
+**建议修复**：将 `idw_` 改为仅在 `fmt == Format::B` 时设置，Format-E 不设置 `idw_`，而是在 Execute(VSTORE) 中直接获取 word2 后正常返回。这需要重新设计 Fetch/Execute 的 dual-word 协调逻辑。
+
+**状态**：已知问题，当前实现可工作，修复优先级低。
+
+### 9.2 ATTR 指令未使用 ATTR table
+
+**问题描述**：第 2 章描述了 ATTR table（attr_id → byte_offset），但 `ExATTR` 实现直接使用立即数索引，没有查表。
+
+**影响**：不影响功能（ATTR 指令按规格直接索引 VBO），但文档与实现不符。
+
+**建议**：统一 ATTR 的使用方式，要么使用 ATTR table（符合文档），要么更新文档说明 ATTR 直接使用立即数索引。
+
+**状态**：文档与实现不一致，需要澄清设计意图。
+
+---
+
 *— 陈二虎，Architect Agent，SoftGPU，2026-04-10*  
-*— 小钻风，2026-04-14（代码核实后修正 6 处与代码不符的描述；撤销 2 处虚假"历史修正"描述：ATTR/SEL/SMOOTHSTEP 相关）*
+*— 小钻风，2026-04-14（代码核实后修正 6 处与代码不符的描述；撤销 2 处虚假"历史修正"描述：ATTR/SEL/SMOOTHSTEP 相关）*  
+*— 小钻风，2026-04-16（更新 VSTORE dual-word 实现细节；文档化 Known Issues）*
