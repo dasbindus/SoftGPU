@@ -196,7 +196,8 @@ int runHeadless(const CmdArgs& args) {
 // ============================================================================
 // GUI模式：标准GLFW + ImGui
 // ============================================================================
-int runGUI(const char* sceneName) {
+int runGUI(const CmdArgs& args) {
+    const char* sceneName = args.scene_name;
     // ========================================================================
     // Step 1: GLFW 初始化
     // ========================================================================
@@ -269,6 +270,19 @@ int runGUI(const char* sceneName) {
     printf("[INFO] Scene: %s (%s)\n", scene->getName().c_str(), scene->getDescription().c_str());
 
     RenderPipeline pipeline;
+
+    // 加载 PNG 纹理（如果有指定）
+    if (args.texture_file) {
+        bool loaded = pipeline.getFragmentShader().getShaderCore().setTextureFromPNG(0, args.texture_file);
+        if (loaded) {
+            printf("[INFO] Loaded texture from: %s\n", args.texture_file);
+            pipeline.getFragmentShader().setShaderFunction(ShaderCore::getTextureSamplingShader());
+            printf("[INFO] Enabled texture sampling shader\n");
+        } else {
+            printf("[WARNING] Failed to load texture from: %s\n", args.texture_file);
+        }
+    }
+
     RenderCommand cmd;
     scene->buildRenderCommand(cmd);
     cmd.clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
@@ -398,6 +412,6 @@ int main(int argc, char* argv[])
     if (args.headless) {
         return runHeadless(args);
     } else {
-        return runGUI(args.scene_name);
+        return runGUI(args);
     }
 }
