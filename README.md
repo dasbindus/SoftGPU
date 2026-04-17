@@ -80,21 +80,55 @@ make -j4
 
 ## 测试
 
+### 测试可执行文件
+
+| 测试程序 | 测试数量 | 说明 |
+|----------|----------|------|
+| `test_golden_isa` | 103 | ISA 指令测试，验证解释器正确性 |
+| `test_e2e` | 90 | E2E 测试，含 golden reference 对比 |
+| `test_Integration` | 20 | 集成测试（6 IntegrationTest + 14 EarlyZTest）|
+| `test_test_scenarios` | 18 | TestScene 单元测试 |
+| `test_benchmark_runner` | - | 性能基准测试 |
+
+### 运行测试
+
 ```bash
 # 通过 ctest 运行所有测试
-ctest --output-on-failure
+cd build && ctest --output-on-failure
 
-# 运行单个测试
-./bin/test_e2e --gtest_filter=*TriangleCubes100*
+# 运行所有测试可执行文件并查看摘要
+./build/bin/test_golden_isa    # ISA 指令测试
+./build/bin/test_e2e          # E2E 测试
+./build/bin/test_Integration   # 集成测试
+./build/bin/test_test_scenarios # TestScene 单元测试
+```
 
-# 直接运行各测试可执行文件
-./bin/test_e2e              # 90 个 E2E 测试，含 golden reference
-./bin/test_Integration       # 20 个集成测试（6 IntegrationTest + 14 EarlyZTest）
-./bin/test_test_scenarios   # 18 个 TestScene 单元测试
-./bin/test_golden_isa       # 103 个 ISA 指令测试
+### 运行特定测试
 
-# 基准测试
-./bin/SoftGPU --headless --scene Triangle-Cube
+```bash
+# 使用 gtest_filter 运行特定测试
+./build/bin/test_golden_isa --gtest_filter="GoldenISATest.ADD_*"
+./build/bin/test_e2e --gtest_filter="*TriangleCubes100*"
+./build/bin/test_Integration --gtest_filter="EarlyZTest.*"
+
+# 列出所有可用测试
+./build/bin/test_golden_isa --gtest_list_tests
+./build/bin/test_e2e --gtest_list_tests
+```
+
+### E2E Golden Reference 测试
+
+E2E 测试将渲染结果与 golden reference 对比：
+
+```bash
+# 运行所有 E2E 测试
+./build/bin/test_e2e
+
+# 运行特定场景的 golden 测试
+./build/bin/test_e2e --gtest_filter="*Scene001*"
+
+# 查看 golden reference 文件
+ls tests/e2e/golden/
 ```
 
 ---
@@ -141,16 +175,26 @@ FrameProfiler + BottleneckDetector 提供完整的性能分析能力：
 
 ## 运行
 
+### 帮助信息
+
+```bash
+./build/bin/SoftGPU --help
+```
+
 ### GUI 模式（需要显示器）
 
 ```bash
+# 基础用法
 ./build/bin/SoftGPU
+
+# 带纹理采样场景
+./build/bin/SoftGPU --scene Triangle-1Tri-Textured --texture tests/e2e/golden/texture1.png
 ```
 
 ### 无头模式（无需显示器）
 
 ```bash
-# 输出到当前目录
+# 基础用法（输出到当前目录）
 ./build/bin/SoftGPU --headless
 
 # 输出到指定目录
@@ -161,6 +205,15 @@ FrameProfiler + BottleneckDetector 提供完整的性能分析能力：
 
 # 选择场景
 ./build/bin/SoftGPU --headless --scene Triangle-Cube
+
+# 带纹理采样
+./build/bin/SoftGPU --headless --scene Triangle-1Tri-Textured --texture tests/e2e/golden/texture1.png
+
+# 禁用 TBR 模式
+./build/bin/SoftGPU --headless --no-tbr
+
+# 强制 VS 使用 C++ 路径（调试用）
+./build/bin/SoftGPU --headless --vs-cpp
 ```
 
 ### 可用场景
@@ -168,13 +221,13 @@ FrameProfiler + BottleneckDetector 提供完整的性能分析能力：
 | 场景 | 三角形数 | 描述 |
 |------|----------|------|
 | Triangle-1Tri | 1 | 单个三角形 |
-| Triangle-1Tri-Textured | 1 | 单个纹理三角形（PNG） |
+| Triangle-1Tri-Textured | 1 | 单个纹理三角形（需配合 --texture 使用）|
 | Triangle-Cube | 12 | 立方体，6 面 |
 | Triangle-Cubes-100 | 1200 | 100 个立方体，压力测试 |
 | Triangle-SponzaStyle | 变化 | Sponza 风格建筑 |
 | PBR-Material | 变化 | PBR 材质球 |
 
-### 示例输出
+### 渲染输出
 
 渲染的 PPM 文件可用任意图像编辑器查看：
 
@@ -182,6 +235,9 @@ FrameProfiler + BottleneckDetector 提供完整的性能分析能力：
 # 渲染并查看输出
 ./build/bin/SoftGPU --headless --scene Triangle-Cube
 # 输出: frame_0000.ppm (640x480)
+
+# 渲染纹理三角形
+./build/bin/SoftGPU --headless --scene Triangle-1Tri-Textured --texture tests/e2e/golden/texture1.png
 ```
 
 ### 渲染效果
