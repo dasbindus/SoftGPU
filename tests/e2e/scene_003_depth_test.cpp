@@ -84,8 +84,10 @@ TEST_F(E2ETest, Scene003_DepthTest_FrontOccludesBack) {
         -0.5f,  0.0f, -0.5f, 1.0f,   0.0f, 1.0f, 0.0f, 1.0f,
     };
 
-    renderTriangle(redVertices, 6);
-    renderTriangle(greenVertices, 6);
+    beginFrame();
+    addTriangle(redVertices, 6);
+    addTriangle(greenVertices, 6);
+    endFrame();
 
     // In overlap region (y: 240), green should be visible
     int greenVisibleCount = 0;
@@ -134,8 +136,10 @@ TEST_F(E2ETest, Scene003_DepthTest_NonOverlappingTriangles) {
         -0.5f,  0.0f, -0.5f, 1.0f,   0.0f, 1.0f, 0.0f, 1.0f,
     };
 
-    renderTriangle(redVertices, 6);
-    renderTriangle(greenVertices, 6);
+    beginFrame();
+    addTriangle(redVertices, 6);
+    addTriangle(greenVertices, 6);
+    endFrame();
 
     int redInBottomRegion = 0;
     for (int y = 400; y < 470; y += 10) {
@@ -232,8 +236,10 @@ TEST_F(E2ETest, Scene003_DepthTest_PPMDumpShowsOcclusion) {
         -0.2f, -0.1f, -0.3f, 1.0f,   0.0f, 1.0f, 0.0f, 1.0f,
     };
 
-    renderTriangle(redVertices, 6);
-    renderTriangle(greenVertices, 6);
+    beginFrame();
+    addTriangle(redVertices, 6);
+    addTriangle(greenVertices, 6);
+    endFrame();
 
     std::string ppmPath = dumpPPM("e2e_depth_test.ppm");
 
@@ -396,8 +402,11 @@ TEST_F(E2ETest, Scene003_DepthTest_GoldenReference) {
         -0.5f,  0.0f, -0.5f, 1.0f,   0.0f, 1.0f, 0.0f, 1.0f,
     };
 
-    renderTriangle(redVertices, 6);
-    renderTriangle(greenVertices, 6);
+    beginFrame();
+    addTriangle(redVertices, 6);
+    addTriangle(greenVertices, 6);
+    endFrame();
+
     std::string ppmPath = dumpPPM("e2e_depth_test.ppm");
 
     PPMVerifier verifier(ppmPath);

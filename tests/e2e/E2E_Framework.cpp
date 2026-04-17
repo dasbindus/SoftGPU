@@ -304,6 +304,45 @@ void E2ETest::TearDown() {
     m_pipeline.reset();
 }
 
+void E2ETest::beginFrame() {
+    m_batchMode = true;
+    m_batchVertices.clear();
+    m_batchVertexCount = 0;
+}
+
+void E2ETest::addTriangle(const float* vertices, size_t vertexCount) {
+    if (!m_batchMode) {
+        std::cerr << "[E2ETest] Warning: addTriangle called without beginFrame()\n";
+        return;
+    }
+    size_t stride = vertexCount * VERTEX_STRIDE;
+    m_batchVertices.insert(m_batchVertices.end(), vertices, vertices + stride);
+    m_batchVertexCount += static_cast<uint32_t>(vertexCount);
+}
+
+void E2ETest::endFrame() {
+    if (!m_batchMode || m_batchVertices.empty()) {
+        m_batchMode = false;
+        return;
+    }
+
+    RenderCommand cmd;
+    cmd.vertexBufferData = m_batchVertices.data();
+    cmd.vertexBufferSize = m_batchVertices.size() * sizeof(float);
+    cmd.drawParams.vertexCount = m_batchVertexCount;
+    cmd.drawParams.indexed = false;
+    cmd.modelMatrix = identityMatrix();
+    cmd.viewMatrix = identityMatrix();
+    cmd.projectionMatrix = identityMatrix();
+    cmd.clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
+
+    m_pipeline->render(cmd);
+
+    m_batchMode = false;
+    m_batchVertices.clear();
+    m_batchVertexCount = 0;
+}
+
 void E2ETest::renderTriangle(const float* vertices, size_t vertexCount) {
     RenderCommand cmd;
     cmd.vertexBufferData = vertices;

@@ -134,6 +134,13 @@ protected:
     void SetUp() override;
     void TearDown() override;
 
+    // Batch rendering mode - for multi-triangle tests
+    // beginFrame() starts collecting, endFrame() renders all at once
+    void beginFrame();
+    void addTriangle(const float* vertices, size_t vertexCount);
+    void endFrame();
+
+    // Legacy single-triangle render (for backward compatibility)
     void renderTriangle(const float* vertices, size_t vertexCount);
     std::string dumpPPM(const char* filename);
 
@@ -163,6 +170,12 @@ protected:
     // Get full golden file path with compiler-specific suffix
     // e.g., getGoldenPath("scene001") returns "tests/e2e/golden/scene001_gcc.ppm" on GCC
     static std::string getGoldenPath(const std::string& baseName);
+
+private:
+    // Batch rendering state - collected triangle data for multi-triangle tests
+    bool m_batchMode = false;
+    std::vector<float> m_batchVertices;
+    size_t m_batchVertexCount = 0;
 };
 
 // ============================================================================

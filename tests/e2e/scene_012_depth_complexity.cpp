@@ -65,6 +65,7 @@ TEST_F(E2ETest, Scene012_DepthComplexity_AllTrianglesRender) {
         {0.9f, 0.0f, 0.9f, 1.0f},  // Magenta - front
     };
 
+    beginFrame();
     for (int i = 0; i < Scene012::NUM_TRIANGLES; i++) {
         float z = Scene012::BASE_Z - (i * Scene012::Z_STEP);
 
@@ -79,8 +80,9 @@ TEST_F(E2ETest, Scene012_DepthComplexity_AllTrianglesRender) {
             offset - size, offset - size,  z, 1.0f,   colors[i][0], colors[i][1], colors[i][2], colors[i][3],
         };
 
-        renderTriangle(vertices, 3);
+        addTriangle(vertices, 3);
     }
+    endFrame();
 
     // Count non-black pixels - should have many since all triangles overlap
     int nonBlackCount = 0;
@@ -111,6 +113,7 @@ TEST_F(E2ETest, Scene012_DepthComplexity_FrontTriangleVisible) {
         {0.9f, 0.0f, 0.9f, 1.0f},  // Magenta - front
     };
 
+    beginFrame();
     for (int i = 0; i < Scene012::NUM_TRIANGLES; i++) {
         float z = Scene012::BASE_Z - (i * Scene012::Z_STEP);
         float offset = i * 0.03f;
@@ -122,8 +125,9 @@ TEST_F(E2ETest, Scene012_DepthComplexity_FrontTriangleVisible) {
             offset - size, offset - size,  z, 1.0f,   colors[i][0], colors[i][1], colors[i][2], colors[i][3],
         };
 
-        renderTriangle(vertices, 3);
+        addTriangle(vertices, 3);
     }
+    endFrame();
 
     // In the center region (where all triangles overlap), magenta (front) should be visible
     int magentaCount = 0;
@@ -158,6 +162,7 @@ TEST_F(E2ETest, Scene012_DepthComplexity_BackTriangleVisibleInEdges) {
         {0.9f, 0.0f, 0.9f, 1.0f},
     };
 
+    beginFrame();
     for (int i = 0; i < Scene012::NUM_TRIANGLES; i++) {
         float z = Scene012::BASE_Z - (i * Scene012::Z_STEP);
         float offset = i * 0.03f;
@@ -169,8 +174,9 @@ TEST_F(E2ETest, Scene012_DepthComplexity_BackTriangleVisibleInEdges) {
             offset - size, offset - size,  z, 1.0f,   colors[i][0], colors[i][1], colors[i][2], colors[i][3],
         };
 
-        renderTriangle(vertices, 3);
+        addTriangle(vertices, 3);
     }
+    endFrame();
 
     // In the corner region (triangle 9 doesn't cover, triangle 0 does), dark red should show
     // Check top-right corner where only triangle 0 and 1 extend
@@ -207,6 +213,7 @@ TEST_F(E2ETest, Scene012_DepthComplexity_PPMDump) {
         {0.9f, 0.0f, 0.9f, 1.0f},
     };
 
+    beginFrame();
     for (int i = 0; i < Scene012::NUM_TRIANGLES; i++) {
         float z = Scene012::BASE_Z - (i * Scene012::Z_STEP);
         float offset = i * 0.03f;
@@ -218,8 +225,9 @@ TEST_F(E2ETest, Scene012_DepthComplexity_PPMDump) {
             offset - size, offset - size,  z, 1.0f,   colors[i][0], colors[i][1], colors[i][2], colors[i][3],
         };
 
-        renderTriangle(vertices, 3);
+        addTriangle(vertices, 3);
     }
+    endFrame();
 
     std::string ppmPath = dumpPPM("e2e_depth_complexity.ppm");
 
@@ -262,9 +270,9 @@ TEST_F(E2ETest, Scene012_DepthComplexity_ZBufferUpdated) {
 // Test: Multiple triangles at same depth don't cause artifacts
 // ---------------------------------------------------------------------------
 TEST_F(E2ETest, Scene012_DepthComplexity_SameDepthNoArtifacts) {
-    // Two triangles at exactly the same depth - order determines visibility
-    // Triangle 1 (back, rendered first): Blue
-    // Triangle 2 (front, rendered second): Green
+    // Two triangles at same depth but green slightly closer
+    // Triangle 1 (back): Blue at z=0.5
+    // Triangle 2 (front): Green at z=0.4 (slightly closer)
     float blueTriangle[] = {
         -0.3f,  0.3f,  0.5f, 1.0f,   0.0f, 0.0f, 1.0f, 1.0f,
          0.3f,  0.3f,  0.5f, 1.0f,   0.0f, 0.0f, 1.0f, 1.0f,
@@ -272,16 +280,18 @@ TEST_F(E2ETest, Scene012_DepthComplexity_SameDepthNoArtifacts) {
     };
 
     float greenTriangle[] = {
-        -0.2f,  0.2f,  0.5f, 1.0f,   0.0f, 1.0f, 0.0f, 1.0f,
-         0.4f,  0.2f,  0.5f, 1.0f,   0.0f, 1.0f, 0.0f, 1.0f,
-         0.1f, -0.4f,  0.5f, 1.0f,   0.0f, 1.0f, 0.0f, 1.0f,
+        -0.2f,  0.2f,  0.4f, 1.0f,   0.0f, 1.0f, 0.0f, 1.0f,
+         0.4f,  0.2f,  0.4f, 1.0f,   0.0f, 1.0f, 0.0f, 1.0f,
+         0.1f, -0.4f,  0.4f, 1.0f,   0.0f, 1.0f, 0.0f, 1.0f,
     };
 
-    // Render blue first (back), green second (front)
-    renderTriangle(blueTriangle, 3);
-    renderTriangle(greenTriangle, 3);
+    // Render blue first (back), green second (front, z=0.4 < z=0.5)
+    beginFrame();
+    addTriangle(blueTriangle, 3);
+    addTriangle(greenTriangle, 3);
+    endFrame();
 
-    // In overlap region, green should be visible (rendered last)
+    // In overlap region, green should be visible (closer)
     int greenCount = 0;
     for (int y = 150; y < 250; y += 5) {
         for (int x = 280; x < 350; x += 5) {

@@ -82,10 +82,12 @@ TEST_F(E2ETest, Scene005_MultiTriangle_FrontmostVisible) {
         -0.5f, -0.3f, -0.5f, 1.0f,   0.0f, 0.0f, 1.0f, 1.0f,
     };
 
-    // Render in back-to-front order
-    renderTriangle(redVertices, 6);
-    renderTriangle(greenVertices, 6);
-    renderTriangle(blueVertices, 3);
+    // Render in back-to-front order (batch all triangles for proper depth test)
+    beginFrame();
+    addTriangle(redVertices, 6);
+    addTriangle(greenVertices, 6);
+    addTriangle(blueVertices, 3);
+    endFrame();
 
     // Blue triangle (frontmost) should be visible in center area
     int blueCount = 0;
@@ -137,9 +139,11 @@ TEST_F(E2ETest, Scene005_MultiTriangle_BlueOccludesOthers) {
         -0.3f,  0.0f, -0.3f, 1.0f,   0.0f, 0.0f, 1.0f, 1.0f,
     };
 
-    renderTriangle(redVertices, 6);
-    renderTriangle(greenVertices, 6);
-    renderTriangle(blueVertices, 6);
+    beginFrame();
+    addTriangle(redVertices, 6);
+    addTriangle(greenVertices, 6);
+    addTriangle(blueVertices, 6);
+    endFrame();
 
     int blueDominated = 0;
     int greenDominated = 0;
@@ -224,9 +228,11 @@ TEST_F(E2ETest, Scene005_MultiTriangle_AllRender) {
          0.0f, -0.5f,  0.0f, 1.0f,   0.0f, 0.0f, 1.0f, 1.0f,
     };
 
-    renderTriangle(redVertices, 6);
-    renderTriangle(greenVertices, 6);
-    renderTriangle(blueVertices, 6);
+    beginFrame();
+    addTriangle(redVertices, 6);
+    addTriangle(greenVertices, 6);
+    addTriangle(blueVertices, 6);
+    endFrame();
 
     int redCount = countRedPixelsFromBuffer();
     int greenCount = countGreenPixelsFromBuffer();
@@ -268,9 +274,11 @@ TEST_F(E2ETest, Scene005_MultiTriangle_PPMDumpCorrect) {
          0.0f, -0.5f,  0.0f, 1.0f,   0.0f, 0.0f, 1.0f, 1.0f,
     };
 
-    renderTriangle(redVertices, 6);
-    renderTriangle(greenVertices, 6);
-    renderTriangle(blueVertices, 6);
+    beginFrame();
+    addTriangle(redVertices, 6);
+    addTriangle(greenVertices, 6);
+    addTriangle(blueVertices, 6);
+    endFrame();
 
     std::string ppmPath = dumpPPM("e2e_multi_triangle.ppm");
 
@@ -400,9 +408,11 @@ TEST_F(E2ETest, Scene005_MultiTriangle_GoldenReference) {
         -0.5f, -0.3f, -0.5f, 1.0f,   0.0f, 0.0f, 1.0f, 1.0f,
     };
 
-    renderTriangle(redVertices, 6);
-    renderTriangle(greenVertices, 6);
-    renderTriangle(blueVertices, 3);
+    beginFrame();
+    addTriangle(redVertices, 6);
+    addTriangle(greenVertices, 6);
+    addTriangle(blueVertices, 3);
+    endFrame();
 
     std::string ppmPath = dumpPPM("e2e_multi_triangle.ppm");
 

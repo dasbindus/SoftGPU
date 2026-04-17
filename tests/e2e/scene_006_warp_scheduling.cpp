@@ -98,9 +98,11 @@ TEST_F(E2ETest, Scene006_Warp_MultipleTrianglesScheduled) {
         -0.9f,  0.3f, -0.5f, 1.0f,   1.0f, 0.0f, 0.0f, 1.0f,
     };
 
-    renderTriangle(tri1, 3);
-    renderTriangle(tri2, 3);
-    renderTriangle(tri3, 3);
+    beginFrame();
+    addTriangle(tri1, 3);
+    addTriangle(tri2, 3);
+    addTriangle(tri3, 3);
+    endFrame();
 
     int greenCount = countGreenPixelsFromBuffer();
     int blueCount = countBluePixelsFromBuffer();
@@ -165,6 +167,7 @@ TEST_F(E2ETest, Scene006_Warp_TileBoundaryNoArtifacts) {
 // Test: Many small triangles exercise Warp allocation
 // ---------------------------------------------------------------------------
 TEST_F(E2ETest, Scene006_Warp_ManySmallTriangles) {
+    beginFrame();
     for (int i = 0; i < 8; i++) {
         for (int j = 0; j < 3; j++) {
             float x_offset = (float)(i - 4) * 0.2f;
@@ -175,9 +178,10 @@ TEST_F(E2ETest, Scene006_Warp_ManySmallTriangles) {
                 x_offset - 0.05f, y_offset - 0.05f, -0.5f, 1.0f,   0.0f, 1.0f, 0.0f, 1.0f,
                 x_offset + 0.05f, y_offset - 0.05f, -0.5f, 1.0f,   0.0f, 1.0f, 0.0f, 1.0f,
             };
-            renderTriangle(tri, 3);
+            addTriangle(tri, 3);
         }
     }
+    endFrame();
 
     int greenCount = countGreenPixelsFromBuffer();
     EXPECT_GT(greenCount, 1000)
@@ -229,6 +233,7 @@ TEST_F(E2ETest, Scene006_Warp_PPMDumpCorrect) {
 // Test: Interleaved triangles with different colors
 // ---------------------------------------------------------------------------
 TEST_F(E2ETest, Scene006_Warp_InterleavedTriangles) {
+    beginFrame();
     for (int i = 0; i < 5; i++) {
         float y_base = 0.8f - (float)i * 0.35f;
 
@@ -238,16 +243,17 @@ TEST_F(E2ETest, Scene006_Warp_InterleavedTriangles) {
                  0.9f, y_base, -0.5f, 1.0f,   0.0f, 1.0f, 0.0f, 1.0f,
                  0.0f, y_base - 0.25f, -0.5f, 1.0f,   0.0f, 1.0f, 0.0f, 1.0f,
             };
-            renderTriangle(tri, 3);
+            addTriangle(tri, 3);
         } else {
             float tri[] = {
                 -0.9f, y_base, -0.5f, 1.0f,   1.0f, 0.0f, 0.0f, 1.0f,
                  0.9f, y_base, -0.5f, 1.0f,   1.0f, 0.0f, 0.0f, 1.0f,
                  0.0f, y_base - 0.25f, -0.5f, 1.0f,   1.0f, 0.0f, 0.0f, 1.0f,
             };
-            renderTriangle(tri, 3);
+            addTriangle(tri, 3);
         }
     }
+    endFrame();
 
     int greenCount = countGreenPixelsFromBuffer();
     int redCount = countRedPixelsFromBuffer();
