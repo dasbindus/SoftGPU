@@ -4,7 +4,7 @@
 **Commit:** v1.4 (master @ 0f42820)
 **Test binary:** `SoftGPU/build/bin/test_e2e`
 **Total test cases:** 90 (all PASSED)
-**Disabled:** 2 (`DISABLED_Scene005_MultiTriangle_GenerateGolden`, `DISABLED_Scene012_DepthComplexity_GoldenReference`)
+**Disabled:** 1 (`DISABLED_Scene012_DepthComplexity_GoldenReference`)
 
 ## Pipeline Path
 All E2E tests go through `RenderPipeline` → `VertexShader` → `FragmentShader` → `Rasterizer` → `TilingStage` → `TileWriteBack`
