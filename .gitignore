@@ -34,6 +34,9 @@ shared/
 # Logs and temporary files
 *.log
 
+# GUI runtime config (machine-specific, auto-generated)
+imgui.ini
+
 # E2E test output files (but keep golden references)
 .e2e_*.ppm
 *.ppm
