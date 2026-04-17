@@ -323,6 +323,7 @@ TEST_F(E2ETest, Scene012_DepthComplexity_GoldenReference) {
         {0.9f, 0.0f, 0.9f, 1.0f},
     };
 
+    beginFrame();
     for (int i = 0; i < Scene012::NUM_TRIANGLES; i++) {
         float z = Scene012::BASE_Z - (i * Scene012::Z_STEP);
         float offset = i * 0.03f;
@@ -334,8 +335,9 @@ TEST_F(E2ETest, Scene012_DepthComplexity_GoldenReference) {
             offset - size, offset - size,  z, 1.0f,   colors[i][0], colors[i][1], colors[i][2], colors[i][3],
         };
 
-        renderTriangle(vertices, 3);
+        addTriangle(vertices, 3);
     }
+    endFrame();
 
     std::string ppmPath = dumpPPM("e2e_depth_complexity.ppm");
 
