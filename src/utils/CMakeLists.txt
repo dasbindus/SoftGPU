@@ -4,6 +4,8 @@
 add_library(utils STATIC
     FrameDumper.hpp
     FrameDumper.cpp
+    OBJLoader.hpp
+    OBJLoader.cpp
 )
 
 target_include_directories(utils PUBLIC

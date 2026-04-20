@@ -5,6 +5,8 @@
 set(TEST_SOURCES
     TestScene.cpp
     TestSceneBuilder.cpp
+    OBJModelScene.hpp
+    OBJModelScene.cpp
 )
 
 add_library(test STATIC ${TEST_SOURCES})
@@ -18,5 +20,6 @@ target_link_libraries(test
     PUBLIC
     core
     stages
+    utils
     glm::glm
 )

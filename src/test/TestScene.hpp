@@ -93,4 +93,7 @@ std::shared_ptr<TestScene> createTriangleSponzaStyleScene();
 // PBR-Material: PBR材质参数场景
 std::shared_ptr<TestScene> createPBRMaterialScene();
 
+// OBJ-Model: 从 OBJ 文件加载模型
+std::shared_ptr<TestScene> createOBJModelScene(const std::string& objFilepath);
+
 }  // namespace SoftGPU

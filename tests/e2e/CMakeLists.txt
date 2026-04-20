@@ -23,6 +23,8 @@ add_executable(test_e2e
     scene_012_depth_complexity.cpp
     scene_013_texture_sampling.cpp
     scene_014_textured_triangle.cpp
+    scene_015_textured_teapot.cpp
+    scene_016_obj_model.cpp
 )
 target_link_libraries(test_e2e PRIVATE stages pipeline core test ${GTEST_LIBS})
 
@@ -35,3 +37,6 @@ gtest_discover_tests(test_e2e)
 
 # Copy golden reference files to build directory for tests
 file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/golden/ DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/golden)
+
+# Copy OBJ model files to build directory for tests
+file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/models/ DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/models)
