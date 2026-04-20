@@ -17,7 +17,7 @@
 - **内存子系统** - Token bucket 带宽模型 + L2 缓存模拟（256KB）
 - **Warp 调度器** - 批处理，8 线程 warps
 - **性能分析器** - 实时各级阶段耗时与瓶颈检测
-- **231 个测试** - 103 ISA + 90 E2E + 20 集成 + 18 场景测试
+- **240 个测试** - 103 ISA + 99 E2E + 20 集成 + 18 场景测试
 - **ImGui 可视化** - 架构图与利用率着色
 
 ---
@@ -85,7 +85,7 @@ make -j4
 | 测试程序 | 测试数量 | 说明 |
 |----------|----------|------|
 | `test_golden_isa` | 103 | ISA 指令测试，验证解释器正确性 |
-| `test_e2e` | 90 | E2E 测试，含 golden reference 对比 |
+| `test_e2e` | 99 | E2E 测试，含 golden reference 对比 |
 | `test_Integration` | 20 | 集成测试（6 IntegrationTest + 14 EarlyZTest）|
 | `test_test_scenarios` | 18 | TestScene 单元测试 |
 | `test_benchmark_runner` | - | 性能基准测试 |
@@ -270,7 +270,7 @@ FrameProfiler + BottleneckDetector 提供完整的性能分析能力：
 
 ## 路线图 (v1.3+)
 
-**当前版本: v1.4.1** - ISA v2.5 指令集升级（50+ 指令）、231 测试
+**当前版本: v1.5** - VS ISA 修复 + OBJ 模型加载、99 E2E + 103 ISA 测试
 
 ### 管线微架构改造状态
 
@@ -362,12 +362,13 @@ TileWriteBack      ▓▓▓▓▓▓▓░░░ 80%  [部分实现]
 
 | 版本 | 主题 | 目标 |
 |------|------|------|
+| **v1.5** ✅ | VS ISA 修复 + OBJ 模型加载 | VIEW Transform 寄存器重叠修复、vcount_ bug 修复、多顶点处理修复、OBJ 模型加载、--obj 命令行选项、Utah Teapot (2026-04-20) |
 | **v1.4.2** ✅ | ISA v2.5 指令集升级 | 50+ 指令、103 ISA 测试、CALL/RET 修复、Known Issues (2026-04-16) |
 | **v1.4.1** ✅ | PNG 纹理加载增强 | 自动启用 shader、新增 Triangle-1Tri-Textured 场景、scene014 E2E (2026-04-07) |
-| **v1.5** | 前端管线并行化 | CommandProcessor 预取/解码、VertexShader SIMD/流水线 |
-| **v1.6** | 几何处理优化 | PrimitiveAssembly 并行剔除、TilingStage 原子化 |
-| **v1.7** | 内存与带宽优化 | L2 Cache 优化、TileWriteBack 压缩、带宽分配器 |
-| **v1.8** | 微架构级性能分析 | Warp 分析、IPC/CPI、Cache Miss 分析、瓶颈自动判定 |
+| **v1.6** | 前端管线并行化 | CommandProcessor 预取/解码、VertexShader SIMD/流水线 |
+| **v1.7** | 几何处理优化 | PrimitiveAssembly 并行剔除、TilingStage 原子化 |
+| **v1.8** | 内存与带宽优化 | L2 Cache 优化、TileWriteBack 压缩、带宽分配器 |
+| **v1.9** | 微架构级性能分析 | Warp 分析、IPC/CPI、Cache Miss 分析、瓶颈自动判定 |
 | **v2.0** | 多核并行化 | Job System、原子操作、锁-free 管线 |
 
 ### v1.8 性能分析特性预览
@@ -381,6 +382,7 @@ TileWriteBack      ▓▓▓▓▓▓▓░░░ 80%  [部分实现]
 
 ## 发布历史
 
+- **v1.5** - VS ISA 修复：VIEW Transform 寄存器重叠导致 u.w 计算错误修复、vcount_ clearing bug 修复、VS ISA shader 多顶点处理 bug 修复；OBJ 模型加载：OBJLoader 解析器、Utah Teapot 模型、--obj 命令行选项、99 E2E 测试 (2026-04-20)
 - **v1.4.2** - ISA v2.5 指令集升级：50+ 指令、103 ISA 测试、CALL/RET link register 修复、DOT3/DOT4/VSTORE bug 修复、ISA_DESIGN.md Known Issues (2026-04-16)
 - **v1.4.1** - PNG 纹理加载增强：自动启用纹理采样 shader、新增 Triangle-1Tri-Textured 场景、E2E golden 对比测试 scene014 (2026-04-07)
 - **v1.4** - Early-Z 深度预测试、PNG 纹理加载（NEAREST）、DP3 指令、DIV stall 周期精度、TokenBucket 带宽限制、L2 Cache 256KB + tile-aware、CI 分级覆盖率门禁、189 tests (2026-04-07)
