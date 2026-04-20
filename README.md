@@ -214,6 +214,9 @@ FrameProfiler + BottleneckDetector 提供完整的性能分析能力：
 
 # 强制 VS 使用 C++ 路径（调试用）
 ./build/bin/SoftGPU --headless --vs-cpp
+
+# 加载 OBJ 模型
+./build/bin/SoftGPU --headless --obj tests/e2e/models/teapot.obj
 ```
 
 ### 可用场景
@@ -226,6 +229,19 @@ FrameProfiler + BottleneckDetector 提供完整的性能分析能力：
 | Triangle-Cubes-100 | 1200 | 100 个立方体，压力测试 |
 | Triangle-SponzaStyle | 变化 | Sponza 风格建筑 |
 | PBR-Material | 变化 | PBR 材质球 |
+| OBJ-Model (cube.obj) | 12 | OBJ 立方体模型 |
+| OBJ-Model (teapot.obj) | 6320 | Utah Teapot 茶壶模型 |
+
+### OBJ 模型渲染
+
+```bash
+# 渲染 OBJ 模型（支持 cube.obj 和 teapot.obj）
+./build/bin/SoftGPU --obj tests/e2e/models/cube.obj
+./build/bin/SoftGPU --obj tests/e2e/models/teapot.obj
+
+# 无头模式输出到指定目录
+./build/bin/SoftGPU --headless --obj tests/e2e/models/teapot.obj --output /tmp/
+```
 
 ### 渲染输出
 
@@ -246,9 +262,9 @@ FrameProfiler + BottleneckDetector 提供完整的性能分析能力：
 |:---:|:---:|:---:|
 | ![1Tri](images/triangle_1tri.png) | ![Textured](images/triangle_1tri_textured.png) | ![Cube](images/triangle_cube.png) |
 
-| Triangle-Cubes-100 |
-|:---:|
-| ![Cubes](images/triangle_cubes100.png) |
+| Triangle-Cubes-100 | Utah Teapot |
+|:---:|:---:|
+| ![Cubes](images/triangle_cubes100.png) | ![Teapot](images/teapot.png) |
 
 ---
 
