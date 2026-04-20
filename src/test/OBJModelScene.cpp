@@ -64,11 +64,11 @@ void OBJModelScene::buildRenderCommand(RenderCommand& outCommand) {
     // Check if this is a teapot model
     bool isTeapot = (m_objFilepath.find("teapot") != std::string::npos);
 
-    // View matrix: camera at (4.0, 2.5, 4.0) looking at (0, 1.5, 0)
-    // 45-degree angle showing front and right side
-    // For teapot: look down 10 more degrees by raising look point to y=2.2
+    // View matrix: camera at (4.0, 2.5, 4.0) looking at object center
+    // For cube: center at y=0 (object centered at origin)
+    // For teapot: center at y=1.575 (object center from teapot geometry)
     vec3 eye = {4.0f, 2.5f, 4.0f};
-    vec3 center = isTeapot ? vec3{0.0f, 2.2f, 0.0f} : vec3{0.0f, 1.5f, 0.0f};
+    vec3 center = isTeapot ? vec3{0.0f, 1.575f, 0.0f} : vec3{0.0f, 0.0f, 0.0f};
     vec3 up = {0.0f, 1.0f, 0.0f};
 
     vec3 f_vec = normalize(center - eye);
