@@ -5,6 +5,7 @@
 // ============================================================================
 
 #include "TestScene.hpp"
+#include "OBJModelScene.hpp"
 #include <cmath>
 #include <cstring>
 #include <glm/glm.hpp>
@@ -742,6 +743,9 @@ void TestSceneRegistry::registerBuiltinScenes() {
     registerScene(createTriangleCubes100Scene());
     registerScene(createTriangleSponzaStyleScene());
     registerScene(createPBRMaterialScene());
+    // OBJ Model scenes
+    registerScene(createOBJModelScene("tests/e2e/models/cube.obj"));
+    registerScene(createOBJModelScene("tests/e2e/models/teapot.obj"));
 }
 
 }  // namespace SoftGPU

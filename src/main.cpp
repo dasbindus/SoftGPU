@@ -39,6 +39,7 @@ extern "C" int gladLoadGLLoader(GLADloadproc load);
 #include "pipeline/ShaderCore.hpp"
 #include "core/PipelineTypes.hpp"
 #include "test/TestScene.hpp"
+#include "test/OBJModelScene.hpp"
 
 // Helper: build identity matrix array
 std::array<float, 16> identityMatrix() {
@@ -70,6 +71,7 @@ struct CmdArgs {
     const char* scene_name = "Triangle-1Tri";  // 默认场景
     const char* texture_file = nullptr;  // PNG 纹理文件路径
     bool use_texture_shader = false;  // 使用纹理采样 shader
+    const char* obj_file = nullptr;  // OBJ 模型文件路径
 };
 
 void printHelp(const char* program) {
@@ -82,6 +84,7 @@ void printHelp(const char* program) {
     printf("  --scene <name>          Scene to render in headless mode (default: Triangle-1Tri)\n");
     printf("  --texture <path>        Load PNG texture from file (for texture sampling scenes)\n");
     printf("  --texture-shader        Use texture sampling shader (TEX instruction)\n");
+    printf("  --obj <path>           Load and render OBJ model file\n");
     printf("  --help, -h              Show this help message\n");
     printf("\nExamples:\n");
     printf("  %s                           # GUI mode\n", program);
@@ -117,6 +120,8 @@ CmdArgs parseArgs(int argc, char* argv[]) {
             args.use_texture_shader = true;
         } else if (strcmp(argv[i], "--vs-cpp") == 0) {
             args.vs_cpp = true;
+        } else if (strcmp(argv[i], "--obj") == 0 && i + 1 < argc) {
+            args.obj_file = argv[++i];
         }
     }
     return args;
@@ -134,7 +139,19 @@ int runHeadless(const CmdArgs& args) {
     TestSceneRegistry::instance().registerBuiltinScenes();
 
     // 获取指定场景
-    auto scene = TestSceneRegistry::instance().getScene(args.scene_name);
+    std::shared_ptr<TestScene> scene;
+    if (args.obj_file) {
+        // 使用 OBJ 文件加载场景
+        scene = createOBJModelScene(args.obj_file);
+        auto objScene = std::dynamic_pointer_cast<OBJModelScene>(scene);
+        if (!objScene || !objScene->isLoaded()) {
+            printf("[ERROR] Failed to load OBJ model: %s\n", args.obj_file);
+            return -1;
+        }
+        printf("[INFO] Loaded OBJ model: %s\n", args.obj_file);
+    } else {
+        scene = TestSceneRegistry::instance().getScene(args.scene_name);
+    }
     if (!scene) {
         printf("[ERROR] Scene not found: %s\n", args.scene_name);
         printf("[INFO] Available scenes:\n");
@@ -257,15 +274,28 @@ int runGUI(const CmdArgs& args) {
     // Step 4: 设置渲染场景
     // ========================================================================
     TestSceneRegistry::instance().registerBuiltinScenes();
-    auto scene = TestSceneRegistry::instance().getScene(sceneName);
-    if (!scene) {
-        fprintf(stderr, "[ERROR] Scene not found: %s\n", sceneName);
-        fprintf(stderr, "[INFO] Available scenes:\n");
-        for (const auto& name : TestSceneRegistry::instance().getAllSceneNames()) {
-            fprintf(stderr, "  - %s\n", name.c_str());
+    std::shared_ptr<TestScene> scene;
+    if (args.obj_file) {
+        // 使用 OBJ 文件加载场景
+        scene = createOBJModelScene(args.obj_file);
+        auto objScene = std::dynamic_pointer_cast<OBJModelScene>(scene);
+        if (!objScene || !objScene->isLoaded()) {
+            fprintf(stderr, "[ERROR] Failed to load OBJ model: %s\n", args.obj_file);
+            glfwTerminate();
+            return -1;
         }
-        glfwTerminate();
-        return -1;
+        printf("[INFO] Loaded OBJ model: %s\n", args.obj_file);
+    } else {
+        scene = TestSceneRegistry::instance().getScene(sceneName);
+        if (!scene) {
+            fprintf(stderr, "[ERROR] Scene not found: %s\n", sceneName);
+            fprintf(stderr, "[INFO] Available scenes:\n");
+            for (const auto& name : TestSceneRegistry::instance().getAllSceneNames()) {
+                fprintf(stderr, "  - %s\n", name.c_str());
+            }
+            glfwTerminate();
+            return -1;
+        }
     }
     printf("[INFO] Scene: %s (%s)\n", scene->getName().c_str(), scene->getDescription().c_str());
 
