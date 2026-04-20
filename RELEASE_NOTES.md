@@ -1,3 +1,44 @@
+# v1.5 (2026-04-20)
+
+## Bug 修复
+
+- fix: VS VIEW Transform 寄存器重叠导致 u.w 计算错误
+- fix: VS vcount_ clearing bug - vbodata_ 被过早清零
+- fix: VS ISA shader 多顶点处理 bug
+
+## 新功能
+
+- feat: OBJ 模型加载 - OBJLoader 解析器支持顶点、面、索引解析
+- feat: Utah Teapot 模型 - 6320 三角形的经典测试模型
+- feat: --obj 命令行选项 - 主程序支持加载 OBJ 模型文件
+- feat: OBJ-Model 场景注册 - cube.obj 和 teapot.obj 已注册到 TestSceneRegistry
+
+## 测试
+
+- test_e2e: 99 tests PASSED (+9 新增 Scene015/016)
+- 新增: scene015_utah_teapot.cpp, scene016_obj_model.cpp
+
+---
+
+# v1.4.2 (2026-04-16)
+
+## Bug 修复
+
+- fix: CALL/RET link register 问题 - ISA 解释器返回地址错误
+- fix: DOT3/DOT4 测试修复
+- fix: VSTORE 双字处理
+
+## 新功能
+
+- feat: ISA v2.5 指令集升级 - 50+ 指令支持
+- feat: 103 ISA golden 测试用例
+
+## 文档
+
+- docs: ISA_DESIGN.md 更新 Known Issues
+
+---
+
 # v1.4.1 (2026-04-07)
 
 ## 改进
