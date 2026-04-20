@@ -61,9 +61,14 @@ void OBJModelScene::buildRenderCommand(RenderCommand& outCommand) {
         0.0f, 0.0f, (2.0f * far * near) / (near - far), 0.0f
     };
 
-    // View matrix: camera at (2, 2, 2) looking at origin - shows 3 faces
-    vec3 eye = {2.0f, 2.0f, 2.0f};
-    vec3 center = {0.0f, 0.0f, 0.0f};
+    // Check if this is a teapot model
+    bool isTeapot = (m_objFilepath.find("teapot") != std::string::npos);
+
+    // View matrix: camera at (4.0, 2.5, 4.0) looking at (0, 1.5, 0)
+    // 45-degree angle showing front and right side
+    // For teapot: look down 10 more degrees by raising look point to y=2.2
+    vec3 eye = {4.0f, 2.5f, 4.0f};
+    vec3 center = isTeapot ? vec3{0.0f, 2.2f, 0.0f} : vec3{0.0f, 1.5f, 0.0f};
     vec3 up = {0.0f, 1.0f, 0.0f};
 
     vec3 f_vec = normalize(center - eye);
@@ -77,13 +82,27 @@ void OBJModelScene::buildRenderCommand(RenderCommand& outCommand) {
         -dot(s, eye), -dot(u, eye), dot(f_vec, eye), 1.0f
     };
 
-    // Model matrix: identity (model centered at origin)
-    outCommand.modelMatrix = {
-        1.0f, 0.0f, 0.0f, 0.0f,
-        0.0f, 1.0f, 0.0f, 0.0f,
-        0.0f, 0.0f, 1.0f, 0.0f,
-        0.0f, 0.0f, 0.0f, 1.0f
-    };
+    // Model matrix
+    // For teapot: rotate 30 degrees CW around Y-axis
+    // For cube: identity (no rotation)
+    if (isTeapot) {
+        float cosA = 0.866f;
+        float sinA = 0.5f;
+        outCommand.modelMatrix = {
+            cosA, 0.0f, -sinA, 0.0f,  // x' = cosA*x - sinA*z
+            0.0f, 1.0f, 0.0f, 0.0f,   // y' = y
+            sinA, 0.0f, cosA, 0.0f,    // z' = sinA*x + cosA*z
+            0.0f, 0.0f, 0.0f, 1.0f
+        };
+    } else {
+        // Identity matrix for cube
+        outCommand.modelMatrix = {
+            1.0f, 0.0f, 0.0f, 0.0f,
+            0.0f, 1.0f, 0.0f, 0.0f,
+            0.0f, 0.0f, 1.0f, 0.0f,
+            0.0f, 0.0f, 0.0f, 1.0f
+        };
+    }
 
     outCommand.clearColor = {0.1f, 0.1f, 0.15f, 1.0f};
 }
