@@ -9,6 +9,8 @@
 #include <cstddef>
 #include <array>
 
+#include "HardwareConfig.hpp"
+
 namespace SoftGPU {
 
 // ============================================================================
@@ -20,11 +22,6 @@ struct DrawParams {
     uint32_t indexCount = 0;        // 索引数（0=无索引）
     uint32_t firstIndex = 0;       // 起始索引偏移
     bool indexed = false;           // 是否使用索引
-
-    // 渲染状态
-    bool depthTestEnabled = true;
-    bool depthWriteEnabled = true;
-    bool cullEnabled = false;      // Phase1 关闭 cull
 };
 
 // ============================================================================
@@ -46,6 +43,9 @@ struct RenderCommand {
 
     // Draw params
     DrawParams drawParams;
+
+    // Hardware configuration registers
+    HardwareConfig hwConfig = HardwareConfig::defaultConfig();
 
     // Clear color
     std::array<float, 4> clearColor = {0.0f, 0.0f, 0.0f, 1.0f};

@@ -113,6 +113,9 @@ void RenderPipeline::executeCommonStages(const RenderCommand& command) {
 
     // Stage 3: PrimitiveAssembly (input is command-dependent, set per-render)
     if (m_profilerEnabled) FrameProfiler::get().beginStage(StageHandle::PrimitiveAssembly);
+    m_primitiveAssembly.setConfig(command.hwConfig);
+    m_primitiveAssembly.setViewport(command.hwConfig.rasterizer.MSAA_Enable ? 640 : 640,
+                                   command.hwConfig.rasterizer.MSAA_Enable ? 480 : 480);
     m_primitiveAssembly.setInput(
         m_vertexShader.getOutput(),
         drawParams.indexed ? ib : std::vector<uint32_t>(),

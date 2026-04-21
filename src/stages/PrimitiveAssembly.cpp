@@ -74,6 +74,13 @@ void PrimitiveAssembly::execute() {
         if (shouldCull(tri)) {
             tri.culled = true;
             culled++;
+            continue;
+        }
+
+        // 背面剔除（仅当启用时）
+        if (m_config.primitiveAssembly.enable && shouldCullBackFace(tri)) {
+            tri.culled = true;
+            culled++;
         }
     }
 
@@ -121,6 +128,31 @@ bool PrimitiveAssembly::shouldCull(const Triangle& tri) const {
     if (maxZ < -1.0f || minZ > 1.0f) return true;
 
     return false;
+}
+
+bool PrimitiveAssembly::shouldCullBackFace(const Triangle& tri) const {
+    // 转换为屏幕坐标
+    float sx0 = (tri.v[0].ndcX + 1.0f) * 0.5f * m_viewportWidth;
+    float sy0 = (1.0f - tri.v[0].ndcY) * 0.5f * m_viewportHeight;
+    float sx1 = (tri.v[1].ndcX + 1.0f) * 0.5f * m_viewportWidth;
+    float sy1 = (1.0f - tri.v[1].ndcY) * 0.5f * m_viewportHeight;
+    float sx2 = (tri.v[2].ndcX + 1.0f) * 0.5f * m_viewportWidth;
+    float sy2 = (1.0f - tri.v[2].ndcY) * 0.5f * m_viewportHeight;
+
+    // 有符号面积法 (edge function)
+    float area = (sx1 - sx0) * (sy2 - sy0) - (sy1 - sy0) * (sx2 - sx0);
+
+    // 根据正面朝向和剔除模式决定是否剔除
+    // m_config.primitiveAssembly.frontFaceCCW: true=CCW为正面
+    // m_config.primitiveAssembly.cullBack: true=剔除背面
+
+    if (m_config.primitiveAssembly.cullBack) {
+        // 剔除背面：CCW (area > 0) 为正面，所以 area < 0 时是背面
+        return area < 0.0f;
+    } else {
+        // 剔除正面：CW (area < 0) 为正面，所以 area > 0 时是正面
+        return area > 0.0f;
+    }
 }
 
 }  // namespace SoftGPU
