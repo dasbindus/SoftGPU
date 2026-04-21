@@ -146,6 +146,12 @@ bool PrimitiveAssembly::shouldCullBackFace(const Triangle& tri) const {
     // m_config.primitiveAssembly.frontFaceCCW: true=CCW为正面
     // m_config.primitiveAssembly.cullBack: true=剔除背面
 
+    // 退化三角形 (面积为 0) 也要剔除
+    constexpr float EPSILON = 1e-6f;
+    if (std::abs(area) < EPSILON) {
+        return true;
+    }
+
     if (m_config.primitiveAssembly.cullBack) {
         // 剔除背面：CCW (area > 0) 为正面，所以 area < 0 时是背面
         return area < 0.0f;

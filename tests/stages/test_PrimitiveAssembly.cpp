@@ -5,6 +5,7 @@
 #include <gtest/gtest.h>
 #include "stages/PrimitiveAssembly.hpp"
 #include "core/PipelineTypes.hpp"
+#include "core/HardwareConfig.hpp"
 
 namespace {
 
@@ -82,6 +83,161 @@ TEST_F(PrimitiveAssemblyTest, Pass_Inside) {
     const auto& output = pa.getOutput();
     ASSERT_EQ(output.size(), 1u);
     EXPECT_FALSE(output[0].culled);
+}
+
+// ---------------------------------------------------------------------------
+// Back-face Culling - CCW Front-face, Cull Back (Default OpenGL-like)
+// ---------------------------------------------------------------------------
+
+TEST_F(PrimitiveAssemblyTest, BackfaceCull_CCWFront_CullBack) {
+    PrimitiveAssembly pa;
+
+    // Config: CCW=front, cull back
+    HardwareConfig config;
+    config.primitiveAssembly.enable = true;
+    config.primitiveAssembly.cullBack = true;
+    config.primitiveAssembly.frontFaceCCW = true;
+    pa.setConfig(config);
+    pa.setViewport(640, 480);
+
+    // CCW triangle in NDC (Y-up). After NDC->screen (Y-down flip),
+    // CCW becomes CW in screen space.
+    // CW in screen = back face with cullBack=true, should be culled.
+    std::vector<Vertex> vertices = {
+        {0.0f, 0.5f, -0.5f, 1.0f, 1,0,0,1, 0.0f, 0.5f, -0.5f},
+        {-0.5f, -0.5f, -0.5f, 1.0f, 0,1,0,1, -0.5f, -0.5f, -0.5f},
+        {0.5f, -0.5f, -0.5f, 1.0f, 0,0,1,1, 0.5f, -0.5f, -0.5f},
+    };
+    std::vector<uint32_t> indices;
+
+    pa.setInput(vertices, indices, false);
+    pa.execute();
+
+    const auto& output = pa.getOutput();
+    EXPECT_EQ(output.size(), 1u);
+    EXPECT_TRUE(output[0].culled);  // NDC CCW -> screen CW -> back -> culled
+}
+
+// ---------------------------------------------------------------------------
+// Back-face Culling - CW Triangle with CCW Front-face
+// ---------------------------------------------------------------------------
+
+TEST_F(PrimitiveAssemblyTest, BackfaceCull_CWTriangle_CullBack) {
+    PrimitiveAssembly pa;
+
+    HardwareConfig config;
+    config.primitiveAssembly.enable = true;
+    config.primitiveAssembly.cullBack = true;
+    config.primitiveAssembly.frontFaceCCW = true;
+    pa.setConfig(config);
+    pa.setViewport(640, 480);
+
+    // CW triangle in NDC (Y-up). After NDC->screen (Y-down flip),
+    // CW becomes CCW in screen space.
+    // CCW in screen = front face with cullBack=true, should NOT be culled.
+    std::vector<Vertex> vertices = {
+        {0.0f, 0.5f, -0.5f, 1.0f, 1,0,0,1, 0.0f, 0.5f, -0.5f},
+        {0.5f, -0.5f, -0.5f, 1.0f, 0,1,0,1, 0.5f, -0.5f, -0.5f},
+        {-0.5f, -0.5f, -0.5f, 1.0f, 0,0,1,1, -0.5f, -0.5f, -0.5f},
+    };
+    std::vector<uint32_t> indices;
+
+    pa.setInput(vertices, indices, false);
+    pa.execute();
+
+    const auto& output = pa.getOutput();
+    EXPECT_EQ(output.size(), 1u);
+    EXPECT_FALSE(output[0].culled);  // NDC CW -> screen CCW -> front -> pass
+}
+
+// ---------------------------------------------------------------------------
+// Back-face Culling - Degenerate Triangle (Zero Area)
+// ---------------------------------------------------------------------------
+
+TEST_F(PrimitiveAssemblyTest, BackfaceCull_DegenerateTriangle) {
+    PrimitiveAssembly pa;
+
+    HardwareConfig config;
+    config.primitiveAssembly.enable = true;
+    config.primitiveAssembly.cullBack = true;
+    config.primitiveAssembly.frontFaceCCW = true;
+    pa.setConfig(config);
+    pa.setViewport(640, 480);
+
+    // Degenerate: all points collinear (area = 0)
+    std::vector<Vertex> vertices = {
+        {0.0f, 0.0f, -0.5f, 1.0f, 1,0,0,1, 0.0f, 0.0f, -0.5f},
+        {0.5f, 0.0f, -0.5f, 1.0f, 0,1,0,1, 0.5f, 0.0f, -0.5f},
+        {1.0f, 0.0f, -0.5f, 1.0f, 0,0,1,1, 1.0f, 0.0f, -0.5f},
+    };
+    std::vector<uint32_t> indices;
+
+    pa.setInput(vertices, indices, false);
+    pa.execute();
+
+    const auto& output = pa.getOutput();
+    EXPECT_EQ(output.size(), 1u);
+    EXPECT_TRUE(output[0].culled);  // area = 0, should be culled
+}
+
+// ---------------------------------------------------------------------------
+// Back-face Culling - Cull Front Mode
+// ---------------------------------------------------------------------------
+
+TEST_F(PrimitiveAssemblyTest, BackfaceCull_CullFront) {
+    PrimitiveAssembly pa;
+
+    HardwareConfig config;
+    config.primitiveAssembly.enable = true;
+    config.primitiveAssembly.cullBack = false;  // cull front instead
+    config.primitiveAssembly.frontFaceCCW = true;
+    pa.setConfig(config);
+    pa.setViewport(640, 480);
+
+    // CW triangle in NDC -> CCW in screen.
+    // With cullFront mode, CCW (front) is culled.
+    std::vector<Vertex> vertices = {
+        {0.0f, 0.5f, -0.5f, 1.0f, 1,0,0,1, 0.0f, 0.5f, -0.5f},
+        {0.5f, -0.5f, -0.5f, 1.0f, 0,1,0,1, 0.5f, -0.5f, -0.5f},
+        {-0.5f, -0.5f, -0.5f, 1.0f, 0,0,1,1, -0.5f, -0.5f, -0.5f},
+    };
+    std::vector<uint32_t> indices;
+
+    pa.setInput(vertices, indices, false);
+    pa.execute();
+
+    const auto& output = pa.getOutput();
+    EXPECT_EQ(output.size(), 1u);
+    EXPECT_TRUE(output[0].culled);  // NDC CW -> screen CCW -> front -> cullFront = culled
+}
+
+// ---------------------------------------------------------------------------
+// Back-face Culling - Disabled Should Not Cull Any
+// ---------------------------------------------------------------------------
+
+TEST_F(PrimitiveAssemblyTest, BackfaceCull_Disabled) {
+    PrimitiveAssembly pa;
+
+    HardwareConfig config;
+    config.primitiveAssembly.enable = false;  // disabled
+    config.primitiveAssembly.cullBack = true;
+    pa.setConfig(config);
+    pa.setViewport(640, 480);
+
+    // CW triangle would normally be culled, but culling is disabled
+    std::vector<Vertex> vertices = {
+        {0.0f, 0.5f, -0.5f, 1.0f, 1,0,0,1, 0.0f, 0.5f, -0.5f},
+        {0.5f, -0.5f, -0.5f, 1.0f, 0,1,0,1, 0.5f, -0.5f, -0.5f},
+        {-0.5f, -0.5f, -0.5f, 1.0f, 0,0,1,1, -0.5f, -0.5f, -0.5f},
+    };
+    std::vector<uint32_t> indices;
+
+    pa.setInput(vertices, indices, false);
+    pa.execute();
+
+    const auto& output = pa.getOutput();
+    EXPECT_EQ(output.size(), 1u);
+    EXPECT_FALSE(output[0].culled);  // culling disabled, should pass
 }
 
 // ---------------------------------------------------------------------------
