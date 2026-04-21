@@ -25,6 +25,8 @@ add_executable(test_e2e
     scene_014_textured_triangle.cpp
     scene_015_textured_teapot.cpp
     scene_016_obj_model.cpp
+    scene_017_triangle_strip.cpp
+    scene_018_primitive_restart.cpp
 )
 target_link_libraries(test_e2e PRIVATE stages pipeline core test ${GTEST_LIBS})
 

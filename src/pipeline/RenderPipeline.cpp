@@ -116,6 +116,9 @@ void RenderPipeline::executeCommonStages(const RenderCommand& command) {
     m_primitiveAssembly.setConfig(command.hwConfig);
     m_primitiveAssembly.setViewport(command.hwConfig.rasterizer.MSAA_Enable ? 640 : 640,
                                    command.hwConfig.rasterizer.MSAA_Enable ? 480 : 480);
+    m_primitiveAssembly.setPrimitiveType(command.drawParams.primitiveType);
+    m_primitiveAssembly.setPrimitiveRestart(command.drawParams.primitiveRestartIndex,
+                                          command.drawParams.primitiveRestartEnabled);
     m_primitiveAssembly.setInput(
         m_vertexShader.getOutput(),
         drawParams.indexed ? ib : std::vector<uint32_t>(),
