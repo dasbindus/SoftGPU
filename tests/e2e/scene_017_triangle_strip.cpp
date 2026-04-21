@@ -65,8 +65,8 @@ TEST_F(E2ETest, Scene017_TriangleStrip_GoldenReference) {
     PPMVerifier verifier(ppmPath);
     ASSERT_TRUE(verifier.isLoaded()) << "PPM file should load: " << ppmPath;
 
-    // Compare with platform-specific golden reference
-    std::string goldenFile = getGoldenPath("scene017_triangle_strip");
+    // Compare with golden reference
+    const char* goldenFile = "tests/e2e/golden/scene017_triangle_strip.ppm";
     bool match = verifier.compareWithGolden(goldenFile, 0.02f);
     EXPECT_TRUE(match) << "Scene017: Triangle Strip should match golden reference";
 #else
