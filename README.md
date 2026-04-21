@@ -281,7 +281,7 @@ CommandProcessor     ▓▓▓░░░░░░░ 50%  [部分实现]
        ↓
 VertexShader        ▓▓▓▓░░░░░░ 40%  [部分实现-ISA模式]
        ↓
-PrimitiveAssembly   ▓▓▓▓▓░░░░░ 60%  [部分实现]
+PrimitiveAssembly   ▓▓▓▓▓▓░░░░ 75%  [部分实现-背面剔除已完成]
        ↓
 TilingStage        ▓▓▓▓▓▓▓▓░░ 90%  [部分实现]
        ↓
@@ -308,12 +308,14 @@ TileWriteBack      ▓▓▓▓▓▓▓░░░ 80%  [部分实现]
 
 | 阶段 | 待实现功能 | 优先级 |
 |------|-----------|--------|
-| PrimitiveAssembly | 背面剔除、完整裁剪 | P0 |
+| PrimitiveAssembly | 完整裁剪（近平面） | P0 |
 | TilingStage | 深度排序 | P1 |
 | Rasterizer | MSAA 2×/4× | P1 |
 | FragmentShader | Bilinear/mipmap 滤波 | P1 |
 | Framebuffer | Stencil、Blend/Alpha | P2 |
 | TileWriteBack | 压缩回写 | P2 |
+
+> ✅ 背面剔除已实现，配置寄存器 HardwareConfig::primitiveAssembly
 
 ### 版本计划
 
