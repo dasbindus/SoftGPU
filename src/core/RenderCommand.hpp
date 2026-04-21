@@ -16,12 +16,22 @@ namespace SoftGPU {
 // ============================================================================
 // DrawParams - 绘制参数
 // ============================================================================
+
+// 图元类型
+enum class PrimitiveType : uint8_t {
+    TRIANGLE_LIST = 0,
+    TRIANGLE_STRIP = 1
+};
+
 struct DrawParams {
     uint32_t vertexCount = 0;      // 顶点数
     uint32_t firstVertex = 0;      // 起始顶点偏移
     uint32_t indexCount = 0;        // 索引数（0=无索引）
     uint32_t firstIndex = 0;       // 起始索引偏移
     bool indexed = false;           // 是否使用索引
+    PrimitiveType primitiveType = PrimitiveType::TRIANGLE_LIST;  // 图元类型
+    uint32_t primitiveRestartIndex = 0xFFFFFFFF;  // Primitive restart 索引
+    bool primitiveRestartEnabled = false;         // 是否启用 primitive restart
 };
 
 // ============================================================================

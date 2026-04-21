@@ -8,6 +8,7 @@
 #include "IStage.hpp"
 #include "core/PipelineTypes.hpp"
 #include "core/HardwareConfig.hpp"
+#include "core/RenderCommand.hpp"
 #include <vector>
 
 namespace SoftGPU {
@@ -43,15 +44,27 @@ public:
         m_viewportHeight = height;
     }
 
+    // 设置图元类型
+    void setPrimitiveType(PrimitiveType type) { m_primitiveType = type; }
+
+    // 设置 primitive restart
+    void setPrimitiveRestart(uint32_t index, bool enabled) {
+        m_primitiveRestartIndex = index;
+        m_primitiveRestartEnabled = enabled;
+    }
+
 private:
     std::vector<Vertex>   m_inputVertices;
     std::vector<uint32_t> m_inputIndices;
     bool                   m_indexed;
     std::vector<Triangle>  m_outputTriangles;
     PerformanceCounters    m_counters;
-    HardwareConfig          m_config;
-    uint32_t                m_viewportWidth = 640;
-    uint32_t                m_viewportHeight = 480;
+    HardwareConfig        m_config;
+    uint32_t              m_viewportWidth = 640;
+    uint32_t              m_viewportHeight = 480;
+    PrimitiveType         m_primitiveType = PrimitiveType::TRIANGLE_LIST;
+    uint32_t              m_primitiveRestartIndex = 0xFFFFFFFF;
+    bool                  m_primitiveRestartEnabled = false;
 
     // 内部：视锥剔除（AABB）
     bool shouldCull(const Triangle& tri) const;
@@ -61,6 +74,17 @@ private:
 
     // 内部：透视除法 + NDC 计算
     void computeNDC(Vertex& v) const;
+
+    // 内部：近平面裁剪 (Sutherland-Hodgman)
+    ClipResult clipAgainstNearPlane(const Triangle& tri) const;
+    Vertex interpolateVertex(const Vertex& v0, const Vertex& v1, float t) const;
+    void triangulateClipResult(const ClipResult& clip, std::vector<Triangle>& output) const;
+
+    // 内部：Triangle Strip 组装
+    void assembleTriangleStrip(const std::vector<Vertex>& vertices, std::vector<Triangle>& output);
+
+    // 内部：处理 primitive restart
+    bool isRestartIndex(uint32_t idx) const;
 };
 
 }  // namespace SoftGPU
