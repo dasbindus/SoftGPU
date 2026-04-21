@@ -83,6 +83,10 @@ private:
     // 内部：透视除法 + NDC 计算
     void computeNDC(Vertex& v) const;
 
+    // 内部：视口变换 - NDC → 屏幕坐标
+    void computeScreenCoordinates(Vertex& v) const;
+    void computeScreenCoordinates(Triangle& tri) const;
+
     // 内部：近平面裁剪 (Sutherland-Hodgman)
     ClipResult clipAgainstNearPlane(const Triangle& tri) const;
     Vertex interpolateVertex(const Vertex& v0, const Vertex& v1, float t) const;

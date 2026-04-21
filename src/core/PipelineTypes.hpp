@@ -31,6 +31,9 @@ struct Vertex {
     // NDC coordinates (computed after perspective divide)
     float ndcX, ndcY, ndcZ;
 
+    // Screen coordinates (computed after viewport transform in PrimitiveAssembly)
+    float screenX, screenY;
+
     // Near-plane culling flag (set by VertexShader if w <= 0)
     bool culled = false;
 };

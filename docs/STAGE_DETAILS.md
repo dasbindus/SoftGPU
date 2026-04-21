@@ -10,7 +10,7 @@
 |------|------|--------|--------|
 | **CommandProcessor** | ⚠️ | VB/IB 复制、uniform 设置 | 预取队列、并行解码 |
 | **VertexShader** | ⚠️ | MVP 变换、**ISA 执行模式** | SIMD 矢量单元 |
-| **PrimitiveAssembly** | ⚠️ | 索引/非索引三角形装配、透视除法、**AABB 视锥剔除**、**背面剔除 (HardwareConfig)**、**近平面裁剪 (Sutherland-Hodgman)**、**Triangle Strip**、**Primitive Restart** | - |
+| **PrimitiveAssembly** | ✅ | 索引/非索引三角形装配、透视除法、**AABB 视锥剔除**、**背面剔除 (HardwareConfig)**、**近平面裁剪 (Sutherland-Hodgman)**、**Triangle Strip**、**Primitive Restart**、**视口变换** | - |
 | **TilingStage** | ⚠️ | 三角形 binning (300 tiles) | **深度排序** |
 | **Rasterizer** | ⚠️ | 边缘函数 DDA、viewport 裁剪 | **MSAA 多样品采样** |
 | **FragmentShader** | ⚠️ | ISA v2.5 解释器、50+ 指令、Warp 调度、PNG 纹理采样（NEAREST） | **Bilinear/mipmap 滤波** |
@@ -35,22 +35,14 @@
 - ⚠️ 待实现: SIMD 矢量单元
 - ⚠️ 说明: 有两种执行模式 CPP (C++ 参考实现) 和 ISA (Interpreter)，Auto 模式自动选择
 
-### PrimitiveAssembly (90%)
+### PrimitiveAssembly (100% ✅)
 
-- ✅ 已实现: 索引/非索引三角形装配、透视除法(clip→NDC)、**AABB 视锥剔除** (PrimitiveAssembly.cpp L165-L183)
-- ✅ 已实现: **背面剔除 (P0)** - 屏幕空间有符号面积法、配置寄存器 HardwareConfig::primitiveAssembly (PrimitiveAssembly.cpp L185-L214)
-- ✅ 已实现: **近平面裁剪 (P0)** - Sutherland-Hodgman 多边形裁剪 (PrimitiveAssembly.cpp L239-L263)
-- ✅ 已实现: **Triangle Strip 支持 (P1)** - setPrimitiveType() (PrimitiveAssembly.cpp L47-L56)
-- ✅ 已实现: **Primitive Restart 支持 (P1)** - setPrimitiveRestart() (PrimitiveAssembly.cpp L58-L62)
-- ❌ 待实现: 无
-
-| 已实现功能 | 优先级 | 说明 |
-|-----------|--------|------|
-| ~~背面剔除~~ | ~~P0~~ | ~~✅ 已实现~~ |
-| ~~完整裁剪（近平面）~~ | ~~P0~~ | ~~✅ 已实现~~ |
-| ~~triangle_strip 支持~~ | ~~P1~~ | ~~✅ 已实现~~ |
-| ~~primitive restart~~ | ~~P1~~ | ~~✅ 已实现~~ |
-| 视口变换（移至 PA）| P2 | 架构优化（可选）|
+- ✅ 已实现: 索引/非索引三角形装配、透视除法(clip→NDC)、**AABB 视锥剔除** (PrimitiveAssembly.cpp L175-L206)
+- ✅ 已实现: **背面剔除 (P0)** - 屏幕空间有符号面积法、配置寄存器 HardwareConfig::primitiveAssembly (PrimitiveAssembly.cpp L208-L241)
+- ✅ 已实现: **近平面裁剪 (P0)** - Sutherland-Hodgman 多边形裁剪 (PrimitiveAssembly.cpp L248-L274)
+- ✅ 已实现: **Triangle Strip 支持 (P1)** - assembleTriangleStrip() (PrimitiveAssembly.cpp L326-L347)
+- ✅ 已实现: **Primitive Restart 支持 (P1)** - 顺序索引处理 (PrimitiveAssembly.cpp L60-L88)
+- ✅ 已实现: **视口变换 (P2)** - NDC→屏幕坐标在 PA 中计算 (PrimitiveAssembly.cpp L175-L183)
 
 ### TilingStage (90%)
 

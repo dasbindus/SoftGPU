@@ -97,14 +97,13 @@ void Rasterizer::rasterizeTriangle(const Triangle& tri) {
 // Private: core rasterization logic for per-tile mode
 void Rasterizer::rasterizeTrianglePerTile(const Triangle& tri,
                                            uint32_t tileX, uint32_t tileY) {
-    // Convert NDC to screen coordinates
-    // Y-axis: NDC Y=-1 (bottom) -> screenY=0, NDC Y=+1 (top) -> screenY=H
-    float sx0 = (tri.v[0].ndcX + 1.0f) * 0.5f * static_cast<float>(m_viewportWidth);
-    float sy0 = (1.0f - tri.v[0].ndcY) * 0.5f * static_cast<float>(m_viewportHeight);
-    float sx1 = (tri.v[1].ndcX + 1.0f) * 0.5f * static_cast<float>(m_viewportWidth);
-    float sy1 = (1.0f - tri.v[1].ndcY) * 0.5f * static_cast<float>(m_viewportHeight);
-    float sx2 = (tri.v[2].ndcX + 1.0f) * 0.5f * static_cast<float>(m_viewportWidth);
-    float sy2 = (1.0f - tri.v[2].ndcY) * 0.5f * static_cast<float>(m_viewportHeight);
+    // Use precomputed screen coordinates from PrimitiveAssembly
+    float sx0 = tri.v[0].screenX;
+    float sy0 = tri.v[0].screenY;
+    float sx1 = tri.v[1].screenX;
+    float sy1 = tri.v[1].screenY;
+    float sx2 = tri.v[2].screenX;
+    float sy2 = tri.v[2].screenY;
 
     // Compute bounding box
     int xmin = static_cast<int>(std::floor(std::min({sx0, sx1, sx2})));
@@ -192,15 +191,13 @@ float Rasterizer::edgeFunction(float px, float py,
 
 void Rasterizer::interpolateAttributes(const Triangle& tri, float baryX, float baryY,
                                        float area, Fragment& frag) const {
-    // Barycentric weights from edge functions
-    // w0 = E(P, V1, V2) / area, etc.
-    // Y-axis: NDC Y=-1 (bottom) -> screenY=0, NDC Y=+1 (top) -> screenY=H
-    float sx0 = (tri.v[0].ndcX + 1.0f) * 0.5f * static_cast<float>(m_viewportWidth);
-    float sy0 = (1.0f - tri.v[0].ndcY) * 0.5f * static_cast<float>(m_viewportHeight);
-    float sx1 = (tri.v[1].ndcX + 1.0f) * 0.5f * static_cast<float>(m_viewportWidth);
-    float sy1 = (1.0f - tri.v[1].ndcY) * 0.5f * static_cast<float>(m_viewportHeight);
-    float sx2 = (tri.v[2].ndcX + 1.0f) * 0.5f * static_cast<float>(m_viewportWidth);
-    float sy2 = (1.0f - tri.v[2].ndcY) * 0.5f * static_cast<float>(m_viewportHeight);
+    // Use precomputed screen coordinates from PrimitiveAssembly
+    float sx0 = tri.v[0].screenX;
+    float sy0 = tri.v[0].screenY;
+    float sx1 = tri.v[1].screenX;
+    float sy1 = tri.v[1].screenY;
+    float sx2 = tri.v[2].screenX;
+    float sy2 = tri.v[2].screenY;
 
     float w0 = edgeFunction(baryX, baryY, sx1, sy1, sx2, sy2) / area;
     float w1 = edgeFunction(baryX, baryY, sx2, sy2, sx0, sy0) / area;

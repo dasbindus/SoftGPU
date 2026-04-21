@@ -281,7 +281,7 @@ CommandProcessor     ▓▓▓░░░░░░░ 50%  [部分实现]
        ↓
 VertexShader        ▓▓▓▓░░░░░░ 40%  [部分实现-ISA模式]
        ↓
-PrimitiveAssembly   ███████░░░ 90%  [部分实现-近平面裁剪/Strip/Restart已完成]
+PrimitiveAssembly   ██████████ 100%  [已完成-裁剪/Strip/Restart/视口变换]
        ↓
 TilingStage        ▓▓▓▓▓▓▓▓░░ 90%  [部分实现]
        ↓
@@ -308,14 +308,14 @@ TileWriteBack      ▓▓▓▓▓▓▓░░░ 80%  [部分实现]
 
 | 阶段 | 待实现功能 | 优先级 |
 |------|-----------|--------|
-| PrimitiveAssembly | ~~完整裁剪（近平面）~~ ~~Triangle Strip~~ ~~Primitive Restart~~ | ~~P0/P1~~ ✅ |
+| PrimitiveAssembly | 全部已完成（近平面裁剪、Triangle Strip、Primitive Restart、视口变换） | ✅ |
 | TilingStage | 深度排序 | P1 |
 | Rasterizer | MSAA 2×/4× | P1 |
 | FragmentShader | Bilinear/mipmap 滤波 | P1 |
 | Framebuffer | Stencil、Blend/Alpha | P2 |
 | TileWriteBack | 压缩回写 | P2 |
 
-> ✅ 近平面裁剪、Triangle Strip、Primitive Restart 已实现
+> ✅ 视口变换已移至 PA（架构优化），PA 所有计划功能已完成
 
 ### 版本计划
 

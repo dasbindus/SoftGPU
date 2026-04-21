@@ -105,6 +105,11 @@ void PrimitiveAssembly::execute() {
         computeNDC(tri.v[1]);
         computeNDC(tri.v[2]);
 
+        // NDC → 屏幕坐标
+        computeScreenCoordinates(tri.v[0]);
+        computeScreenCoordinates(tri.v[1]);
+        computeScreenCoordinates(tri.v[2]);
+
         // 视锥剔除
         if (shouldCull(tri)) {
             tri.culled = true;
@@ -172,6 +177,19 @@ void PrimitiveAssembly::computeNDC(Vertex& v) const {
     }
 }
 
+void PrimitiveAssembly::computeScreenCoordinates(Vertex& v) const {
+    // NDC → Screen: screenX = (ndcX + 1) * 0.5 * width
+    //                screenY = (1 - ndcY) * 0.5 * height
+    v.screenX = (v.ndcX + 1.0f) * 0.5f * static_cast<float>(m_viewportWidth);
+    v.screenY = (1.0f - v.ndcY) * 0.5f * static_cast<float>(m_viewportHeight);
+}
+
+void PrimitiveAssembly::computeScreenCoordinates(Triangle& tri) const {
+    computeScreenCoordinates(tri.v[0]);
+    computeScreenCoordinates(tri.v[1]);
+    computeScreenCoordinates(tri.v[2]);
+}
+
 bool PrimitiveAssembly::shouldCull(const Triangle& tri) const {
     // AABB 视锥剔除
     float minX = std::min({tri.v[0].ndcX, tri.v[1].ndcX, tri.v[2].ndcX});
@@ -193,13 +211,13 @@ bool PrimitiveAssembly::shouldCull(const Triangle& tri) const {
 }
 
 bool PrimitiveAssembly::shouldCullBackFace(const Triangle& tri) const {
-    // 转换为屏幕坐标
-    float sx0 = (tri.v[0].ndcX + 1.0f) * 0.5f * m_viewportWidth;
-    float sy0 = (1.0f - tri.v[0].ndcY) * 0.5f * m_viewportHeight;
-    float sx1 = (tri.v[1].ndcX + 1.0f) * 0.5f * m_viewportWidth;
-    float sy1 = (1.0f - tri.v[1].ndcY) * 0.5f * m_viewportHeight;
-    float sx2 = (tri.v[2].ndcX + 1.0f) * 0.5f * m_viewportWidth;
-    float sy2 = (1.0f - tri.v[2].ndcY) * 0.5f * m_viewportHeight;
+    // Use precomputed screen coordinates
+    float sx0 = tri.v[0].screenX;
+    float sy0 = tri.v[0].screenY;
+    float sx1 = tri.v[1].screenX;
+    float sy1 = tri.v[1].screenY;
+    float sx2 = tri.v[2].screenX;
+    float sy2 = tri.v[2].screenY;
 
     // 有符号面积法 (edge function)
     float area = (sx1 - sx0) * (sy2 - sy0) - (sy1 - sy0) * (sx2 - sx0);
@@ -270,6 +288,9 @@ Vertex PrimitiveAssembly::interpolateVertex(const Vertex& v0, const Vertex& v1, 
     result.b = v0.b + t * (v1.b - v0.b);
     result.a = v0.a + t * (v1.a - v0.a);
     result.culled = false;
+    // Compute screen coordinates
+    result.screenX = (result.ndcX + 1.0f) * 0.5f * static_cast<float>(m_viewportWidth);
+    result.screenY = (1.0f - result.ndcY) * 0.5f * static_cast<float>(m_viewportHeight);
     return result;
 }
 
