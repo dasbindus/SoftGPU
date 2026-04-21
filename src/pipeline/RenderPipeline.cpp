@@ -119,6 +119,8 @@ void RenderPipeline::executeCommonStages(const RenderCommand& command) {
     m_primitiveAssembly.setPrimitiveType(command.drawParams.primitiveType);
     m_primitiveAssembly.setPrimitiveRestart(command.drawParams.primitiveRestartIndex,
                                           command.drawParams.primitiveRestartEnabled);
+    m_primitiveAssembly.setIndexCount(drawParams.indexCount);
+    m_primitiveAssembly.setVertexCount(drawParams.vertexCount);
     m_primitiveAssembly.setInput(
         m_vertexShader.getOutput(),
         drawParams.indexed ? ib : std::vector<uint32_t>(),

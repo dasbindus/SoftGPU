@@ -49,38 +49,42 @@ void PrimitiveAssembly::execute() {
     // 索引绘制
     else {
         // 索引绘制：使用索引缓冲
-        size_t triCount = m_inputIndices.size() / 3;
-        size_t vertexStart = 0;
+        // 使用 m_indexCount 来限制处理的索引数量
+        size_t actualIndexCount = (m_indexCount > 0) ? m_indexCount : m_inputIndices.size();
 
-        for (size_t i = 0; i < triCount; ++i) {
-            // 检查 primitive restart
-            if (m_primitiveRestartEnabled && i > 0) {
-                uint32_t i0 = m_inputIndices[i * 3 + 0];
-                uint32_t i1 = m_inputIndices[i * 3 + 1];
-                uint32_t i2 = m_inputIndices[i * 3 + 2];
-                if (isRestartIndex(i0) || isRestartIndex(i1) || isRestartIndex(i2)) {
-                    vertexStart = m_inputVertices.size();  // 重置，开始新序列
-                    continue;
-                }
+        // 逐个读取索引，构建三角形
+        // 累积 3 个索引组成一个三角形，遇到 restart index 则重置
+        uint32_t indices[3] = {0, 0, 0};
+        int idxCount = 0;
+
+        for (size_t i = 0; i < actualIndexCount; ++i) {
+            uint32_t idx = m_inputIndices[i];
+
+            // 检查是否是 restart index
+            if (m_primitiveRestartEnabled && isRestartIndex(idx)) {
+                // 重置，开始新序列
+                idxCount = 0;
+                continue;
             }
 
             // 检查索引是否有效
-            uint32_t idx0 = m_inputIndices[i * 3 + 0];
-            uint32_t idx1 = m_inputIndices[i * 3 + 1];
-            uint32_t idx2 = m_inputIndices[i * 3 + 2];
-
-            if (idx0 >= m_inputVertices.size() || idx1 >= m_inputVertices.size() || idx2 >= m_inputVertices.size()) {
-                continue;  // 跳过无效索引
+            if (idx >= m_inputVertices.size()) {
+                idxCount = 0;  // 重置
+                continue;
             }
 
-            Triangle tri;
-            tri.v[0] = m_inputVertices[idx0];
-            tri.v[1] = m_inputVertices[idx1];
-            tri.v[2] = m_inputVertices[idx2];
+            indices[idxCount++] = idx;
 
-            // 检查顶点是否被 VertexShader 标记为 culled（near-plane 剔除）
-            tri.culled = tri.v[0].culled || tri.v[1].culled || tri.v[2].culled;
-            m_outputTriangles.push_back(tri);
+            if (idxCount == 3) {
+                // 组成完整三角形
+                Triangle tri;
+                tri.v[0] = m_inputVertices[indices[0]];
+                tri.v[1] = m_inputVertices[indices[1]];
+                tri.v[2] = m_inputVertices[indices[2]];
+                tri.culled = tri.v[0].culled || tri.v[1].culled || tri.v[2].culled;
+                m_outputTriangles.push_back(tri);
+                idxCount = 0;  // 重置，准备下一个三角形
+            }
         }
     }
 

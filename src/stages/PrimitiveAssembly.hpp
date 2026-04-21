@@ -53,6 +53,12 @@ public:
         m_primitiveRestartEnabled = enabled;
     }
 
+    // 设置索引数量（用于 indexed 绘制模式）
+    void setIndexCount(uint32_t count) { m_indexCount = count; }
+
+    // 设置顶点数（用于 triangle strip 模式）
+    void setVertexCount(uint32_t count) { m_vertexCount = count; }
+
 private:
     std::vector<Vertex>   m_inputVertices;
     std::vector<uint32_t> m_inputIndices;
@@ -65,6 +71,8 @@ private:
     PrimitiveType         m_primitiveType = PrimitiveType::TRIANGLE_LIST;
     uint32_t              m_primitiveRestartIndex = 0xFFFFFFFF;
     bool                  m_primitiveRestartEnabled = false;
+    uint32_t              m_indexCount = 0;     // 索引数量
+    uint32_t              m_vertexCount = 0;    // 顶点数量
 
     // 内部：视锥剔除（AABB）
     bool shouldCull(const Triangle& tri) const;
