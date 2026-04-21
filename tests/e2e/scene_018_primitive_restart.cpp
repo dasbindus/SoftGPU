@@ -78,9 +78,9 @@ TEST_F(E2ETest, Scene018_PrimitiveRestart_GoldenReference) {
     PPMVerifier verifier(ppmPath);
     ASSERT_TRUE(verifier.isLoaded()) << "PPM file should load: " << ppmPath;
 
-    // Compare with golden reference
-    const char* goldenFile = "tests/e2e/golden/scene018_primitive_restart.ppm";
-    bool match = verifier.compareWithGolden(goldenFile, 0.85f);
+    // Compare with platform-specific golden reference
+    std::string goldenFile = getGoldenPath("scene018_primitive_restart");
+    bool match = verifier.compareWithGolden(goldenFile, 0.02f);
     EXPECT_TRUE(match) << "Scene018: Primitive Restart should match golden reference";
 }
 
